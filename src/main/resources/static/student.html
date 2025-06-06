@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智教SmartEdu - 学生端</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="logo">
+            <i class="fas fa-graduation-cap"></i>
+            <span>智教 SmartEdu</span>
+        </div>
+        
+        <div class="user-controls">
+            <div class="notifications">
+                <i class="fas fa-bell"></i>
+                <span class="notification-count">2</span>
+            </div>
+            <div class="user-profile">
+                <span class="user-name">李同学</span>
+                <i class="fas fa-caret-down"></i>
+            </div>
+            <button id="logout-btn" class="btn btn-danger" style="margin-left:16px;">退出</button>
+        </div>
+    </header>
+
+    <!-- 左侧菜单栏 -->
+    <nav class="sidebar" id="sidebar">
+        <div class="menu-title">学生端</div>
+        
+        <div class="menu-item active" data-section="student-dashboard">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>学习控制面板</span>
+        </div>
+        
+        <div class="menu-item" data-section="student-helper">
+            <i class="fas fa-robot"></i>
+            <span>在线学习助手</span>
+        </div>
+        
+        <div class="menu-item" data-section="practice-eval">
+            <i class="fas fa-stopwatch"></i>
+            <span>实时练习评测</span>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 -->
+    <main class="content" id="main-content">
+        <section id="student-dashboard" class="main-section">
+            <div class="content-header">
+                <h1 class="page-title">学习控制面板</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> 刷新数据
+                    </button>
+                    <button class="btn btn-accent">
+                        <i class="fas fa-book-open"></i> 开始学习
+                    </button>
+                </div>
+            </div>
+            
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">已选课程</div>
+                        <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
+                            <i class="fas fa-book" style="color: var(--primary-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">8</div>
+                    <div class="stat-change">
+                        <i class="fas fa-arrow-up"></i> 2门新增
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">学习进度</div>
+                        <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
+                            <i class="fas fa-chart-line" style="color: var(--success-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">73%</div>
+                    <div class="stat-change">
+                        <i class="fas fa-arrow-up"></i> 5% 本周
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">待完成作业</div>
+                        <div class="stat-icon" style="background-color: rgba(231, 76, 60, 0.1);">
+                            <i class="fas fa-clipboard-list" style="color: var(--danger-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">5</div>
+                    <div class="stat-change down">
+                        <i class="fas fa-arrow-down"></i> 3份已完成
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">平均成绩</div>
+                        <div class="stat-icon" style="background-color: rgba(26, 188, 156, 0.1);">
+                            <i class="fas fa-trophy" style="color: var(--accent-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">85分</div>
+                    <div class="stat-change">
+                        <i class="fas fa-arrow-up"></i> 3分提升
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 最近学习模块独立成行 -->
+            <div class="recent-courses-card">
+                <div class="card-header">
+                    <i class="fas fa-clock"></i> 最近学习
+                    <div class="card-actions">
+                        <button class="btn btn-sm btn-accent">
+                            <i class="fas fa-eye"></i> 查看全部
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>课程名称</th>
+                                <th>学习进度</th>
+                                <th>最近学习</th>
+                                <th>作业状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-calculator" style="color: var(--primary-color);"></i>
+                                        <span>高等数学A</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-high" style="width: 85%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">85%</span>
+                                </td>
+                                <td>2小时前</td>
+                                <td><span class="status-badge status-completed">已完成</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">继续学习</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-code" style="color: var(--accent-color);"></i>
+                                        <span>数据结构与算法</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-medium" style="width: 60%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">60%</span>
+                                </td>
+                                <td>昨天 16:30</td>
+                                <td><span class="status-badge status-ongoing">进行中</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">继续学习</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-brain" style="color: var(--warning-color);"></i>
+                                        <span>机器学习导论</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-low" style="width: 25%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">25%</span>
+                                </td>
+                                <td>3天前</td>
+                                <td><span class="status-badge status-not-started">待开始</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">开始学习</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-language" style="color: var(--success-color);"></i>
+                                        <span>英语写作技巧</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-high" style="width: 92%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">92%</span>
+                                </td>
+                                <td>1周前</td>
+                                <td><span class="status-badge status-completed">已完成</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">复习</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-database" style="color: var(--danger-color);"></i>
+                                        <span>数据库系统概论</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-medium" style="width: 45%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">45%</span>
+                                </td>
+                                <td>5天前</td>
+                                <td><span class="status-badge status-ongoing">进行中</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">继续学习</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- 学习成绩分析模块独立成行 -->
+            <div class="knowledge-mastery-card">
+                <div class="card-header">
+                    <i class="fas fa-chart-bar"></i> 各科成绩分析
+                    <div class="card-actions">
+                        <select class="form-select" style="margin-right: 10px;">
+                            <option>本学期</option>
+                            <option>上学期</option>
+                            <option>全部</option>
+                        </select>
+                        <button class="btn btn-sm btn-accent">
+                            <i class="fas fa-download"></i> 导出
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-legend">
+                        <div><div class="legend-color high"></div> 优秀 (90-100分)</div>
+                        <div><div class="legend-color medium"></div> 良好 (80-89分)</div>
+                        <div><div class="legend-color low"></div> 待提升 (<80分)</div>
+                    </div>
+                    <div class="chart-bars">
+                        <div class="bar-container">
+                            <div class="bar high" style="height: 85%;"></div>
+                            <div class="bar-value">85</div>
+                            <div class="bar-label">高等数学</div>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar medium" style="height: 78%;"></div>
+                            <div class="bar-value">78</div>
+                            <div class="bar-label">数据结构</div>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar low" style="height: 72%;"></div>
+                            <div class="bar-value">72</div>
+                            <div class="bar-label">机器学习</div>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar high" style="height: 92%;"></div>
+                            <div class="bar-value">92</div>
+                            <div class="bar-label">英语写作</div>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar medium" style="height: 81%;"></div>
+                            <div class="bar-value">81</div>
+                            <div class="bar-label">数据库</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 最新通知和我的待办的网格布局 -->
+            <div class="main-content">
+                <div class="content-column">
+                    <div class="content-card">
+                        <div class="card-header">
+                            <i class="fas fa-bell"></i> 最新通知
+                            <div class="card-actions">
+                                <button class="btn btn-sm btn-accent">
+                                    <i class="fas fa-eye"></i> 查看全部
+                                </button>
+                            </div>
+                        </div>
+                        <ul class="recent-activity">
+                            <li class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">期中考试时间调整通知</div>
+                                    <div class="activity-desc">《高等数学》期中考试时间调整至11月22日上午9:00</div>
+                                    <div class="activity-time">1小时前</div>
+                                </div>
+                            </li>
+                            <li class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-file-alt"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">作业提交提醒</div>
+                                    <div class="activity-desc">《数据结构》第三次作业将于明天24:00截止提交</div>
+                                    <div class="activity-time">3小时前</div>
+                                </div>
+                            </li>
+                            <li class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-book"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">课程资料更新</div>
+                                    <div class="activity-desc">《机器学习导论》新增练习题和案例分析</div>
+                                    <div class="activity-time">昨天 14:30</div>
+                                </div>
+                            </li>
+                            <li class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-trophy"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">成绩已发布</div>
+                                    <div class="activity-desc">《英语写作技巧》期中测验成绩已公布，你的成绩：92分</div>
+                                    <div class="activity-time">2天前</div>
+                                </div>
+                            </li>
+                            <li class="activity-item">
+                                <div class="activity-icon">
+                                    <i class="fas fa-calendar"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">课程表变更</div>
+                                    <div class="activity-desc">下周三《数据库系统》课程改为线上授课</div>
+                                    <div class="activity-time">3天前</div>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="content-column">
+                    <div class="content-card">
+                        <div class="card-header">
+                            <i class="fas fa-tasks"></i> 我的待办
+                            <div class="card-actions">
+                                <button class="btn btn-sm btn-primary">
+                                    <i class="fas fa-check"></i> 全部完成
+                                </button>
+                            </div>
+                        </div>
+                        <ul class="recent-activity">
+                            <li class="activity-item">
+                                <div class="activity-icon" style="background-color: rgba(231, 76, 60, 0.1); color: var(--danger-color);">
+                                    <i class="fas fa-clipboard-list"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">数据结构第三次作业</div>
+                                    <div class="activity-time">截止：明天 23:59</div>
+                                </div>
+                                <div class="activity-action">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </div>
+                            </li>
+                            <li class="activity-item">
+                                <div class="activity-icon" style="background-color: rgba(243, 156, 18, 0.1); color: var(--warning-color);">
+                                    <i class="fas fa-book-open"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">复习高等数学第5章</div>
+                                    <div class="activity-time">截止：11月22日</div>
+                                </div>
+                                <div class="activity-action">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </div>
+                            </li>
+                            <li class="activity-item">
+                                <div class="activity-icon" style="background-color: rgba(52, 152, 219, 0.1); color: var(--primary-color);">
+                                    <i class="fas fa-video"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">观看机器学习视频课程</div>
+                                    <div class="activity-time">截止：本周日</div>
+                                </div>
+                                <div class="activity-action">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </div>
+                            </li>
+                            <li class="activity-item">
+                                <div class="activity-icon" style="background-color: rgba(26, 188, 156, 0.1); color: var(--accent-color);">
+                                    <i class="fas fa-edit"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">完成英语作文练习</div>
+                                    <div class="activity-time">截止：下周一</div>
+                                </div>
+                                <div class="activity-action">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="student-helper" class="main-section hidden-section">
+            <div class="content-header"><h1 class="page-title">在线学习助手</h1></div>
+            <div style="padding:2em;">这里是在线学习助手页面内容示例。</div>
+        </section>
+        
+        <section id="practice-eval" class="main-section hidden-section">
+            <div class="content-header"><h1 class="page-title">实时练习评测</h1></div>
+            <div style="padding:2em;">这里是实时练习评测页面内容示例。</div>
+        </section>
+        
+        <div class="content-footer">
+            <p>© 2023 智教SmartEdu - 教学实训智能体软件 | 基于DeepSeek大模型</p>
+        </div>
+    </main>
+
+    <!-- 退出确认弹窗 -->
+    <div id="logout-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.2);align-items:center;justify-content:center;z-index:999;">
+        <div style="background:#fff;padding:32px 24px;border-radius:12px;box-shadow:0 4px 24px rgba(44,62,80,0.10);min-width:320px;display:flex;flex-direction:column;gap:20px;align-items:center;">
+            <div style="font-size:18px;color:var(--secondary-color);font-weight:500;">确定要退出登录吗？</div>
+            <div style="display:flex;gap:16px;">
+                <button id="confirm-logout" class="btn btn-primary">确定</button>
+                <button id="cancel-logout" class="btn btn-accent">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="student.js"></script>
+</body>
+</html> 

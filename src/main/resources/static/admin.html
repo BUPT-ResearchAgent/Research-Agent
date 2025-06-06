@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智教SmartEdu - 管理端</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="logo">
+            <i class="fas fa-graduation-cap"></i>
+            <span>智教 SmartEdu</span>
+        </div>
+        
+        <div class="user-controls">
+            <div class="notifications">
+                <i class="fas fa-bell"></i>
+                <span class="notification-count">1</span>
+            </div>
+            <div class="user-profile">
+                <span class="user-name">系统管理员</span>
+                <i class="fas fa-caret-down"></i>
+            </div>
+            <button id="logout-btn" class="btn btn-danger" style="margin-left:16px;">退出</button>
+        </div>
+    </header>
+
+    <!-- 左侧菜单栏 -->
+    <nav class="sidebar" id="sidebar">
+        <div class="menu-title">管理端</div>
+        
+        <div class="menu-item active" data-section="user-manage">
+            <i class="fas fa-user-cog"></i>
+            <span>用户管理</span>
+        </div>
+        
+        <div class="menu-item" data-section="resource-manage">
+            <i class="fas fa-archive"></i>
+            <span>课件资源管理</span>
+        </div>
+        
+        <div class="menu-item" data-section="screen-overview">
+            <i class="fas fa-desktop"></i>
+            <span>大屏概览</span>
+        </div>
+    </nav>
+
+    <!-- 主要内容区域 -->
+    <main class="content" id="main-content">
+        <section id="user-manage" class="main-section">
+            <div class="content-header">
+                <h1 class="page-title">用户管理</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> 刷新数据
+                    </button>
+                    <button class="btn btn-accent">
+                        <i class="fas fa-user-plus"></i> 添加用户
+                    </button>
+                </div>
+            </div>
+            
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">总用户数</div>
+                        <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
+                            <i class="fas fa-users" style="color: var(--primary-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">2,856</div>
+                    <div class="stat-change">
+                        <i class="fas fa-arrow-up"></i> 48人 本周
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">活跃用户</div>
+                        <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
+                            <i class="fas fa-chart-line" style="color: var(--success-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">1,923</div>
+                    <div class="stat-change">
+                        <i class="fas fa-arrow-up"></i> 67.3% 活跃率
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">教师用户</div>
+                        <div class="stat-icon" style="background-color: rgba(231, 76, 60, 0.1);">
+                            <i class="fas fa-chalkboard-teacher" style="color: var(--danger-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">156</div>
+                    <div class="stat-change">
+                        <i class="fas fa-arrow-up"></i> 5人 本月
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">学生用户</div>
+                        <div class="stat-icon" style="background-color: rgba(26, 188, 156, 0.1);">
+                            <i class="fas fa-user-graduate" style="color: var(--accent-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value">2,695</div>
+                    <div class="stat-change">
+                        <i class="fas fa-arrow-up"></i> 43人 本周
+                    </div>
+                </div>
+            </div>
+
+            <div style="padding:2em;">
+                <h3>用户管理功能正在开发中...</h3>
+                <p>这里将包含用户列表、权限管理、批量操作等功能。</p>
+            </div>
+        </section>
+        
+        <section id="resource-manage" class="main-section hidden-section">
+            <div class="content-header">
+                <h1 class="page-title">课件资源管理</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> 刷新数据
+                    </button>
+                    <button class="btn btn-accent">
+                        <i class="fas fa-upload"></i> 上传资源
+                    </button>
+                </div>
+            </div>
+            <div style="padding:2em;">
+                <h3>课件资源管理功能正在开发中...</h3>
+                <p>这里将包含课件上传、分类管理、存储统计等功能。</p>
+            </div>
+        </section>
+        
+        <section id="screen-overview" class="main-section hidden-section">
+            <div class="content-header">
+                <h1 class="page-title">大屏概览</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> 刷新数据
+                    </button>
+                    <button class="btn btn-accent">
+                        <i class="fas fa-expand"></i> 全屏显示
+                    </button>
+                </div>
+            </div>
+            <div style="padding:2em;">
+                <h3>大屏概览功能正在开发中...</h3>
+                <p>这里将包含系统整体数据可视化、实时监控面板等功能。</p>
+            </div>
+        </section>
+        
+        <div class="content-footer">
+            <p>© 2023 智教SmartEdu - 教学实训智能体软件 | 基于DeepSeek大模型</p>
+        </div>
+    </main>
+
+    <!-- 退出确认弹窗 -->
+    <div id="logout-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.2);align-items:center;justify-content:center;z-index:999;">
+        <div style="background:#fff;padding:32px 24px;border-radius:12px;box-shadow:0 4px 24px rgba(44,62,80,0.10);min-width:320px;display:flex;flex-direction:column;gap:20px;align-items:center;">
+            <div style="font-size:18px;color:var(--secondary-color);font-weight:500;">确定要退出登录吗？</div>
+            <div style="display:flex;gap:16px;">
+                <button id="confirm-logout" class="btn btn-primary">确定</button>
+                <button id="cancel-logout" class="btn btn-accent">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html> 

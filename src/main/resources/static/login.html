@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智教SmartEdu - 统一身份认证</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        .background-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+        }
+        
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .top-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 40px 60px;
+            color: white;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .logo-text h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .logo-text p {
+            font-size: 20px;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+        
+        .back-home-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .back-home-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .center-section {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 20px 60px;
+            margin-top: -40px;
+        }
+        
+        .login-box {
+            width: 100%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 48px 40px;
+            box-shadow: 
+                0 20px 25px -5px rgba(0, 0, 0, 0.1),
+                0 10px 10px -5px rgba(0, 0, 0, 0.04),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        }
+        
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .form-group {
+            position: relative;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 16px;
+            font-size: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #ffffff;
+            color: #1f2937;
+            font-weight: 400;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .form-input::placeholder {
+            color: #9ca3af;
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 16px;
+            font-size: 16px;
+            background: #ffffff;
+            cursor: pointer;
+            color: #1f2937;
+            font-weight: 400;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .form-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-top: 8px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .login-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
+        }
+        
+        .login-btn:hover::before {
+            left: 100%;
+        }
+        
+        .login-links {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 24px;
+            font-size: 14px;
+        }
+        
+        .login-links a {
+            color: #6b7280;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+        
+        .login-links a:hover {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+            transform: translateY(-1px);
+        }
+        
+        .footer-info {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        /* 注册弹窗样式 */
+        .register-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        
+        .register-form {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 
+                0 20px 25px -5px rgba(0, 0, 0, 0.1),
+                0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            min-width: 360px;
+            max-width: 400px;
+        }
+        
+        .register-form h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #1f2937;
+            font-weight: 600;
+        }
+        
+        .register-form .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .register-form .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .register-form .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .register-form .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .register-form .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .register-form .btn-secondary {
+            background: #f3f4f6;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .register-form .btn-secondary:hover {
+            background: #e5e7eb;
+            color: #374151;
+            transform: translateY(-1px);
+        }
+        
+                    @media (max-width: 768px) {
+                .top-section {
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 20px;
+                    padding: 20px;
+                }
+                
+                .center-section {
+                    margin-top: -20px;
+                    padding: 10px 20px 40px;
+                }
+                
+                .login-box {
+                    max-width: 100%;
+                    padding: 30px 20px;
+                    margin: 0 10px;
+                }
+                
+                .logo-text h1 {
+                    font-size: 24px;
+                }
+                
+                .logo-text p {
+                    font-size: 16px;
+                }
+                
+                .back-home-btn {
+                    align-self: stretch;
+                    justify-content: center;
+                }
+                
+                .footer-info {
+                    bottom: 5px;
+                    font-size: 11px;
+                }
+            }
+    </style>
+</head>
+<body>
+    <div class="background-overlay"></div>
+    
+    <div class="login-container">
+        <!-- 顶部Logo区域 -->
+        <div class="top-section">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>智教SmartEdu</h1>
+                    <p>统一身份认证</p>
+                </div>
+            </div>
+            
+            <button id="back-home-btn" class="back-home-btn">
+                <i class="fas fa-home"></i>
+                返回主页
+            </button>
+        </div>
+        
+        <!-- 居中登录区域 -->
+        <div class="center-section">
+            <div class="login-box">
+                <form id="login-form" class="login-form">
+                    <div class="form-group">
+                        <input type="text" id="login-username" class="form-input" placeholder="请输入账号" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <input type="password" id="login-password" class="form-input" placeholder="请输入密码" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <select id="login-role" class="form-select" required>
+                            <option value="">请选择登录类型</option>
+                            <option value="teacher">教师端</option>
+                            <option value="student">学生端</option>
+                            <option value="admin">管理端</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="login-btn">账号登录</button>
+                </form>
+                
+                <div class="login-links">
+                    <a href="#" id="show-register">立即注册</a>
+                    <a href="#" id="show-reset">重置密码</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 底部信息 -->
+    <div class="footer-info">
+        版权所有 © 智教SmartEdu &nbsp;&nbsp; 地址: 智慧教学云平台 &nbsp;&nbsp; 邮编: 100000<br>
+        京ICP备00000000号 &nbsp;&nbsp; 京公网安备00000000000号
+    </div>
+    
+    <!-- 注册弹窗 -->
+    <div id="register-modal" class="register-modal">
+        <form id="register-form" class="register-form">
+            <h2>注册新用户</h2>
+            
+            <div class="form-group">
+                <input type="text" id="register-username" class="form-input" placeholder="请输入账号" required>
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="register-password" class="form-input" placeholder="请输入密码" required>
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="register-confirm-password" class="form-input" placeholder="再次确认密码" required>
+            </div>
+            
+            <div class="form-group">
+                <select id="register-role" class="form-select" required>
+                    <option value="">请选择注册类型</option>
+                    <option value="teacher">教师端</option>
+                    <option value="student">学生端</option>
+                </select>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">注册</button>
+                <button type="button" id="cancel-register" class="btn btn-secondary">取消</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 重置密码弹窗 -->
+    <div id="reset-modal" class="register-modal">
+        <form id="reset-form" class="register-form">
+            <h2>重置密码</h2>
+            
+            <div class="form-group">
+                <input type="text" id="reset-username" class="form-input" placeholder="请输入原账号" required>
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="reset-old-password" class="form-input" placeholder="请输入原密码" required>
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="reset-new-password" class="form-input" placeholder="请输入新密码" required>
+            </div>
+            
+            <div class="form-group">
+                <input type="password" id="reset-confirm-password" class="form-input" placeholder="再次确认新密码" required>
+            </div>
+            
+            <div class="form-group">
+                <select id="reset-role" class="form-select" required>
+                    <option value="">请选择账号类型</option>
+                    <option value="teacher">教师端</option>
+                    <option value="student">学生端</option>
+                </select>
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">重置密码</button>
+                <button type="button" id="cancel-reset" class="btn btn-secondary">取消</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html> 

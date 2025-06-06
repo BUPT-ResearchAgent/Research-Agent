@@ -335,9 +335,9 @@ function renderSidebar(role) {
     let html = '';
     if (role === 'teacher') {
         html += `<div class="menu-title">教师端</div>
-        <div class="menu-item active" data-section="dashboard"><i class="fas fa-gauge-high"></i><span>控制面板</span></div>
+        <div class="menu-item active" data-section="dashboard"><i class="fas fa-gauge-high"></i><span>教学控制面板</span></div>
         <div class="menu-item" data-section="lesson-design"><i class="fas fa-lightbulb"></i><span>备课与设计</span><i class="fas fa-chevron-down arrow"></i></div>
-        <div class="submenu expanded">
+        <div class="submenu">
             <div class="submenu-item" data-section="upload-material"><i class="fas fa-upload"></i> 上传课程资料</div>
             <div class="submenu-item" data-section="outline"><i class="fas fa-sitemap"></i> 生成教学大纲</div>
             <div class="submenu-item" data-section="publish-notice"><i class="fas fa-bullhorn"></i> 发布通知</div>
@@ -356,7 +356,8 @@ function renderSidebar(role) {
         </div>`;
     } else if (role === 'student') {
         html += `<div class="menu-title">学生端</div>
-        <div class="menu-item active" data-section="student-helper"><i class="fas fa-robot"></i><span>在线学习助手</span></div>
+        <div class="menu-item active" data-section="student-dashboard"><i class="fas fa-tachometer-alt"></i><span>学习控制面板</span></div>
+        <div class="menu-item" data-section="student-helper"><i class="fas fa-robot"></i><span>在线学习助手</span></div>
         <div class="menu-item" data-section="practice-eval"><i class="fas fa-stopwatch"></i><span>实时练习评测</span></div>`;
     } else if (role === 'admin') {
         html += `<div class="menu-title">管理端</div>
@@ -368,13 +369,13 @@ function renderSidebar(role) {
 }
 
 function showMainSectionByRole(role) {
-    // 教师端默认显示dashboard，学生端student-helper，管理端user-manage
+    // 教师端默认显示dashboard，学生端student-dashboard，管理端user-manage
     if (role === 'teacher') {
         document.querySelectorAll('.main-section').forEach(sec => sec.classList.add('hidden-section'));
         document.getElementById('dashboard').classList.remove('hidden-section');
     } else if (role === 'student') {
         document.querySelectorAll('.main-section').forEach(sec => sec.classList.add('hidden-section'));
-        document.getElementById('student-helper').classList.remove('hidden-section');
+        document.getElementById('student-dashboard').classList.remove('hidden-section');
     } else if (role === 'admin') {
         document.querySelectorAll('.main-section').forEach(sec => sec.classList.add('hidden-section'));
         document.getElementById('user-manage').classList.remove('hidden-section');

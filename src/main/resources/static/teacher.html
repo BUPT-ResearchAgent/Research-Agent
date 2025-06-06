@@ -3,41 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智教SmartEdu - 教学实训智能体</title>
-    <!-- 字体美化与渐变背景已在 style.css 中设置，确保引用顺序如下 -->
+    <title>智教SmartEdu - 教师端</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 登录界面 -->
-    <section id="login-section" class="main-section" style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
-        <form id="login-form" style="background:#fff;padding:40px 32px;border-radius:16px;box-shadow:0 4px 24px rgba(44,62,80,0.10);min-width:320px;display:flex;flex-direction:column;gap:24px;">
-            <h2 style="text-align:center;color:var(--secondary-color);font-weight:700;">登录 SmartEdu</h2>
-            <div class="login-input-group"><i class="fas fa-user"></i><input type="text" id="login-username" placeholder="账号" required></div>
-            <div class="login-input-group"><i class="fas fa-lock"></i><input type="password" id="login-password" placeholder="密码" required></div>
-            <div class="login-input-group"><i class="fas fa-user-tag"></i><select id="login-role" required><option value="teacher">教师端</option><option value="student">学生端</option><option value="admin">管理端</option></select></div>
-            <button type="submit" class="btn btn-primary" style="font-size:18px;">登录</button>
-            <button type="button" id="show-register" class="btn btn-accent" style="font-size:16px;">注册</button>
-        </form>
-        <!-- 注册弹窗 -->
-        <div id="register-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.2);align-items:center;justify-content:center;z-index:999;">
-            <form id="register-form" style="background:#fff;padding:32px 24px;border-radius:12px;box-shadow:0 4px 24px rgba(44,62,80,0.10);min-width:320px;display:flex;flex-direction:column;gap:20px;">
-                <h2 style="text-align:center;color:var(--secondary-color);font-weight:700;">注册新用户</h2>
-                <input type="text" id="register-username" placeholder="账号" required style="padding:12px 16px;border-radius:8px;border:1px solid #ddd;font-size:16px;">
-                <input type="password" id="register-password" placeholder="密码" required style="padding:12px 16px;border-radius:8px;border:1px solid #ddd;font-size:16px;">
-                <select id="register-role" required style="padding:12px 16px;border-radius:8px;border:1px solid #ddd;font-size:16px;">
-                    <option value="teacher">教师端</option>
-                    <option value="student">学生端</option>
-                    <option value="admin">管理端</option>
-                </select>
-                <div style="display:flex;gap:12px;justify-content:center;">
-                    <button type="submit" class="btn btn-primary" style="font-size:16px;">注册</button>
-                    <button type="button" id="cancel-register" class="btn btn-accent" style="font-size:16px;">取消</button>
-                </div>
-            </form>
-        </div>
-    </section>
     <!-- 顶部导航栏 -->
     <header class="header">
         <div class="logo">
@@ -51,11 +22,10 @@
                 <span class="notification-count">3</span>
             </div>
             <div class="user-profile">
-                
                 <span class="user-name">张教授</span>
                 <i class="fas fa-caret-down"></i>
             </div>
-            <button id="logout-btn" class="btn btn-danger" style="display:none;margin-left:16px;">退出</button>
+            <button id="logout-btn" class="btn btn-danger" style="margin-left:16px;">退出</button>
         </div>
     </header>
 
@@ -65,7 +35,7 @@
         
         <div class="menu-item active" data-section="dashboard">
             <i class="fas fa-gauge-high"></i>
-            <span>控制面板</span>
+            <span>教学控制面板</span>
         </div>
         
         <div class="menu-item" data-section="lesson-design">
@@ -73,7 +43,7 @@
             <span>备课与设计</span>
             <i class="fas fa-chevron-down arrow"></i>
         </div>
-        <div class="submenu expanded">
+        <div class="submenu">
             <div class="submenu-item" data-section="upload-material"><i class="fas fa-upload"></i> 上传课程资料</div>
             <div class="submenu-item active" data-section="outline"><i class="fas fa-sitemap"></i> 生成教学大纲</div>
             <div class="submenu-item" data-section="publish-notice"><i class="fas fa-bullhorn"></i> 发布通知</div>
@@ -99,30 +69,6 @@
             <div class="submenu-item" data-section="grade-mark"><i class="fas fa-marker"></i> 成绩批改</div>
             <div class="submenu-item" data-section="grade-analysis"><i class="fas fa-chart-bar"></i> 成绩分析</div>
             <div class="submenu-item" data-section="improve-suggest"><i class="fas fa-lightbulb"></i> 教学改进建议</div>
-        </div>
-        
-        <div class="menu-title">学生端</div>
-        <div class="menu-item" data-section="student-helper">
-            <i class="fas fa-robot"></i>
-            <span>在线学习助手</span>
-        </div>
-        <div class="menu-item" data-section="practice-eval">
-            <i class="fas fa-stopwatch"></i>
-            <span>实时练习评测</span>
-        </div>
-        
-        <div class="menu-title">管理端</div>
-        <div class="menu-item" data-section="user-manage">
-            <i class="fas fa-user-cog"></i>
-            <span>用户管理</span>
-        </div>
-        <div class="menu-item" data-section="resource-manage">
-            <i class="fas fa-archive"></i>
-            <span>课件资源管理</span>
-        </div>
-        <div class="menu-item" data-section="screen-overview">
-            <i class="fas fa-desktop"></i>
-            <span>大屏概览</span>
         </div>
     </nav>
 
@@ -195,148 +141,187 @@
                 </div>
             </div>
             
-            <div class="main-content">
-                <div class="content-column">
-                    <div class="content-card">
-                        <div class="card-header">
-                            <i class="fas fa-book"></i> 最近课程
-                        </div>
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>课程名称</th>
-                                        <th>班级</th>
-                                        <th>完成率</th>
-                                        <th>状态</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>高等数学 - 微分方程</td>
-                                        <td>数学2023级1班</td>
-                                        <td>
-                                            <div class="progress-bar">
-                                                <div class="progress-fill progress-high" style="width: 92%"></div>
-                                            </div>
-                                            <div>92%</div>
-                                        </td>
-                                        <td><span class="status-badge status-completed">已完成</span></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">
-                                                <i class="fas fa-eye"></i> 查看
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>数据结构与算法</td>
-                                        <td>计算机2023级2班</td>
-                                        <td>
-                                            <div class="progress-bar">
-                                                <div class="progress-fill progress-medium" style="width: 65%"></div>
-                                            </div>
-                                            <div>65%</div>
-                                        </td>
-                                        <td><span class="status-badge status-ongoing">进行中</span></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">
-                                                <i class="fas fa-edit"></i> 编辑
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>机器学习导论</td>
-                                        <td>人工智能2023级1班</td>
-                                        <td>
-                                            <div class="progress-bar">
-                                                <div class="progress-fill progress-low" style="width: 42%"></div>
-                                            </div>
-                                            <div>42%</div>
-                                        </td>
-                                        <td><span class="status-badge status-not-started">未开始</span></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">
-                                                <i class="fas fa-play"></i> 开始
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td>英语写作技巧</td>
-                                        <td>外语2023级3班</td>
-                                        <td>
-                                            <div class="progress-bar">
-                                                <div class="progress-fill progress-high" style="width: 87%"></div>
-                                            </div>
-                                            <div>87%</div>
-                                        </td>
-                                        <td><span class="status-badge status-completed">已完成</span></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary">
-                                                <i class="fas fa-eye"></i> 查看
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+            <!-- 最近课程模块独立成行 -->
+            <div class="recent-courses-card">
+                <div class="card-header">
+                    <i class="fas fa-clock"></i> 最近课程
+                    <div class="card-actions">
+                        <button class="btn btn-sm btn-accent">
+                            <i class="fas fa-eye"></i> 查看全部
+                        </button>
                     </div>
-                    
-                    <div class="content-card">
-                        <div class="card-header">
-                            <i class="fas fa-chart-bar"></i> 知识点掌握情况
-                            <div class="card-actions">
-                                <select class="form-select">
-                                    <option>最近一周</option>
-                                    <option>最近一月</option>
-                                    <option>本学期</option>
-                                </select>
-                            </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>课程名称</th>
+                                <th>学生数量</th>
+                                <th>最后更新</th>
+                                <th>完成率</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-calculator" style="color: var(--primary-color);"></i>
+                                        <span>高等数学A</span>
+                                    </div>
+                                </td>
+                                <td>156人</td>
+                                <td>2小时前</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-high" style="width: 85%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">85%</span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">管理</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-code" style="color: var(--accent-color);"></i>
+                                        <span>数据结构与算法</span>
+                                    </div>
+                                </td>
+                                <td>124人</td>
+                                <td>昨天 16:30</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-medium" style="width: 68%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">68%</span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">管理</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-brain" style="color: var(--warning-color);"></i>
+                                        <span>机器学习导论</span>
+                                    </div>
+                                </td>
+                                <td>89人</td>
+                                <td>3天前</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-low" style="width: 45%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">45%</span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">管理</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-language" style="color: var(--success-color);"></i>
+                                        <span>英语写作技巧</span>
+                                    </div>
+                                </td>
+                                <td>78人</td>
+                                <td>1周前</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-high" style="width: 92%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">92%</span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">管理</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-database" style="color: var(--danger-color);"></i>
+                                        <span>数据库系统概论</span>
+                                    </div>
+                                </td>
+                                <td>102人</td>
+                                <td>5天前</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill progress-medium" style="width: 73%;"></div>
+                                    </div>
+                                    <span style="font-size: 12px; color: #7f8c8d;">73%</span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary">管理</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- 知识点掌握情况模块独立成行 -->
+            <div class="knowledge-mastery-card">
+                <div class="card-header">
+                    <i class="fas fa-chart-bar"></i> 知识点掌握情况
+                    <div class="card-actions">
+                        <select class="form-select" style="margin-right: 10px;">
+                            <option>高等数学</option>
+                            <option>数据结构与算法</option>
+                            <option>机器学习导论</option>
+                            <option>英语写作技巧</option>
+                        </select>
+                        <select class="form-select" style="margin-right: 10px;">
+                            <option>本周</option>
+                            <option>本月</option>
+                            <option>本学期</option>
+                        </select>
+                        <button class="btn btn-sm btn-accent">
+                            <i class="fas fa-download"></i> 导出
+                        </button>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-legend">
+                        <div><div class="legend-color high"></div> 优秀掌握 (>80%学生)</div>
+                        <div><div class="legend-color medium"></div> 良好掌握 (60-80%学生)</div>
+                        <div><div class="legend-color low"></div> 需要强化 (<60%学生)</div>
+                    </div>
+                    <div class="chart-bars">
+                        <div class="bar-container">
+                            <div class="bar high" style="height: 85%;"></div>
+                            <div class="bar-value">85%</div>
+                            <div class="bar-label">函数与极限</div>
                         </div>
-                        <div class="chart-container">
-                            <div class="chart-placeholder">
-                                <div class="chart-legend">
-                                    <div><span class="legend-color high"></span>掌握良好(>80%)</div>
-                                    <div><span class="legend-color medium"></span>掌握一般(60%-80%)</div>
-                                    <div><span class="legend-color low"></span>掌握不足(<60%)</div>
-                                </div>
-                                <div class="chart-bars">
-                                    <div class="bar-container">
-                                        <div class="bar high" style="height: 85%">
-                                            <div class="bar-value">85%</div>
-                                        </div>
-                                        <div class="bar-label">函数与极限</div>
-                                    </div>
-                                    <div class="bar-container">
-                                        <div class="bar high" style="height: 78%">
-                                            <div class="bar-value">78%</div>
-                                        </div>
-                                        <div class="bar-label">导数与微分</div>
-                                    </div>
-                                    <div class="bar-container">
-                                        <div class="bar medium" style="height: 65%">
-                                            <div class="bar-value">65%</div>
-                                        </div>
-                                        <div class="bar-label">中值定理</div>
-                                    </div>
-                                    <div class="bar-container">
-                                        <div class="bar low" style="height: 52%">
-                                            <div class="bar-value">52%</div>
-                                        </div>
-                                        <div class="bar-label">不定积分</div>
-                                    </div>
-                                    <div class="bar-container">
-                                        <div class="bar low" style="height: 45%">
-                                            <div class="bar-value">45%</div>
-                                        </div>
-                                        <div class="bar-label">定积分</div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="bar-container">
+                            <div class="bar medium" style="height: 68%;"></div>
+                            <div class="bar-value">68%</div>
+                            <div class="bar-label">导数应用</div>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar low" style="height: 45%;"></div>
+                            <div class="bar-value">45%</div>
+                            <div class="bar-label">积分计算</div>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar high" style="height: 92%;"></div>
+                            <div class="bar-value">92%</div>
+                            <div class="bar-label">基础概念</div>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar medium" style="height: 73%;"></div>
+                            <div class="bar-value">73%</div>
+                            <div class="bar-label">应用题</div>
                         </div>
                     </div>
                 </div>
-                
+            </div>
+            
+            <!-- 最新通知和待办事项的网格布局 -->
+            <div class="main-content">
                 <div class="content-column">
                     <div class="content-card">
                         <div class="card-header">
@@ -400,7 +385,9 @@
                             </li>
                         </ul>
                     </div>
-                    
+                </div>
+                
+                <div class="content-column">
                     <div class="content-card">
                         <div class="card-header">
                             <i class="fas fa-tasks"></i> 待办事项
@@ -464,80 +451,72 @@
                 </div>
             </div>
         </section>
+        
         <section id="lesson-design" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">备课与设计</h1></div>
             <div style="padding:2em;">这里是备课与设计页面内容示例。</div>
         </section>
+        
         <section id="upload-material" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">上传课程资料</h1></div>
             <div style="padding:2em;">这里是上传课程资料页面内容示例。</div>
         </section>
+        
         <section id="outline" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">生成教学大纲</h1></div>
             <div style="padding:2em;">这里是生成教学大纲页面内容示例。</div>
         </section>
+        
         <section id="publish-notice" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">发布通知</h1></div>
             <div style="padding:2em;">这里是发布通知页面内容示例。</div>
         </section>
+        
         <section id="exam-gen" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">考核内容生成</h1></div>
             <div style="padding:2em;">这里是考核内容生成页面内容示例。</div>
         </section>
+        
         <section id="gen-test" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">生成测评</h1></div>
             <div style="padding:2em;">这里是生成测评页面内容示例。</div>
         </section>
+        
         <section id="test-manage" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">测评管理</h1></div>
             <div style="padding:2em;">这里是测评管理页面内容示例。</div>
         </section>
+        
         <section id="answer-manage" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">答案管理</h1></div>
             <div style="padding:2em;">这里是答案管理页面内容示例。</div>
         </section>
+        
         <section id="analysis" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">学情数据分析</h1></div>
             <div style="padding:2em;">这里是学情数据分析页面内容示例。</div>
         </section>
+        
         <section id="grade-mark" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">成绩批改</h1></div>
             <div style="padding:2em;">这里是成绩批改页面内容示例。</div>
         </section>
+        
         <section id="grade-analysis" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">成绩分析</h1></div>
             <div style="padding:2em;">这里是成绩分析页面内容示例。</div>
         </section>
+        
         <section id="improve-suggest" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">教学改进建议</h1></div>
             <div style="padding:2em;">这里是教学改进建议页面内容示例。</div>
         </section>
-        <section id="student-helper" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">在线学习助手</h1></div>
-            <div style="padding:2em;">这里是在线学习助手页面内容示例。</div>
-        </section>
-        <section id="practice-eval" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">实时练习评测</h1></div>
-            <div style="padding:2em;">这里是实时练习评测页面内容示例。</div>
-        </section>
-        <section id="user-manage" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">用户管理</h1></div>
-            <div style="padding:2em;">这里是用户管理页面内容示例。</div>
-        </section>
-        <section id="resource-manage" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">课件资源管理</h1></div>
-            <div style="padding:2em;">这里是课件资源管理页面内容示例。</div>
-        </section>
-        <section id="screen-overview" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">大屏概览</h1></div>
-            <div style="padding:2em;">这里是大屏概览页面内容示例。</div>
-        </section>
+        
         <div class="content-footer">
             <p>© 2023 智教SmartEdu - 教学实训智能体软件 | 基于DeepSeek大模型</p>
         </div>
     </main>
 
-    <script src="script.js"></script>
     <!-- 退出确认弹窗 -->
     <div id="logout-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.2);align-items:center;justify-content:center;z-index:999;">
         <div style="background:#fff;padding:32px 24px;border-radius:12px;box-shadow:0 4px 24px rgba(44,62,80,0.10);min-width:320px;display:flex;flex-direction:column;gap:20px;align-items:center;">
@@ -548,5 +527,7 @@
             </div>
         </div>
     </div>
+
+    <script src="teacher.js"></script>
 </body>
-</html>
+</html> 
