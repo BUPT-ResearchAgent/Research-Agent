@@ -55,10 +55,10 @@
             <div class="content-header">
                 <h1 class="page-title">用户管理</h1>
                 <div class="header-actions">
-                    <button class="btn btn-primary">
+                    <button id="refresh-data" class="btn btn-primary">
                         <i class="fas fa-sync-alt"></i> 刷新数据
                     </button>
-                    <button class="btn btn-accent">
+                    <button id="add-user" class="btn btn-accent">
                         <i class="fas fa-user-plus"></i> 添加用户
                     </button>
                 </div>
@@ -118,9 +118,76 @@
                 </div>
             </div>
 
-            <div style="padding:2em;">
-                <h3>用户管理功能正在开发中...</h3>
-                <p>这里将包含用户列表、权限管理、批量操作等功能。</p>
+            <!-- 用户管理工具栏 -->
+            <div class="user-toolbar">
+                <div class="search-filters">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="user-search" placeholder="搜索用户名...">
+                    </div>
+                    <select id="role-filter" class="filter-select">
+                        <option value="">全部角色</option>
+                        <option value="teacher">教师</option>
+                        <option value="student">学生</option>
+                        <option value="admin">管理员</option>
+                    </select>
+                    <select id="status-filter" class="filter-select">
+                        <option value="">全部状态</option>
+                        <option value="active">活跃</option>
+                        <option value="inactive">非活跃</option>
+                    </select>
+                </div>
+                <div class="batch-operations">
+                    <button id="batch-delete" class="btn btn-danger" disabled>
+                        <i class="fas fa-trash"></i> 批量删除
+                    </button>
+                    <button id="batch-role" class="btn btn-warning" disabled>
+                        <i class="fas fa-user-tag"></i> 批量修改角色
+                    </button>
+                    <button id="export-users" class="btn btn-secondary">
+                        <i class="fas fa-download"></i> 导出数据
+                    </button>
+                </div>
+            </div>
+
+            <!-- 用户列表表格 -->
+            <div class="table-container">
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>
+                                <input type="checkbox" id="select-all">
+                            </th>
+                            <th>用户名</th>
+                            <th>角色</th>
+                            <th>注册时间</th>
+                            <th>最后登录</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-table-body">
+                        <!-- 用户数据将由JavaScript动态填充 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分页控件 -->
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    显示第 <span id="page-start">1</span> - <span id="page-end">10</span> 条，共 <span id="total-users">0</span> 条记录
+                </div>
+                <div class="pagination-controls">
+                    <button id="prev-page" class="btn btn-secondary" disabled>
+                        <i class="fas fa-chevron-left"></i> 上一页
+                    </button>
+                    <span class="page-numbers" id="page-numbers">
+                        <!-- 页码将由JavaScript动态生成 -->
+                    </span>
+                    <button id="next-page" class="btn btn-secondary">
+                        下一页 <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
             </div>
         </section>
         
@@ -164,6 +231,122 @@
             <p>© 2023 智教SmartEdu - 教学实训智能体软件 | 基于DeepSeek大模型</p>
         </div>
     </main>
+
+    <!-- 用户编辑弹窗 -->
+    <div id="user-edit-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="edit-modal-title">编辑用户</h3>
+                <button class="modal-close" id="close-edit-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="user-edit-form">
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" id="edit-username" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>角色</label>
+                        <select id="edit-role">
+                            <option value="teacher">教师</option>
+                            <option value="student">学生</option>
+                            <option value="admin">管理员</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>状态</label>
+                        <select id="edit-status">
+                            <option value="active">活跃</option>
+                            <option value="inactive">非活跃</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>重置密码</label>
+                        <input type="password" id="edit-password" placeholder="留空则不修改密码">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="save-user" class="btn btn-primary">保存</button>
+                <button type="button" id="cancel-edit" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量角色修改弹窗 -->
+    <div id="batch-role-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>批量修改角色</h3>
+                <button class="modal-close" id="close-batch-role-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>将为 <span id="selected-count">0</span> 个用户修改角色</p>
+                <div class="form-group">
+                    <label>新角色</label>
+                    <select id="batch-new-role">
+                        <option value="teacher">教师</option>
+                        <option value="student">学生</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="confirm-batch-role" class="btn btn-warning">确认修改</button>
+                <button type="button" id="cancel-batch-role" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加用户弹窗 -->
+    <div id="add-user-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>添加新用户</h3>
+                <button class="modal-close" id="close-add-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="add-user-form">
+                    <div class="form-group">
+                        <label>用户名 *</label>
+                        <input type="text" id="add-username" placeholder="输入用户名" required>
+                    </div>
+                    <div class="form-group">
+                        <label>密码 *</label>
+                        <input type="password" id="add-password" placeholder="输入密码（至少6位）" required>
+                    </div>
+                    <div class="form-group">
+                        <label>确认密码 *</label>
+                        <input type="password" id="add-confirm-password" placeholder="再次输入密码" required>
+                    </div>
+                    <div class="form-group">
+                        <label>角色 *</label>
+                        <select id="add-role" required>
+                            <option value="">请选择角色</option>
+                            <option value="teacher">教师</option>
+                            <option value="student">学生</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>状态</label>
+                        <select id="add-status">
+                            <option value="active">活跃</option>
+                            <option value="inactive">非活跃</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="save-new-user" class="btn btn-primary">添加用户</button>
+                <button type="button" id="cancel-add" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
 
     <!-- 退出确认弹窗 -->
     <div id="logout-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.2);align-items:center;justify-content:center;z-index:999;">
