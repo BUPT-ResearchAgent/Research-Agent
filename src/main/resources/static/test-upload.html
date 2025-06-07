@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试文件上传</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+        button { padding: 10px 20px; margin: 10px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>文件上传测试</h1>
+    
+    <div class="section">
+        <h2>1. 获取课程列表</h2>
+        <button onclick="loadCourses()">加载课程</button>
+        <div id="courses-result"></div>
+    </div>
+    
+    <div class="section">
+        <h2>2. 上传文件</h2>
+        <form id="upload-form">
+            <div>
+                <label>选择课程：</label>
+                <select id="course-select" required>
+                    <option value="">请先加载课程</option>
+                </select>
+            </div>
+            <div>
+                <label>文件类型：</label>
+                <select id="material-type">
+                    <option value="PPT">PPT</option>
+                    <option value="PDF">PDF</option>
+                    <option value="WORD">Word文档</option>
+                    <option value="TXT">文本文件</option>
+                    <option value="OTHER">其他</option>
+                </select>
+            </div>
+            <div>
+                <label>描述：</label>
+                <input type="text" id="description" placeholder="可选">
+            </div>
+            <div>
+                <label>选择文件：</label>
+                <input type="file" id="file-input" required>
+            </div>
+            <button type="submit">上传文件</button>
+        </form>
+        <div id="upload-result"></div>
+    </div>
+    
+    <div class="section">
+        <h2>3. 查看已上传资料</h2>
+        <button onclick="loadMaterials()">刷新资料列表</button>
+        <div id="materials-result"></div>
+        <table id="materials-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>文件名</th>
+                    <th>类型</th>
+                    <th>课程</th>
+                    <th>上传时间</th>
+                    <th>文件大小</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api/teacher';
+        
+        // 加载课程列表
+        async function loadCourses() {
+            try {
+                const response = await fetch(`${API_BASE}/courses`);
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('courses-result');
+                const courseSelect = document.getElementById('course-select');
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `<div class="success">成功加载 ${result.data.length} 个课程</div>`;
+                    
+                    courseSelect.innerHTML = '<option value="">请选择课程</option>';
+                    result.data.forEach(course => {
+                        const option = document.createElement('option');
+                        option.value = course.id;
+                        option.textContent = `${course.name}（${course.courseCode}）`;
+                        courseSelect.appendChild(option);
+                    });
+                } else {
+                    resultDiv.innerHTML = `<div class="error">加载失败：${result.message}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('courses-result').innerHTML = `<div class="error">请求失败：${error.message}</div>`;
+            }
+        }
+        
+        // 上传文件
+        document.getElementById('upload-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const courseId = document.getElementById('course-select').value;
+            const materialType = document.getElementById('material-type').value;
+            const description = document.getElementById('description').value;
+            const fileInput = document.getElementById('file-input');
+            
+            if (!courseId || !fileInput.files[0]) {
+                document.getElementById('upload-result').innerHTML = '<div class="error">请选择课程和文件</div>';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('courseId', courseId);
+            formData.append('materialType', materialType);
+            formData.append('description', description);
+            formData.append('file', fileInput.files[0]);
+            
+            try {
+                const response = await fetch(`${API_BASE}/materials/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById('upload-result');
+                
+                if (result.success) {
+                    resultDiv.innerHTML = '<div class="success">上传成功！</div>';
+                    document.getElementById('upload-form').reset();
+                    loadMaterials(); // 自动刷新资料列表
+                } else {
+                    resultDiv.innerHTML = `<div class="error">上传失败：${result.message}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('upload-result').innerHTML = `<div class="error">上传失败：${error.message}</div>`;
+            }
+        });
+        
+        // 加载资料列表
+        async function loadMaterials() {
+            try {
+                const response = await fetch(`${API_BASE}/materials`);
+                const result = await response.json();
+                
+                const resultDiv = document.getElementById('materials-result');
+                const table = document.getElementById('materials-table');
+                const tbody = table.querySelector('tbody');
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `<div class="success">成功加载 ${result.data.length} 个资料</div>`;
+                    
+                    tbody.innerHTML = '';
+                    if (result.data.length > 0) {
+                        table.style.display = 'table';
+                        result.data.forEach(material => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${material.originalName || material.filename}</td>
+                                <td>${material.materialType || 'OTHER'}</td>
+                                <td>${material.course ? material.course.name : '未知课程'}</td>
+                                <td>${new Date(material.uploadedAt).toLocaleString()}</td>
+                                <td>${formatFileSize(material.fileSize || 0)}</td>
+                                <td>
+                                    <button onclick="downloadMaterial(${material.id})">下载</button>
+                                </td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    } else {
+                        table.style.display = 'none';
+                    }
+                } else {
+                    resultDiv.innerHTML = `<div class="error">加载失败：${result.message}</div>`;
+                    table.style.display = 'none';
+                }
+            } catch (error) {
+                document.getElementById('materials-result').innerHTML = `<div class="error">请求失败：${error.message}</div>`;
+            }
+        }
+        
+        // 下载文件
+        function downloadMaterial(materialId) {
+            window.open(`${API_BASE}/materials/${materialId}/download`, '_blank');
+        }
+        
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // 页面加载时自动加载课程和资料
+        window.addEventListener('load', function() {
+            loadCourses();
+            loadMaterials();
+        });
+    </script>
+</body>
+</html> 

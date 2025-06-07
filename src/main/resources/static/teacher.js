@@ -1,185 +1,3307 @@
+
+
+// SmartEdu教师端交互逻辑
+let currentCourses = [];
+let currentExams = [];
+let currentMaterials = [];
+let currentNotices = [];
+
+// 页面初始化
 document.addEventListener('DOMContentLoaded', function() {
-    // 检查登录状态
-    const currentUser = JSON.parse(localStorage.getItem('smartedu_current_user') || 'null');
-    if (!currentUser || currentUser.role !== 'teacher') {
-        window.location.href = 'login.html';
-        return;
+    initializeTeacherPage();
+    setupEventListeners();
+});
+
+// 初始化教师页面
+async function initializeTeacherPage() {
+    try {
+        // 加载基础数据
+        await loadCurrentUser();
+        
+        // 设置默认显示的页面，这会自动加载控制面板数据
+        showSection('dashboard');
+        
+        // 设置默认活动菜单项
+        const defaultMenuItem = document.querySelector('.menu-item[data-section="dashboard"]');
+        if (defaultMenuItem) {
+            updateActiveMenu(defaultMenuItem);
+        }
+        
+        console.log('教师端页面初始化完成');
+    } catch (error) {
+        console.error('页面初始化失败:', error);
+        showNotification('页面加载失败，请刷新重试', 'error');
     }
+}
 
-    // 设置用户名
-    document.querySelector('.user-name').textContent = currentUser.username;
-
-    // 菜单展开/折叠功能
+// 设置事件监听器
+function setupEventListeners() {
+    // 先移除已有的事件监听器，防止重复绑定
     document.querySelectorAll('.menu-item').forEach(item => {
-        if(item.querySelector('.arrow')) {
-            item.addEventListener('click', function() {
+        // 克隆节点来移除所有事件监听器
+        const newItem = item.cloneNode(true);
+        item.parentNode.replaceChild(newItem, item);
+    });
+    
+    // 侧边栏一级菜单点击处理
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            
                 const submenu = this.nextElementSibling;
-                const chevron = this.querySelector('.arrow');
+            const arrow = this.querySelector('.arrow');
+            
+            // 如果有子菜单，则只处理展开/收起逻辑，不跳转页面
+            if (submenu && submenu.classList.contains('submenu')) {
+                // 切换子菜单显示状态
+                const isOpen = submenu.style.display === 'block';
                 
-                // 关闭其他展开的菜单
-                document.querySelectorAll('.submenu.expanded').forEach(expanded => {
-                    if(expanded !== submenu) {
-                        expanded.classList.remove('expanded');
-                        const otherChevron = expanded.previousElementSibling.querySelector('.arrow');
-                        otherChevron.classList.remove('fa-chevron-up');
-                        otherChevron.classList.add('fa-chevron-down');
-                    }
+                // 关闭所有其他子菜单
+                document.querySelectorAll('.submenu').forEach(sub => {
+                    sub.style.display = 'none';
+                });
+                document.querySelectorAll('.menu-item .arrow').forEach(arr => {
+                    arr.style.transform = 'rotate(0deg)';
                 });
                 
-                if(submenu.classList.contains('expanded')) {
-                    submenu.classList.remove('expanded');
-                    chevron.classList.remove('fa-chevron-up');
-                    chevron.classList.add('fa-chevron-down');
+                // 切换当前子菜单
+                if (!isOpen) {
+                    submenu.style.display = 'block';
+                    if (arrow) arrow.style.transform = 'rotate(180deg)';
                 } else {
-                    submenu.classList.add('expanded');
-                    chevron.classList.remove('fa-chevron-down');
-                    chevron.classList.add('fa-chevron-up');
+                    submenu.style.display = 'none';
+                    if (arrow) arrow.style.transform = 'rotate(0deg)';
                 }
-            });
         } else {
-            item.addEventListener('click', function() {
-                // 移除所有活动状态
-                document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-                document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
-                
-                // 添加当前活动状态
-                this.classList.add('active');
-            });
+                // 如果没有子菜单，则跳转页面（如dashboard）
+                const section = this.getAttribute('data-section');
+                if (section) {
+                    showSection(section);
+                    updateActiveMenu(this);
+                }
+            }
+        });
+    });
+
+    // 侧边栏二级菜单点击 - 跳转内容
+    document.querySelectorAll('.submenu-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const section = this.getAttribute('data-section');
+            if (section) {
+                showSection(section);
+                updateActiveMenu(this);
+            }
+        });
+    });
+
+    // 退出登录模态框
+    document.getElementById('confirm-logout').addEventListener('click', confirmLogout);
+    document.getElementById('cancel-logout').addEventListener('click', cancelLogout);
+
+    // 文件上传区域拖放
+    setupFileUpload();
+    
+    // 难度滑块变化
+    setupDifficultySliders();
+    
+    // 新建课程模态框事件
+    setupCreateCourseModal();
+    
+    // 修改密码模态框事件
+    setupChangePasswordModal();
+    
+    // 上传资料模态框事件
+    setupUploadModal();
+}
+
+// 设置新建课程模态框事件
+function setupCreateCourseModal() {
+    const modal = document.getElementById('create-course-modal');
+    const closeBtn = document.getElementById('close-course-modal');
+    const cancelBtn = document.getElementById('cancel-course-create');
+    const form = document.getElementById('create-course-form');
+    
+    // 移除旧的事件监听器，防止重复绑定
+    closeBtn.removeEventListener('click', hideCreateCourseModal);
+    cancelBtn.removeEventListener('click', hideCreateCourseModal);
+    
+    // 关闭模态框
+    closeBtn.addEventListener('click', hideCreateCourseModal);
+    cancelBtn.addEventListener('click', hideCreateCourseModal);
+    
+    // 点击模态框外部关闭
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            hideCreateCourseModal();
         }
     });
     
-    // 子菜单项点击
-    document.querySelectorAll('.submenu-item').forEach(item => {
-        item.addEventListener('click', function() {
-            // 移除所有活动状态
-            document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
-            document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
-            
-            // 添加当前活动状态
-            this.classList.add('active');
-            
-            // 确保父菜单项也是激活状态
-            const parentMenuItem = this.closest('.submenu').previousElementSibling;
-            if(parentMenuItem) {
-                parentMenuItem.classList.add('active');
-            }
-        });
-    });
+    // 移除旧的表单提交事件，防止重复绑定
+    form.removeEventListener('submit', handleCreateCourse);
+    // 表单提交
+    form.addEventListener('submit', handleCreateCourse);
+}
 
-    // 内容切换功能
+// 显示新建课程模态框
+function showCreateCourseModal(isEditMode = false) {
+    const modal = document.getElementById('create-course-modal');
+    modal.classList.add('show');
+    modal.style.display = 'flex';
+    
+    // 只有在非编辑模式下才重置模态框状态和清空表单
+    if (!isEditMode) {
+        // 重置模态框状态
+        resetCreateCourseModal();
+        
+        // 清空表单
+        document.getElementById('create-course-form').reset();
+    }
+    
+    // 聚焦到第一个输入框
+    setTimeout(() => {
+        const firstInput = document.getElementById('course-name');
+        if (firstInput) {
+            firstInput.focus();
+        }
+    }, 300);
+}
+
+// 隐藏新建课程模态框
+function hideCreateCourseModal() {
+    const modal = document.getElementById('create-course-modal');
+    modal.classList.remove('show');
+    
+    // 延迟隐藏，等待动画完成
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
+}
+
+// 处理新建课程
+async function handleCreateCourse(e) {
+    e.preventDefault();
+    
+    try {
+        const courseData = {
+            name: document.getElementById('course-name').value.trim(),
+            description: document.getElementById('course-description').value.trim(),
+            credit: parseInt(document.getElementById('course-credit').value),
+            hours: parseInt(document.getElementById('course-hours').value)
+        };
+        
+        if (!courseData.name) {
+            showNotification('请输入课程名称', 'warning');
+            return;
+        }
+        
+        if (!courseData.credit || courseData.credit < 1 || courseData.credit > 10) {
+            showNotification('学分必须在1-10之间', 'warning');
+            return;
+        }
+        
+        if (!courseData.hours || courseData.hours < 16 || courseData.hours > 200) {
+            showNotification('学时必须在16-200之间', 'warning');
+            return;
+        }
+        
+        showLoading('正在创建课程...');
+        
+        console.log('提交创建课程请求:', courseData);
+        const response = await TeacherAPI.createCourse(courseData);
+        console.log('创建课程响应:', response);
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('课程创建成功！', 'success');
+            hideCreateCourseModal();
+            
+            // 只重新加载控制面板数据，它会自动获取最新的课程列表
+            await loadDashboardData();
+                } else {
+            showNotification(response.message || '创建失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('创建课程失败:', error);
+        showNotification('创建失败，请重试', 'error');
+    }
+}
+
+// 显示页面部分
     function showSection(sectionId) {
-        document.querySelectorAll('.main-section').forEach(sec => {
-            if(sec.id === sectionId) {
-                sec.classList.remove('hidden-section');
+    // 隐藏所有section
+    document.querySelectorAll('.main-section').forEach(section => {
+        section.classList.add('hidden-section');
+    });
+    
+    // 显示目标section
+    const targetSection = document.getElementById(sectionId);
+    if (targetSection) {
+        targetSection.classList.remove('hidden-section');
+        
+        // 加载对应页面数据
+        loadSectionData(sectionId);
+    }
+}
+
+// 加载页面数据
+async function loadSectionData(sectionId) {
+    try {
+        switch(sectionId) {
+            case 'dashboard':
+                await loadDashboardData();
+                break;
+            case 'upload-material':
+                await loadMaterialsData();
+                break;
+            case 'outline':
+                await loadOutlineData();
+                break;
+            case 'publish-notice':
+                await loadNoticesData();
+                break;
+            case 'gen-test':
+                await loadExamGenerationData();
+                break;
+            case 'test-manage':
+                await loadExamManageData();
+                break;
+            case 'answer-manage':
+                await loadAnswersData();
+                break;
+            case 'grade-mark':
+                await loadGradeData();
+                break;
+            case 'grade-analysis':
+                await loadAnalysisData();
+                break;
+            case 'improve-suggest':
+                await loadImprovementData();
+                break;
+        }
+    } catch (error) {
+        console.error('加载页面数据失败:', error);
+        showNotification('数据加载失败', 'error');
+    }
+}
+
+// 加载控制面板数据
+async function loadDashboardData() {
+    try {
+        // 加载课程列表
+        const coursesResponse = await TeacherAPI.getCourses();
+        let courses = coursesResponse.data || [];
+        
+        // 根据课程ID去重，防止显示重复课程
+        const uniqueCourses = [];
+        const seenIds = new Set();
+        for (const course of courses) {
+            if (!seenIds.has(course.id)) {
+                seenIds.add(course.id);
+                uniqueCourses.push(course);
+            }
+        }
+        
+        currentCourses = uniqueCourses;
+        
+        // 加载统计数据
+        const statsResponse = await TeacherAPI.getDashboardStats();
+        const stats = statsResponse.data || {};
+        
+        // 更新统计卡片
+        updateStatsCards(stats);
+        
+        // 更新课程表格
+        updateRecentCoursesTable();
+        
+        // 更新知识点掌握情况的课程选择器
+        updateKnowledgeCourseSelect();
+        
+        console.log('控制面板数据加载完成');
+    } catch (error) {
+        console.error('加载控制面板数据失败:', error);
+        showNotification('数据加载失败', 'error');
+    }
+}
+
+// 更新统计卡片
+function updateStatsCards(stats) {
+    // 更新活跃学生数
+    const studentsElement = document.querySelector('.stat-card:nth-child(1) .stat-value');
+    if (studentsElement) {
+        studentsElement.textContent = stats.totalStudents ? stats.totalStudents.toLocaleString() : '0';
+    }
+    
+    // 更新平均正确率
+    const avgScoreElement = document.querySelector('.stat-card:nth-child(2) .stat-value');
+    if (avgScoreElement) {
+        const avgScore = stats.averageScore || 0;
+        avgScoreElement.textContent = avgScore.toFixed(1) + '%';
+    }
+    
+    // 更新待批改试卷
+    const pendingElement = document.querySelector('.stat-card:nth-child(3) .stat-value');
+    if (pendingElement) {
+        pendingElement.textContent = stats.pendingGrades || '0';
+    }
+    
+    // 更新课程完成率
+    const completionElement = document.querySelector('.stat-card:nth-child(4) .stat-value');
+    if (completionElement) {
+        const completionRate = stats.completionRate || 0;
+        completionElement.textContent = completionRate.toFixed(0) + '%';
+    }
+}
+
+// 更新知识点掌握情况的课程选择器
+function updateKnowledgeCourseSelect() {
+    const courseSelect = document.getElementById('knowledge-course-select');
+    if (!courseSelect) return;
+    
+    // 清空现有选项，保留默认选项
+    courseSelect.innerHTML = '<option value="">请选择课程</option>';
+    
+    // 添加真实的课程选项
+    currentCourses.forEach(course => {
+        const option = document.createElement('option');
+        option.value = course.id;
+        option.textContent = course.name;
+        courseSelect.appendChild(option);
+    });
+    
+    // 如果有课程，默认选择第一个
+    if (currentCourses.length > 0) {
+        courseSelect.value = currentCourses[0].id;
+    }
+}
+
+// 更新最近课程表格
+function updateRecentCoursesTable() {
+    const tbody = document.querySelector('#dashboard .table-container tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+
+    
+    if (currentCourses.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td colspan="6" style="text-align: center; padding: 40px; color: #999;">
+                <i class="fas fa-book" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                还没有课程，点击"新建课程"开始创建
+            </td>
+        `;
+        tbody.appendChild(row);
+        return;
+    }
+    
+    currentCourses.slice(0, 5).forEach((course, index) => {
+        const row = document.createElement('tr');
+        
+        // 为不同课程设置不同的图标颜色
+        const iconColors = ['var(--primary-color)', 'var(--accent-color)', 'var(--success-color)', 'var(--warning-color)', 'var(--danger-color)'];
+        const iconColor = iconColors[index % iconColors.length];
+        
+        // 学生数量和完成率：初始为空，需要实际数据
+        const studentCount = 0;
+        const completionRate = 0;
+        const progressClass = 'progress-low';
+        
+        row.innerHTML = `
+            <td>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-book" style="color: ${iconColor};"></i>
+                    <span>${course.name}</span>
+                </div>
+            </td>
+            <td>
+                <span style="background: var(--accent-color); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">
+                    ${course.courseCode || 'SE-0000'}
+                </span>
+            </td>
+            <td>${studentCount}人</td>
+            <td>${formatDate(course.updatedAt || course.createdAt)}</td>
+            <td>
+                <div class="progress-bar">
+                    <div class="progress-fill ${progressClass}" style="width: ${completionRate}%;"></div>
+                </div>
+                <span style="font-size: 12px; color: #7f8c8d;">${completionRate}%</span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-warning" onclick="editCourse(${course.id})" title="编辑课程">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteCourse(${course.id})" style="margin-left: 8px;" title="删除课程">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// 编辑课程
+async function editCourse(courseId) {
+    const course = currentCourses.find(c => c.id === courseId);
+    if (!course) {
+        showNotification('课程不存在', 'error');
+        return;
+    }
+    
+    // 填充表单数据
+    document.getElementById('course-name').value = course.name;
+    document.getElementById('course-description').value = course.description || '';
+    document.getElementById('course-credit').value = course.credit || '';
+    document.getElementById('course-hours').value = course.hours || '';
+    
+    // 显示课程号（只读）
+    const courseCodeDisplay = document.getElementById('course-code-display');
+    const courseCodeValue = document.getElementById('course-code-value');
+    if (courseCodeDisplay && courseCodeValue) {
+        courseCodeValue.textContent = course.courseCode || '未设置';
+        courseCodeDisplay.style.display = 'block';
+    }
+    
+    // 定义编辑课程的处理函数
+    const handleEditCourse = async function(e) {
+        e.preventDefault();
+        
+        try {
+            const courseData = {
+                name: document.getElementById('course-name').value.trim(),
+                description: document.getElementById('course-description').value.trim(),
+                credit: parseInt(document.getElementById('course-credit').value),
+                hours: parseInt(document.getElementById('course-hours').value)
+            };
+            
+            showLoading('正在更新课程...');
+            
+            const response = await TeacherAPI.updateCourse(courseId, courseData);
+            
+            hideLoading();
+            
+            if (response.success) {
+                showNotification('课程更新成功！', 'success');
+                hideCreateCourseModal();
+                
+                // 重新加载数据
+                await loadDashboardData();
+        } else {
+                showNotification(response.message || '更新失败', 'error');
+            }
+            
+        } catch (error) {
+            hideLoading();
+            console.error('更新课程失败:', error);
+            showNotification('更新失败，请重试', 'error');
+        }
+    };
+    
+    // 修改模态框标题和图标，显示课程号
+    document.querySelector('#create-course-modal h3').textContent = `编辑课程 - ${course.courseCode}`;
+    
+    // 更改模态框图标为编辑图标
+    const modalIcon = document.querySelector('#create-course-modal .modal-icon i');
+    if (modalIcon) {
+        modalIcon.className = 'fas fa-edit';
+    }
+    
+    // 修改表单提交处理
+    const form = document.getElementById('create-course-form');
+    
+    // 移除原有的事件监听器
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    // 修改按钮文字（在替换表单后）
+    const submitButton = newForm.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.innerHTML = '<i class="fas fa-save"></i> 更新课程';
+    }
+    
+    // 绑定编辑事件
+    newForm.addEventListener('submit', handleEditCourse);
+    
+    // 重新绑定取消按钮事件（因为表单被替换了）
+    const cancelBtn = newForm.querySelector('#cancel-course-create');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', hideCreateCourseModal);
+    }
+    
+    showCreateCourseModal(true); // 传入true表示编辑模式
+}
+
+// 删除课程
+async function deleteCourse(courseId) {
+    const course = currentCourses.find(c => c.id === courseId);
+    if (!course) {
+        showNotification('课程不存在', 'error');
+        return;
+    }
+    
+    // 显示确认删除弹窗
+    const confirmed = await showDeleteConfirmModal(course.name, course.courseCode);
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        showLoading('正在删除课程...');
+        
+        const response = await TeacherAPI.deleteCourse(courseId);
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('课程删除成功！', 'success');
+            
+            // 重新加载数据
+            await loadDashboardData();
+        } else {
+            showNotification(response.message || '删除失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('删除课程失败:', error);
+        showNotification('删除失败，请重试', 'error');
+    }
+}
+
+// 重置新建课程模态框
+function resetCreateCourseModal() {
+    // 重置模态框标题和图标
+    document.querySelector('#create-course-modal h3').textContent = '新建课程';
+    
+    // 重置模态框图标为添加图标
+    const modalIcon = document.querySelector('#create-course-modal .modal-icon i');
+    if (modalIcon) {
+        modalIcon.className = 'fas fa-plus-circle';
+    }
+    
+    const form = document.getElementById('create-course-form');
+    
+    // 移除旧的事件监听器
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    // 重置按钮文字（在替换表单后）
+    const submitButton = newForm.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.innerHTML = '<i class="fas fa-save"></i> 创建课程';
+    }
+    
+    // 重新绑定创建课程事件
+    newForm.addEventListener('submit', handleCreateCourse);
+    
+    // 隐藏课程号显示区域
+    const courseCodeDisplay = document.getElementById('course-code-display');
+    if (courseCodeDisplay) {
+        courseCodeDisplay.style.display = 'none';
+    }
+}
+
+// 加载课程列表
+async function loadCourseList() {
+    try {
+        const response = await TeacherAPI.getCourses();
+        let courses = response.data || [];
+        
+        // 根据课程ID去重
+        const uniqueCourses = [];
+        const seenIds = new Set();
+        for (const course of courses) {
+            if (!seenIds.has(course.id)) {
+                seenIds.add(course.id);
+                uniqueCourses.push(course);
+            }
+        }
+        
+        currentCourses = uniqueCourses;
+        
+        // 更新各种课程选择框
+        updateCourseSelects();
+        
+    } catch (error) {
+        console.error('加载课程列表失败:', error);
+    }
+}
+
+// 更新课程选择框
+function updateCourseSelects() {
+    const selects = [
+        'material-course-select',
+        'outline-course-select', 
+        'exam-course-select',
+        'improve-course-select'
+    ];
+    
+    selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (select) {
+            select.innerHTML = '<option value="">请选择课程</option>';
+            currentCourses.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = `${course.name}（${course.courseCode || 'SE-0000'}）`;
+                select.appendChild(option);
+            });
+        }
+    });
+    }
+
+// 文件上传功能
+function setupFileUpload() {
+    const uploadArea = document.getElementById('file-upload-area');
+    const fileInput = document.getElementById('file-input');
+    
+    if (!uploadArea || !fileInput) return;
+    
+    uploadArea.addEventListener('click', () => fileInput.click());
+    
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('drag-over');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('drag-over');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            handleFileSelect(files[0]);
+        }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+        }
+    });
+}
+
+// 处理文件选择
+function handleFileSelect(file) {
+    const uploadPrompt = document.querySelector('.upload-prompt');
+    if (uploadPrompt) {
+        uploadPrompt.innerHTML = `
+            <i class="fas fa-file"></i>
+            <p>已选择文件: ${file.name}</p>
+            <p class="upload-tips">文件大小: ${formatFileSize(file.size)}</p>
+        `;
+    }
+}
+
+// 上传课程资料
+async function uploadMaterial() {
+    try {
+        const courseId = document.getElementById('material-course-select').value;
+        const materialType = document.getElementById('material-type').value;
+        const description = document.getElementById('material-description').value;
+        const fileInput = document.getElementById('file-input');
+        
+        if (!courseId) {
+            showNotification('请选择课程', 'warning');
+            return;
+        }
+        
+        if (!fileInput.files[0]) {
+            showNotification('请选择要上传的文件', 'warning');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('courseId', courseId);
+        formData.append('materialType', materialType);
+        formData.append('description', description);
+        formData.append('file', fileInput.files[0]);
+        
+        showLoading('正在上传文件...');
+        
+        const response = await TeacherAPI.uploadFile(formData);
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('资料上传成功！', 'success');
+            clearUploadForm();
+            await loadMaterialsData();
             } else {
-                sec.classList.add('hidden-section');
+            showNotification(response.message || '上传失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('上传失败:', error);
+        showNotification('上传失败，请重试', 'error');
+    }
+}
+
+// 清空上传表单
+function clearUploadForm() {
+    document.getElementById('material-course-select').value = '';
+    document.getElementById('material-type').value = 'PPT';
+    document.getElementById('material-description').value = '';
+    document.getElementById('file-input').value = '';
+    
+    const uploadPrompt = document.querySelector('.upload-prompt');
+    if (uploadPrompt) {
+        uploadPrompt.innerHTML = `
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p>点击上传文件或拖拽文件至此区域</p>
+            <p class="upload-tips">支持 PDF、Word、PPT、TXT 格式，单个文件不超过50MB</p>
+        `;
+    }
+}
+
+// 加载课程资料
+async function loadCourseMaterials() {
+    const courseId = document.getElementById('outline-course-select').value;
+    const loadingDiv = document.getElementById('materials-loading');
+    const selectionDiv = document.getElementById('materials-selection');
+    const emptyDiv = document.getElementById('materials-empty');
+    const materialsListDiv = document.getElementById('materials-list');
+    
+    // 重置显示状态
+    loadingDiv.style.display = 'none';
+    selectionDiv.style.display = 'none';
+    emptyDiv.style.display = 'none';
+    
+    if (!courseId) {
+        emptyDiv.style.display = 'block';
+        return;
+    }
+    
+    try {
+        loadingDiv.style.display = 'block';
+        console.log('开始加载课程资料，courseId:', courseId);
+        
+        // 获取课程资料
+        const response = await fetch(`/api/teacher/courses/${courseId}/materials`);
+        console.log('API响应状态:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log('API响应结果:', result);
+        
+        loadingDiv.style.display = 'none';
+        
+        if (result.success) {
+            if (result.data && result.data.length > 0) {
+                console.log('找到课程资料数量:', result.data.length);
+                // 显示资料选择区域
+                selectionDiv.style.display = 'block';
+                
+                // 渲染资料列表
+                materialsListDiv.innerHTML = result.data.map((material, index) => `
+                    <div style="display: flex; align-items: center; margin-bottom: 8px; padding: 8px; border-radius: 6px; background: #f8f9fa;">
+                        <input type="checkbox" id="material-${material.id}" value="${material.id}" 
+                               style="margin-right: 10px; cursor: pointer; width: 12px; height: 12px;" onchange="updateSelectedMaterials()">
+                        <label for="material-${material.id}" style="cursor: pointer; flex: 1; margin: 0;">
+                            <i class="fas ${getFileTypeIcon(material.originalName)}" style="margin-right: 8px; color: #5b8cff;"></i>
+                            <span style="font-weight: 500;">${material.originalName || material.filename}</span>
+                            <span style="color: #7f8c8d; font-size: 12px; margin-left: 8px;">(${formatFileSize(material.fileSize)})</span>
+                        </label>
+                    </div>
+                `).join('');
+            } else {
+                console.log('该课程暂无资料');
+                emptyDiv.style.display = 'block';
             }
-        });
+        } else {
+            console.error('API返回错误:', result.message);
+            emptyDiv.style.display = 'block';
+            showNotification(result.message || '获取课程资料失败', 'error');
+        }
+        
+    } catch (error) {
+        loadingDiv.style.display = 'none';
+        emptyDiv.style.display = 'block';
+        console.error('加载课程资料失败:', error);
+        showNotification('加载课程资料失败: ' + error.message, 'error');
     }
+}
 
-    // 主菜单项点击切换内容
-    document.querySelectorAll('.menu-item[data-section]').forEach(item => {
-        item.addEventListener('click', function() {
-            const section = this.getAttribute('data-section');
-            if(section) showSection(section);
-        });
+// 全选资料
+function selectAllMaterials() {
+    const checkboxes = document.querySelectorAll('#materials-list input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
     });
+    updateSelectedMaterials();
+}
 
-    // 子菜单项点击切换内容
-    document.querySelectorAll('.submenu-item[data-section]').forEach(item => {
-        item.addEventListener('click', function(e) {
-            const section = this.getAttribute('data-section');
-            if(section) showSection(section);
-            e.stopPropagation(); // 防止冒泡影响主菜单
-        });
+// 清空选择
+function clearAllMaterials() {
+    const checkboxes = document.querySelectorAll('#materials-list input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
     });
+    updateSelectedMaterials();
+}
 
-    // 通知图标点击
-    const notifications = document.querySelector('.notifications');
-    if(notifications) {
-        notifications.addEventListener('click', function() {
-            const count = this.querySelector('.notification-count');
-            if(count) {
-                count.textContent = '0';
-                count.style.backgroundColor = 'var(--success-color)';
-                setTimeout(() => {
-                    count.remove();
-                }, 2000);
-            }
-        });
-    }
+// 更新选中的资料
+function updateSelectedMaterials() {
+    const checkboxes = document.querySelectorAll('#materials-list input[type="checkbox"]:checked');
+    const selectedCount = checkboxes.length;
+    
+    // 可以在这里显示选中数量
+    console.log(`已选择 ${selectedCount} 个资料`);
+}
 
-    // 用户菜单
-    const userProfile = document.querySelector('.user-profile');
-    if(userProfile) {
-        userProfile.addEventListener('click', function() {
-            alert('用户菜单功能');
-        });
-    }
-
-    // 按钮点击效果
-    document.querySelectorAll('.btn').forEach(button => {
-        button.addEventListener('click', function() {
-            this.style.transform = 'scale(0.98)';
-            setTimeout(() => {
-                this.style.transform = '';
-            }, 150);
-        });
-    });
-
-    // 卡片悬停效果
-    document.querySelectorAll('.content-card, .stat-card').forEach(card => {
-        card.addEventListener('mouseenter', function() {
-            this.style.transform = 'translateY(-5px)';
+// 生成教学大纲
+async function generateOutline() {
+    try {
+        const courseId = document.getElementById('outline-course-select').value;
+        const hours = document.getElementById('outline-hours').value;
+        const requirements = document.getElementById('outline-requirements').value;
+        
+        // 获取选中的资料
+        const selectedMaterials = [];
+        const checkboxes = document.querySelectorAll('#materials-list input[type="checkbox"]:checked');
+        checkboxes.forEach(checkbox => {
+            selectedMaterials.push(parseInt(checkbox.value));
         });
         
-        card.addEventListener('mouseleave', function() {
-            this.style.transform = '';
+        if (!courseId) {
+            showNotification('请选择课程', 'warning');
+            return;
+        }
+        
+        if (!hours || hours <= 0) {
+            showNotification('请输入有效的教学学时', 'warning');
+            return;
+        }
+        
+        if (selectedMaterials.length === 0) {
+            showNotification('请至少选择一个资料', 'warning');
+            return;
+        }
+        
+        showLoading('AI正在基于知识库生成教学大纲...');
+        
+        const response = await TeacherAPI.generateOutline({
+            courseId: parseInt(courseId),
+            materialIds: selectedMaterials,
+            requirements: requirements || '',
+            hours: parseInt(hours)
         });
-    });
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('教学大纲生成成功！', 'success');
+            displayOutlineResult(response.data);
+        } else {
+            showNotification(response.message || '生成失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('生成大纲失败:', error);
+        showNotification('生成失败，请重试', 'error');
+    }
+}
 
-    // 模拟图表动画
-    setTimeout(() => {
-        document.querySelectorAll('.bar').forEach(bar => {
-            const height = bar.style.height;
-            bar.style.height = '0';
+// 清空表单
+function clearOutlineForm() {
+    document.getElementById('outline-course-select').value = '';
+    document.getElementById('outline-hours').value = '';
+    document.getElementById('outline-requirements').value = '';
+    
+    // 重置资料选择区域
+    document.getElementById('materials-loading').style.display = 'none';
+    document.getElementById('materials-selection').style.display = 'none';
+    document.getElementById('materials-empty').style.display = 'block';
+    document.getElementById('materials-list').innerHTML = '';
+    
+    // 隐藏结果区域
+    const resultDiv = document.getElementById('outline-result');
+    if (resultDiv) {
+        resultDiv.style.display = 'none';
+    }
+}
+
+// 显示教学大纲结果
+function displayOutlineResult(outlineData) {
+    const resultDiv = document.getElementById('outline-result');
+    const contentDiv = document.getElementById('outline-content');
+    
+    if (!resultDiv || !contentDiv || !outlineData) return;
+    
+    // 获取原始Markdown内容
+    const originalMarkdown = outlineData.teachingDesign || '暂无内容';
+    
+    // 格式化教学大纲内容
+    const formattedContent = formatOutlineContent(originalMarkdown);
+    
+    contentDiv.innerHTML = `
+        <div class="outline-display">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h3 style="margin: 0; color: #2c3e50; font-size: 20px;">
+                    <i class="fas fa-file-alt" style="margin-right: 10px; color: #3498db;"></i>
+                    AI生成的教学大纲
+                </h3>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-success" onclick="saveOutlineToDatabase()">
+                        <i class="fas fa-save"></i> 保存大纲
+                    </button>
+                    <button class="btn btn-warning" onclick="regenerateOutline()">
+                        <i class="fas fa-redo"></i> 重新生成
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadOutline()">
+                        <i class="fas fa-download"></i> 下载大纲
+                    </button>
+                    <button class="btn btn-primary" onclick="editOutline()">
+                        <i class="fas fa-edit"></i> 编辑大纲
+                    </button>
+                </div>
+            </div>
+            
+            <div class="outline-content" style="
+                background: #f8f9fa; 
+                border-radius: 8px; 
+                padding: 24px; 
+                border: 1px solid #e9ecef;
+                line-height: 1.6;
+                font-size: 14px;
+                color: #2c3e50;
+                max-height: 600px;
+                overflow-y: auto;
+            ">
+                ${formattedContent}
+            </div>
+        </div>
+    `;
+    
+    // 保存原始Markdown内容到DOM属性中
+    const outlineContentDiv = contentDiv.querySelector('.outline-content');
+    if (outlineContentDiv) {
+        outlineContentDiv.setAttribute('data-markdown', originalMarkdown);
+    }
+    
+    resultDiv.style.display = 'block';
+}
+
+// Markdown解析器
+function parseMarkdown(markdown) {
+    if (!markdown) return '暂无内容';
+    
+    let html = markdown;
+    
+    // 转义HTML特殊字符
+    html = html.replace(/&/g, '&amp;')
+               .replace(/</g, '&lt;')
+               .replace(/>/g, '&gt;');
+    
+    // 解析标题 (# ## ### ####)
+    html = html.replace(/^#### (.*$)/gim, '<h4 style="color: #7f8c8d; margin: 16px 0 8px 0; font-size: 16px;">$1</h4>');
+    html = html.replace(/^### (.*$)/gim, '<h3 style="color: #2c3e50; margin: 20px 0 12px 0; font-size: 18px;">$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2 style="color: #2980b9; margin: 24px 0 16px 0; font-size: 20px; border-bottom: 2px solid #3498db; padding-bottom: 8px;">$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1 style="color: #e74c3c; margin: 32px 0 20px 0; font-size: 24px; border-bottom: 3px solid #e74c3c; padding-bottom: 10px;">$1</h1>');
+    
+    // 解析粗体 **text** 或 __text__
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #2c3e50; font-weight: 600;">$1</strong>');
+    html = html.replace(/__(.*?)__/g, '<strong style="color: #2c3e50; font-weight: 600;">$1</strong>');
+    
+    // 解析斜体 *text* 或 _text_
+    html = html.replace(/\*(.*?)\*/g, '<em style="color: #7f8c8d; font-style: italic;">$1</em>');
+    html = html.replace(/_(.*?)_/g, '<em style="color: #7f8c8d; font-style: italic;">$1</em>');
+    
+    // 解析行内代码 `code`
+    html = html.replace(/`([^`]+)`/g, '<code style="background: #f1f2f6; color: #e74c3c; padding: 2px 6px; border-radius: 4px; font-family: Monaco, Consolas, monospace; font-size: 13px;">$1</code>');
+    
+    // 解析链接 [text](url)
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #3498db; text-decoration: none;" target="_blank">$1</a>');
+    
+    // 解析无序列表 - item 或 * item
+    html = html.replace(/^[\s]*[-*+]\s+(.*)$/gim, '<li style="margin: 4px 0; color: #2c3e50;">$1</li>');
+    
+    // 解析有序列表 1. item
+    html = html.replace(/^[\s]*\d+\.\s+(.*)$/gim, '<li style="margin: 4px 0; color: #2c3e50; list-style-type: decimal;">$1</li>');
+    
+    // 将连续的li标签包装在ul或ol中
+    html = html.replace(/(<li[^>]*>.*?<\/li>[\s]*)+/g, function(match) {
+        // 检查是否包含有序列表项
+        if (match.includes('list-style-type: decimal')) {
+            return '<ol style="margin: 12px 0; padding-left: 24px; color: #2c3e50;">' + match + '</ol>';
+        } else {
+            return '<ul style="margin: 12px 0; padding-left: 24px; color: #2c3e50; list-style-type: disc;">' + match + '</ul>';
+        }
+    });
+    
+    // 解析代码块 ```code```
+    html = html.replace(/```([^`]+)```/g, '<pre style="background: #2d3748; color: #e2e8f0; padding: 16px; border-radius: 8px; margin: 16px 0; overflow-x: auto; font-family: Monaco, Consolas, monospace; font-size: 13px; line-height: 1.5;"><code>$1</code></pre>');
+    
+    // 解析分隔线 --- 或 ***
+    html = html.replace(/^[\s]*[-*]{3,}[\s]*$/gim, '<hr style="border: none; height: 2px; background: linear-gradient(to right, #3498db, transparent); margin: 24px 0;">');
+    
+    // 解析引用 > text
+    html = html.replace(/^>\s*(.*)$/gim, '<blockquote style="border-left: 4px solid #3498db; margin: 16px 0; padding: 8px 16px; background: #f8f9fa; color: #2c3e50; font-style: italic;">$1</blockquote>');
+    
+    // 解析段落 (连续两个换行符分隔)
+    const paragraphs = html.split(/\n\s*\n/);
+    html = paragraphs.map(p => {
+        p = p.trim();
+        if (p && !p.startsWith('<') && !p.match(/^[\s]*$/)) {
+            return `<p style="margin: 12px 0; line-height: 1.7; color: #2c3e50;">${p}</p>`;
+        }
+        return p;
+    }).join('\n\n');
+    
+    // 处理单独的换行
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
+}
+
+// 格式化教学大纲内容 (使用Markdown解析)
+function formatOutlineContent(content) {
+    if (!content) return '暂无内容';
+    
+    // 使用Markdown解析器
+    return parseMarkdown(content);
+}
+
+// 保存教学大纲到数据库
+async function saveOutlineToDatabase() {
+    try {
+        const courseId = document.getElementById('outline-course-select').value;
+        const outlineContentDiv = document.querySelector('.outline-content');
+        
+        if (!courseId) {
+            showNotification('请先选择课程', 'warning');
+            return;
+        }
+        
+        if (!outlineContentDiv) {
+            showNotification('没有可保存的教学大纲', 'warning');
+            return;
+        }
+        
+        // 获取原始Markdown内容
+        const markdownContent = outlineContentDiv.getAttribute('data-markdown');
+        if (!markdownContent) {
+            showNotification('教学大纲内容为空', 'warning');
+            return;
+        }
+        
+        showLoading('正在保存教学大纲...');
+        
+        const response = await TeacherAPI.saveOutline({
+            courseId: parseInt(courseId),
+            content: markdownContent,
+            title: '教学大纲'
+        });
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('教学大纲保存成功！', 'success');
+        } else {
+            showNotification(response.message || '保存失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('保存教学大纲失败:', error);
+        showNotification('保存失败，请重试', 'error');
+    }
+}
+
+// 重新生成教学大纲
+async function regenerateOutline() {
+    try {
+        const courseId = document.getElementById('outline-course-select').value;
+        const hours = document.getElementById('outline-hours').value;
+        const requirements = document.getElementById('outline-requirements').value;
+        
+        // 获取选中的资料
+        const selectedMaterials = [];
+        const checkboxes = document.querySelectorAll('#materials-list input[type="checkbox"]:checked');
+        checkboxes.forEach(checkbox => {
+            selectedMaterials.push(parseInt(checkbox.value));
+        });
+        
+        if (!courseId) {
+            showNotification('请先选择课程', 'warning');
+            return;
+        }
+        
+        if (!hours || hours <= 0) {
+            showNotification('请输入有效的教学学时', 'warning');
+            return;
+        }
+        
+        if (selectedMaterials.length === 0) {
+            showNotification('请至少选择一个资料', 'warning');
+            return;
+        }
+        
+        const confirmed = await showConfirmDialog(
+            '重新生成教学大纲',
+            '确定要重新生成教学大纲吗？当前的大纲内容将被覆盖。',
+            '重新生成'
+        );
+        if (!confirmed) {
+            return;
+        }
+        
+        showLoading('AI正在重新生成教学大纲...');
+        
+        const response = await TeacherAPI.generateOutline({
+            courseId: parseInt(courseId),
+            materialIds: selectedMaterials,
+            requirements: requirements || '',
+            hours: parseInt(hours)
+        });
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('教学大纲重新生成成功！', 'success');
+            displayOutlineResult(response.data);
+        } else {
+            showNotification(response.message || '重新生成失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('重新生成教学大纲失败:', error);
+        showNotification('重新生成失败，请重试', 'error');
+    }
+}
+
+// 下载教学大纲
+function downloadOutline() {
+    const outlineContentDiv = document.querySelector('.outline-content');
+    
+    // 尝试获取原始Markdown内容，如果没有则使用文本内容
+    const markdownContent = outlineContentDiv.getAttribute('data-markdown');
+    const content = markdownContent || outlineContentDiv.textContent;
+    const fileExtension = markdownContent ? '.md' : '.txt';
+    const fileName = `教学大纲${fileExtension}`;
+    
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// 编辑教学大纲
+function editOutline() {
+    const contentDiv = document.querySelector('.outline-content');
+    
+    // 获取当前的原始Markdown内容
+    // 从全局变量或DOM属性中获取原始内容
+    let currentMarkdown = contentDiv.getAttribute('data-markdown') || contentDiv.textContent;
+    
+    // 创建编辑界面
+    const editContainer = document.createElement('div');
+    editContainer.className = 'outline-edit-container';
+    
+    // 创建Markdown编辑器
+    const textarea = document.createElement('textarea');
+    textarea.className = 'outline-edit-textarea';
+    textarea.value = currentMarkdown;
+    textarea.placeholder = '在此输入Markdown格式的教学大纲...';
+    
+    // 创建预览区域
+    const previewDiv = document.createElement('div');
+    previewDiv.className = 'outline-edit-preview';
+    
+    // 实时预览功能
+    function updatePreview() {
+        previewDiv.innerHTML = parseMarkdown(textarea.value);
+    }
+    
+    textarea.addEventListener('input', updatePreview);
+    updatePreview(); // 初始预览
+    
+    // 添加标签
+    const leftLabel = document.createElement('div');
+    leftLabel.className = 'edit-label';
+    leftLabel.innerHTML = '<i class="fas fa-edit"></i> Markdown编辑器';
+    
+    const rightLabel = document.createElement('div');
+    rightLabel.className = 'edit-label';
+    rightLabel.innerHTML = '<i class="fas fa-eye"></i> 实时预览';
+    
+    // 组装编辑界面
+    const leftPanel = document.createElement('div');
+    leftPanel.className = 'outline-edit-panel';
+    leftPanel.appendChild(leftLabel);
+    leftPanel.appendChild(textarea);
+    
+    const rightPanel = document.createElement('div');
+    rightPanel.className = 'outline-edit-panel';
+    rightPanel.appendChild(rightLabel);
+    rightPanel.appendChild(previewDiv);
+    
+    editContainer.appendChild(leftPanel);
+    editContainer.appendChild(rightPanel);
+    
+    // 替换内容
+    contentDiv.innerHTML = '';
+    contentDiv.appendChild(editContainer);
+    
+    // 添加按钮组
+    const buttonGroup = document.createElement('div');
+    buttonGroup.style.cssText = `
+        margin-top: 16px;
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    `;
+    
+    // 保存按钮
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.innerHTML = '<i class="fas fa-save"></i> 保存修改';
+    saveBtn.onclick = function() {
+        const newMarkdown = textarea.value;
+        contentDiv.innerHTML = parseMarkdown(newMarkdown);
+        contentDiv.setAttribute('data-markdown', newMarkdown); // 保存原始Markdown
+        showNotification('教学大纲已保存', 'success');
+    };
+    
+    // 取消按钮
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.innerHTML = '<i class="fas fa-times"></i> 取消';
+    cancelBtn.onclick = function() {
+        contentDiv.innerHTML = parseMarkdown(currentMarkdown);
+        contentDiv.setAttribute('data-markdown', currentMarkdown);
+    };
+    
+    buttonGroup.appendChild(cancelBtn);
+    buttonGroup.appendChild(saveBtn);
+    contentDiv.appendChild(buttonGroup);
+    
+    // 聚焦到编辑器
+    textarea.focus();
+}
+
+// 发布通知
+async function publishNotice() {
+    try {
+        const title = document.getElementById('notice-title').value;
+        const content = document.getElementById('notice-content').value;
+        const targetType = document.getElementById('notice-target-type').value;
+        const targetSelect = document.getElementById('notice-target-select').value;
+        const priority = document.getElementById('notice-priority').value;
+        const pushTime = document.getElementById('notice-push-time').value;
+        const scheduleTime = document.getElementById('notice-schedule-time').value;
+        
+        if (!title || !content) {
+            showNotification('请填写标题和内容', 'warning');
+            return;
+        }
+        
+        // 验证发送对象
+        if (targetType === 'COURSE' && !targetSelect) {
+            showNotification('请选择要发送的课程', 'warning');
+            return;
+        }
+        
+        // 验证定时推送时间
+        if (pushTime === 'scheduled') {
+            if (!scheduleTime) {
+                showNotification('请选择推送时间', 'warning');
+                return;
+            }
+            
+            const selectedTime = new Date(scheduleTime);
+            const now = new Date();
+            if (selectedTime <= now) {
+                showNotification('推送时间不能早于当前时间', 'warning');
+                return;
+            }
+        }
+        
+        const noticeData = {
+            title,
+            content,
+            targetType,
+            targetId: targetType === 'ALL' ? null : targetSelect,
+            priority,
+            pushNow: pushTime === 'now',
+            scheduleTime: pushTime === 'scheduled' ? scheduleTime : null
+        };
+        
+        showLoading('正在发布通知...');
+        
+        const response = await TeacherAPI.publishNotice(noticeData);
+        
+        hideLoading();
+        
+        if (response.success) {
+            const message = pushTime === 'now' ? '通知发布成功！' : '通知已设置定时推送！';
+            showNotification(message, 'success');
+            clearNoticeForm();
+            await loadNoticesData();
+        } else {
+            showNotification(response.message || '发布失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('发布通知失败:', error);
+        showNotification('发布失败，请重试', 'error');
+    }
+}
+
+// 生成试卷
+async function generateExam() {
+    try {
+        const courseId = document.getElementById('exam-course-select').value;
+        const duration = document.getElementById('exam-duration').value;
+        const totalScore = document.getElementById('exam-total-score').value;
+        
+        if (!courseId) {
+            showNotification('请选择课程', 'warning');
+            return;
+        }
+        
+        // 收集题型配置
+        const questionTypes = {};
+        ['multiple-choice', 'fill-blank', 'true-false', 'calculation', 'essay'].forEach(type => {
+            const checkbox = document.getElementById(`q-${type}`);
+            const count = document.getElementById(`q-${type}-count`);
+            if (checkbox && checkbox.checked && count) {
+                questionTypes[type] = parseInt(count.value) || 0;
+            }
+        });
+        
+        // 收集难度配置
+        const difficulty = {
+            easy: parseInt(document.getElementById('difficulty-easy').value) || 0,
+            medium: parseInt(document.getElementById('difficulty-medium').value) || 0,
+            hard: parseInt(document.getElementById('difficulty-hard').value) || 0
+        };
+        
+        const examData = {
+            courseId,
+            duration: parseInt(duration),
+            totalScore: parseInt(totalScore),
+            questionTypes,
+            difficulty
+        };
+        
+        showLoading('AI正在生成试卷...');
+        
+        const response = await TeacherAPI.generateExam(examData);
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('试卷生成成功！', 'success');
+            displayExamPreview(response.data);
+        } else {
+            showNotification(response.message || '生成失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('生成试卷失败:', error);
+        showNotification('生成失败，请重试', 'error');
+    }
+}
+
+// 显示试卷预览
+function displayExamPreview(examData) {
+    const previewDiv = document.getElementById('exam-preview');
+    const contentDiv = document.getElementById('exam-content');
+    
+    if (!previewDiv || !contentDiv || !examData) return;
+    
+    let questionsHtml = '';
+    if (examData.questions && examData.questions.length > 0) {
+        examData.questions.forEach((question, index) => {
+            questionsHtml += `
+                <div class="question-item">
+                    <h4>第${index + 1}题 (${question.score}分)</h4>
+                    <p class="question-content">${question.content}</p>
+                    ${question.options ? `
+                        <div class="question-options">
+                            ${question.options.map((option, i) => 
+                                `<p>${String.fromCharCode(65 + i)}. ${option}</p>`
+                            ).join('')}
+                        </div>
+                    ` : ''}
+                    <div class="question-answer">
+                        <strong>参考答案：</strong>${question.answer}
+                    </div>
+                    ${question.explanation ? `
+                        <div class="question-explanation">
+                            <strong>解析：</strong>${question.explanation}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        });
+    }
+    
+    contentDiv.innerHTML = `
+        <div class="exam-header">
+            <h3>${examData.title || '试卷'}</h3>
+            <div class="exam-info">
+                <span>考试时长：${examData.duration}分钟</span>
+                <span>总分：${examData.totalScore}分</span>
+                <span>题目数：${examData.questions ? examData.questions.length : 0}题</span>
+            </div>
+        </div>
+        <div class="exam-questions">
+            ${questionsHtml}
+        </div>
+    `;
+    
+    previewDiv.style.display = 'block';
+}
+
+// 设置难度滑块
+function setupDifficultySliders() {
+    const sliders = ['difficulty-easy', 'difficulty-medium', 'difficulty-hard'];
+    
+    sliders.forEach(sliderId => {
+        const slider = document.getElementById(sliderId);
+        const valueSpan = document.getElementById(sliderId + '-value');
+        
+        if (slider && valueSpan) {
+            slider.addEventListener('input', function() {
+                valueSpan.textContent = this.value + '%';
+                
+                // 自动调整其他滑块保持总和为100%
+                adjustDifficultySliders(sliderId);
+            });
+        }
+    });
+}
+
+// 调整难度滑块
+function adjustDifficultySliders(changedSliderId) {
+    const sliders = {
+        'difficulty-easy': document.getElementById('difficulty-easy'),
+        'difficulty-medium': document.getElementById('difficulty-medium'),
+        'difficulty-hard': document.getElementById('difficulty-hard')
+    };
+    
+    const values = {
+        'difficulty-easy': parseInt(sliders['difficulty-easy'].value),
+        'difficulty-medium': parseInt(sliders['difficulty-medium'].value),
+        'difficulty-hard': parseInt(sliders['difficulty-hard'].value)
+    };
+    
+    const total = values['difficulty-easy'] + values['difficulty-medium'] + values['difficulty-hard'];
+    
+    if (total > 100) {
+        const excess = total - 100;
+        const otherSliders = Object.keys(sliders).filter(id => id !== changedSliderId);
+        
+        // 平均分配减少量
+        const reduceEach = Math.floor(excess / otherSliders.length);
+        let remaining = excess - reduceEach * otherSliders.length;
+        
+        otherSliders.forEach(sliderId => {
+            const currentValue = parseInt(sliders[sliderId].value);
+            const reduction = reduceEach + (remaining > 0 ? 1 : 0);
+            if (remaining > 0) remaining--;
+            
+            const newValue = Math.max(0, currentValue - reduction);
+            sliders[sliderId].value = newValue;
+            document.getElementById(sliderId + '-value').textContent = newValue + '%';
+        });
+    }
+}
+
+// 加载各种数据的函数
+async function loadMaterialsData() {
+    try {
+        console.log('开始加载资料数据...');
+        showLoading('正在刷新数据...');
+        
+        // 总是重新加载课程数据，确保数据是最新的
+        console.log('正在重新加载课程列表...');
+        const coursesResponse = await TeacherAPI.getCourses();
+        currentCourses = coursesResponse.data || [];
+        console.log('重新加载课程列表:', currentCourses);
+        
+        // 更新课程选择器
+        updateCourseSelects();
+        
+        // 加载资料数据
+        console.log('正在重新加载资料列表...');
+        const response = await TeacherAPI.getMaterials();
+        console.log('获取资料数据响应:', response);
+        currentMaterials = response.data || [];
+        console.log('当前资料列表:', currentMaterials);
+        
+        // 强制更新表格
+        updateMaterialsTable();
+        
+        hideLoading();
+        console.log('资料数据加载完成！');
+        
+    } catch (error) {
+        hideLoading();
+        console.error('加载资料数据失败:', error);
+        showNotification('数据加载失败，请稍后重试', 'error');
+    }
+}
+
+async function loadNoticesData() {
+    try {
+        const response = await TeacherAPI.getNotices();
+        currentNotices = response.data || [];
+        updateNoticesTable();
+    } catch (error) {
+        console.error('加载通知数据失败:', error);
+    }
+}
+
+async function loadExamManageData() {
+    try {
+        const response = await TeacherAPI.getExams();
+        currentExams = response.data || [];
+        updateExamsTable();
+        
+        const statsResponse = await TeacherAPI.getExamStats();
+        updateExamStats(statsResponse.data);
+    } catch (error) {
+        console.error('加载考试管理数据失败:', error);
+    }
+}
+
+// 工具函数
+function formatDate(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function showNotification(message, type = 'info') {
+    // 创建并显示通知
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i>
+        <span>${message}</span>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // 自动移除
             setTimeout(() => {
-                bar.style.height = height;
-            }, 300);
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
+
+function showLoading(message = '加载中...') {
+    let loading = document.getElementById('loading-overlay');
+    if (!loading) {
+        loading = document.createElement('div');
+        loading.id = 'loading-overlay';
+        loading.innerHTML = `
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <p id="loading-message">${message}</p>
+            </div>
+        `;
+        document.body.appendChild(loading);
+    } else {
+        document.getElementById('loading-message').textContent = message;
+        loading.style.display = 'flex';
+    }
+}
+
+function hideLoading() {
+    const loading = document.getElementById('loading-overlay');
+    if (loading) {
+        loading.style.display = 'none';
+    }
+}
+
+// 退出登录相关
+function handleLogout() {
+    document.getElementById('logout-modal').style.display = 'flex';
+}
+
+// 显示删除确认弹窗
+function showDeleteConfirmModal(courseName, courseCode) {
+    return new Promise((resolve) => {
+        // 创建弹窗HTML
+        const modalHtml = `
+            <div id="delete-confirm-modal" class="course-modal-overlay" style="display: flex;">
+                <div class="course-modal-container" style="max-width: 450px;">
+                    <div class="course-modal-header">
+                        <div class="modal-title-section">
+                            <div class="modal-icon" style="background: var(--danger-color);">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <h3>确认删除课程</h3>
+                        </div>
+                        <button id="close-delete-modal" class="modal-close-btn">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="course-modal-body">
+                        <div class="delete-warning">
+                            <p><strong>您确定要删除以下课程吗？</strong></p>
+                            <div class="course-info">
+                                <p><strong>课程名称：</strong>${courseName}</p>
+                                <p><strong>课程号：</strong>${courseCode}</p>
+                            </div>
+                            <div class="warning-note">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span>删除后不可恢复，相关的课程资料、通知和考试记录也将被删除！</span>
+                            </div>
+                        </div>
+                        
+                        <div class="course-modal-actions">
+                            <button type="button" id="cancel-delete" class="course-btn course-btn-cancel">
+                                <i class="fas fa-times"></i>
+                                <span>取消</span>
+                            </button>
+                            <button type="button" id="confirm-delete" class="course-btn" style="background: var(--danger-color); color: white;">
+                                <i class="fas fa-trash"></i>
+                                <span>确认删除</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 添加弹窗到页面
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const modal = document.getElementById('delete-confirm-modal');
+        const closeBtn = document.getElementById('close-delete-modal');
+        const cancelBtn = document.getElementById('cancel-delete');
+        const confirmBtn = document.getElementById('confirm-delete');
+        
+        // 关闭弹窗
+        const closeModal = (result) => {
+            modal.remove();
+            resolve(result);
+        };
+        
+        // 绑定事件
+        closeBtn.addEventListener('click', () => closeModal(false));
+        cancelBtn.addEventListener('click', () => closeModal(false));
+        confirmBtn.addEventListener('click', () => closeModal(true));
+        
+        // 点击外部关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeModal(false);
+            }
         });
-    }, 500);
+    });
+}
 
-    // 待办事项完成效果
-    document.querySelectorAll('.activity-action').forEach(action => {
-        action.addEventListener('click', function() {
-            const item = this.closest('.activity-item');
-            item.style.opacity = '0.5';
-            setTimeout(() => {
-                item.style.textDecoration = 'line-through';
-                item.style.opacity = '0.3';
-            }, 300);
+function confirmLogout() {
+    // 清除用户信息
+    localStorage.removeItem('smartedu_current_user');
+    // 跳转到SmartEdu主页
+    window.location.href = 'SmartEdu.html';
+}
+
+function cancelLogout() {
+    document.getElementById('logout-modal').style.display = 'none';
+}
+
+// 更新活动菜单项
+function updateActiveMenu(activeItem) {
+    // 移除所有菜单项的active状态
+    document.querySelectorAll('.menu-item, .submenu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // 添加active状态到当前项
+    activeItem.classList.add('active');
+    
+    // 如果是二级菜单项，确保其父级一级菜单也展开
+    if (activeItem.classList.contains('submenu-item')) {
+        const parentSubmenu = activeItem.closest('.submenu');
+        if (parentSubmenu) {
+            const parentMenuItem = parentSubmenu.previousElementSibling;
+            const arrow = parentMenuItem.querySelector('.arrow');
+            
+            // 展开父级菜单
+            parentSubmenu.style.display = 'block';
+            if (arrow) arrow.style.transform = 'rotate(180deg)';
+        }
+    }
+}
+
+// 其他需要实现的函数占位符
+async function loadOutlineData() {
+    try {
+        // 如果课程列表为空，先加载课程列表
+        if (!currentCourses || currentCourses.length === 0) {
+            await loadCourseList();
+        } else {
+            // 如果已有课程数据，直接更新选择框
+            updateCourseSelects();
+        }
+        
+        console.log('教学大纲页面数据加载完成');
+    } catch (error) {
+        console.error('加载教学大纲页面数据失败:', error);
+    }
+}
+async function loadExamGenerationData() {
+    try {
+        // 加载课程列表
+        if (!currentCourses || currentCourses.length === 0) {
+            await loadCourseList();
+        } else {
+            updateCourseSelects();
+        }
+        
+        console.log('试卷生成页面数据加载完成');
+    } catch (error) {
+        console.error('加载试卷生成页面数据失败:', error);
+    }
+}
+async function loadAnswersData() {
+    try {
+        if (!currentCourses || currentCourses.length === 0) {
+            await loadCourseList();
+        }
+        console.log('答案管理页面数据加载完成');
+    } catch (error) {
+        console.error('加载答案管理页面数据失败:', error);
+    }
+}
+
+async function loadGradeData() {
+    try {
+        if (!currentCourses || currentCourses.length === 0) {
+            await loadCourseList();
+        }
+        console.log('成绩批改页面数据加载完成');
+    } catch (error) {
+        console.error('加载成绩批改页面数据失败:', error);
+    }
+}
+
+async function loadAnalysisData() {
+    try {
+        if (!currentCourses || currentCourses.length === 0) {
+            await loadCourseList();
+        }
+        console.log('成绩分析页面数据加载完成');
+    } catch (error) {
+        console.error('加载成绩分析页面数据失败:', error);
+    }
+}
+
+async function loadImprovementData() {
+    try {
+        if (!currentCourses || currentCourses.length === 0) {
+            await loadCourseList();
+        } else {
+            updateCourseSelects();
+        }
+        console.log('教学改进建议页面数据加载完成');
+    } catch (error) {
+        console.error('加载教学改进建议页面数据失败:', error);
+    }
+}
+function updateMaterialsTable() {
+    console.log('开始更新资料表格, currentMaterials:', currentMaterials);
+    const tbody = document.querySelector('#materials-table tbody');
+    if (!tbody) {
+        console.log('表格体元素未找到');
+        return;
+    }
+    
+    tbody.innerHTML = '';
+    
+    if (!currentMaterials || currentMaterials.length === 0) {
+        console.log('没有资料数据，显示空状态');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td colspan="5" style="text-align: center; padding: 40px; color: #999;">
+                <i class="fas fa-database" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                知识库暂无资料
+            </td>
+        `;
+        tbody.appendChild(row);
+        return;
+    }
+    
+    // 按课程分组资料
+    const groupedMaterials = {};
+    console.log('当前资料列表:', currentMaterials);
+    console.log('当前课程列表:', currentCourses);
+    
+    currentMaterials.forEach(material => {
+        console.log(`原始资料数据:`, material);
+        
+        // 尝试多种可能的字段名
+        const courseId = material.courseId || material.course_id || material.courseID || 
+                        (material.course && material.course.id) || 
+                        (material.Course && material.Course.id);
+        
+        console.log(`尝试获取courseId: courseId=${material.courseId}, course_id=${material.course_id}, courseID=${material.courseID}, course.id=${material.course?.id}`);
+        console.log(`最终courseId: ${courseId} (${typeof courseId}), 是否为null/undefined: ${courseId == null}`);
+        
+        // 从全局课程列表中查找课程信息
+        let courseInfo = null;
+        if (currentCourses && currentCourses.length > 0) {
+            console.log(`查找课程ID: ${courseId} (类型: ${typeof courseId})`);
+            console.log('可用课程列表:', currentCourses.map(c => `${c.name}(id:${c.id}, 类型:${typeof c.id})`));
+            
+            courseInfo = currentCourses.find(course => {
+                const match1 = course.id == courseId;
+                const match2 = course.id === courseId;
+                const match3 = String(course.id) === String(courseId);
+                const match4 = Number(course.id) === Number(courseId);
+                const anyMatch = match1 || match2 || match3 || match4;
+                
+                console.log(`课程 ${course.name}: id=${course.id}(${typeof course.id}) vs ${courseId}(${typeof courseId}) -> 松散:${match1}, 严格:${match2}, 字符串:${match3}, 数字:${match4}, 匹配:${anyMatch}`);
+                
+                return anyMatch;
+            });
+            
+            console.log(`最终找到的课程:`, courseInfo);
+        } else {
+            console.warn('课程列表为空，无法查找课程信息');
+        }
+        
+        const courseName = courseInfo ? courseInfo.name : '未知课程';
+        console.log(`找到课程信息:`, courseInfo, `课程名称: ${courseName}`);
+        
+        // 如果courseId为null或undefined，使用'unknown'作为key
+        const safeKey = courseId != null ? `${courseId}_${courseName}` : `unknown_${courseName}`;
+        console.log(`生成的key: ${safeKey}`);
+        
+        const key = safeKey;
+        
+        if (!groupedMaterials[key]) {
+            groupedMaterials[key] = {
+                courseInfo: courseInfo,
+                materials: []
+            };
+        }
+        groupedMaterials[key].materials.push(material);
+    });
+    
+    // 生成课程颜色
+    const courseKeys = Object.keys(groupedMaterials);
+    const colors = [
+        '#3498db', '#e74c3c', '#2ecc71', '#f39c12', 
+        '#9b59b6', '#1abc9c', '#34495e', '#e67e22',
+        '#ad4e00', '#7f8c8d', '#27ae60', '#8e44ad',
+        '#16a085', '#2980b9', '#d35400', '#c0392b'
+    ];
+    
+    const courseColors = {};
+    courseKeys.forEach((key, index) => {
+        courseColors[key] = colors[index % colors.length];
+    });
+    
+    // 遍历每个课程组
+    Object.entries(groupedMaterials).forEach(([courseKey, courseGroup]) => {
+        const color = courseColors[courseKey];
+        const courseInfo = courseGroup.courseInfo;
+        const courseMaterials = courseGroup.materials;
+        const courseName = courseInfo ? courseInfo.name : '未知课程';
+        const courseCode = courseInfo ? courseInfo.courseCode : '';
+        
+        // 按上传时间排序
+        courseMaterials.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+        
+        // 为每个课程的资料添加相同的背景色
+        courseMaterials.forEach((material, index) => {
+            const row = document.createElement('tr');
+            row.style.cssText = `background-color: ${color}20; border-left: 4px solid ${color};`;
+            
+            // 文件类型图标
+            const typeIcon = getFileTypeIcon(material.originalName || material.filename);
+            
+            // 文件大小格式化
+            const fileSize = formatFileSize(material.fileSize || 0);
+            
+            row.innerHTML = `
+                <td style="position: relative;">
+                    ${index === 0 ? `
+                        <div style="
+                            background: ${color}; 
+                            color: white; 
+                            padding: 4px 12px; 
+                            border-radius: 20px; 
+                            font-size: 13px; 
+                            font-weight: 500;
+                            display: inline-block;
+                            margin-bottom: 4px;
+                        ">
+                            ${courseName}${courseCode ? ` (${courseCode})` : ''}
+                        </div>
+                    ` : ''}
+                </td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <i class="${typeIcon}" style="color: ${color};"></i>
+                        <span>${material.originalName || material.filename}</span>
+                    </div>
+                </td>
+                <td>${formatDate(material.uploadedAt)}</td>
+                <td>${fileSize}</td>
+                <td>
+                    <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-start;">
+                        <button class="btn btn-sm btn-primary" onclick="downloadMaterial(${material.id})" title="下载文件">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteMaterial(${material.id})" title="删除资料">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(row);
         });
     });
+}
 
-    // 退出相关
-    const logoutBtn = document.getElementById('logout-btn');
-    const logoutModal = document.getElementById('logout-modal');
-    const confirmLogout = document.getElementById('confirm-logout');
-    const cancelLogout = document.getElementById('cancel-logout');
+// 获取文件类型图标
+function getFileTypeIcon(filename) {
+    if (!filename) return 'fas fa-file';
+    
+    const ext = filename.toLowerCase().split('.').pop();
+    switch(ext) {
+        case 'pdf': return 'fas fa-file-pdf';
+        case 'doc':
+        case 'docx': return 'fas fa-file-word';
+        case 'xls':
+        case 'xlsx': return 'fas fa-file-excel';
+        case 'ppt':
+        case 'pptx': return 'fas fa-file-powerpoint';
+        case 'txt': return 'fas fa-file-alt';
+        case 'jpg':
+        case 'jpeg':
+        case 'png':
+        case 'gif': return 'fas fa-file-image';
+        case 'mp4':
+        case 'avi':
+        case 'mov': return 'fas fa-file-video';
+        case 'mp3':
+        case 'wav': return 'fas fa-file-audio';
+        case 'zip':
+        case 'rar': return 'fas fa-file-archive';
+        case 'html':
+        case 'css':
+        case 'js': return 'fas fa-file-code';
+        default: return 'fas fa-file';
+    }
+}
 
-    logoutBtn.addEventListener('click', function() {
-        logoutModal.style.display = 'flex';
-    });
+// 获取文件类型标签（带颜色）
+function getTypeLabel(materialType) {
+    const typeColors = {
+        'COURSEWARE': { bg: '#4CAF50', text: 'white', label: 'PPT' },
+        'DOCUMENT': { bg: '#2196F3', text: 'white', label: 'WORD' },
+        'VIDEO': { bg: '#FF9800', text: 'white', label: 'VIDEO' },
+        'AUDIO': { bg: '#9C27B0', text: 'white', label: 'AUDIO' },
+        'IMAGE': { bg: '#00BCD4', text: 'white', label: 'IMAGE' },
+        'PDF': { bg: '#F44336', text: 'white', label: 'PDF' },
+        'OTHER': { bg: '#607D8B', text: 'white', label: 'OTHER' }
+    };
+    
+    const color = typeColors[materialType] || typeColors['OTHER'];
+    return `<span style="background: ${color.bg}; color: ${color.text}; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 500;">
+        ${color.label}
+    </span>`;
+}
 
-    cancelLogout.addEventListener('click', function() {
-        logoutModal.style.display = 'none';
-    });
+// 文件大小格式化已在line 1100定义，删除重复定义
 
-    confirmLogout.addEventListener('click', function() {
-        // 清除当前用户
-        localStorage.removeItem('smartedu_current_user');
-        logoutModal.style.display = 'none';
-        // 跳转到首页
+// 下载资料
+function downloadMaterial(materialId) {
+    window.open(`/api/teacher/materials/${materialId}/download`, '_blank');
+}
+
+// 删除资料
+async function deleteMaterial(materialId) {
+    try {
+        if (!confirm('确定要删除这个资料吗？删除后不可恢复！')) {
+            return;
+        }
+        
+        showLoading('正在删除资料...');
+        
+        // 调用API删除资料
+        await TeacherAPI.deleteMaterial(materialId);
+        
+        hideLoading();
+        showNotification('资料删除成功！', 'success');
+        
+        // 删除成功后，直接调用刷新资料函数
+        console.log('删除成功，正在自动刷新资料列表...');
+        await loadMaterialsData();
+        console.log('资料列表刷新完成！');
+        
+    } catch (error) {
+        hideLoading();
+        console.error('删除资料失败:', error);
+        showNotification('删除资料失败：' + error.message, 'error');
+    }
+}
+function updateNoticesTable() { /* 实现更新通知表格 */ }
+
+// 更新发送对象选项
+function updateTargetOptions() {
+    const targetType = document.getElementById('notice-target-type').value;
+    const detailDiv = document.getElementById('notice-target-detail');
+    const targetSelect = document.getElementById('notice-target-select');
+    
+    if (targetType === 'COURSE') {
+        // 显示课程选择
+        detailDiv.style.display = 'block';
+        
+        // 清空并加载课程选项
+        targetSelect.innerHTML = '<option value="">请选择课程</option>';
+        
+        // 加载课程数据
+        if (window.coursesData && window.coursesData.length > 0) {
+            window.coursesData.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = `${course.name}（${course.courseCode || 'SE-0000'}）`;
+                targetSelect.appendChild(option);
+            });
+        } else {
+            // 如果没有课程数据，从API加载
+            loadCoursesForNotice();
+        }
+    } else {
+        // 隐藏详细选择
+        detailDiv.style.display = 'none';
+    }
+}
+
+// 加载课程数据用于通知发送
+async function loadCoursesForNotice() {
+    try {
+        const response = await TeacherAPI.getCourses();
+        if (response && response.success && response.data) {
+            const targetSelect = document.getElementById('notice-target-select');
+            targetSelect.innerHTML = '<option value="">请选择课程</option>';
+            
+            response.data.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = `${course.name}（${course.courseCode || 'SE-0000'}）`;
+                targetSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('加载课程数据失败:', error);
+    }
+}
+
+// 处理推送时间选择
+function handlePushTimeChange() {
+    const pushTime = document.getElementById('notice-push-time').value;
+    const scheduleDetail = document.getElementById('notice-schedule-detail');
+    
+    if (pushTime === 'scheduled') {
+        scheduleDetail.style.display = 'block';
+        // 设置最小时间为当前时间
+        const now = new Date();
+        const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+        document.getElementById('notice-schedule-time').min = localTime.toISOString().slice(0, 16);
+    } else {
+        scheduleDetail.style.display = 'none';
+    }
+}
+
+// 页面加载时设置事件监听器
+document.addEventListener('DOMContentLoaded', function() {
+    // 为推送时间选择添加事件监听器
+    const pushTimeSelect = document.getElementById('notice-push-time');
+    if (pushTimeSelect) {
+        pushTimeSelect.addEventListener('change', handlePushTimeChange);
+    }
+});
+function updateExamsTable() { /* 实现更新试卷表格 */ }
+function updateExamStats(stats) { /* 实现更新考试统计 */ }
+function clearNoticeForm() {
+    // 清空表单字段
+    document.getElementById('notice-title').value = '';
+    document.getElementById('notice-content').value = '';
+    document.getElementById('notice-target-type').value = 'ALL';
+    document.getElementById('notice-priority').value = 'NORMAL';
+    document.getElementById('notice-push-time').value = 'now';
+    document.getElementById('notice-schedule-time').value = '';
+    
+    // 隐藏条件显示的元素
+    document.getElementById('notice-target-detail').style.display = 'none';
+    document.getElementById('notice-schedule-detail').style.display = 'none';
+}
+function clearExamForm() { /* 实现清空试卷表单 */ }
+
+// 用户相关功能
+async function loadCurrentUser() {
+    try {
+        // 从localStorage获取当前用户信息
+        const currentUser = JSON.parse(localStorage.getItem('smartedu_current_user') || 'null');
+        
+        if (!currentUser) {
+            // 如果没有用户信息，跳转到主页
         window.location.href = 'SmartEdu.html';
+            return;
+        }
+        
+        // 如果不是教师角色，跳转到对应的页面
+        if (currentUser.role && currentUser.role !== 'teacher' && currentUser.role !== 'TEACHER') {
+            if (currentUser.role === 'admin' || currentUser.role === 'ADMIN') {
+                window.location.href = 'admin.html';
+            } else if (currentUser.role === 'student' || currentUser.role === 'STUDENT') {
+                window.location.href = 'student.html';
+            } else {
+                window.location.href = 'SmartEdu.html';
+            }
+            return;
+        }
+        
+        // 更新页面显示的用户名
+        const usernameElement = document.getElementById('current-username');
+        if (usernameElement) {
+            usernameElement.textContent = currentUser.realName || currentUser.username || '教师';
+        }
+        
+        console.log('当前用户:', currentUser);
+    } catch (error) {
+        console.error('加载用户信息失败:', error);
+        // 如果加载失败，跳转到主页
+        window.location.href = 'SmartEdu.html';
+    }
+}
+
+// 设置修改密码模态框事件
+function setupChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    const closeBtn = document.getElementById('close-password-modal');
+    const cancelBtn = document.getElementById('cancel-password-change');
+    const form = document.getElementById('change-password-form');
+    
+    // 关闭模态框
+    closeBtn.addEventListener('click', hideChangePasswordModal);
+    cancelBtn.addEventListener('click', hideChangePasswordModal);
+    
+    // 点击模态框外部关闭
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            hideChangePasswordModal();
+        }
     });
-}); 
+    
+    // 表单提交
+    form.addEventListener('submit', handleChangePassword);
+}
+
+// 显示修改密码模态框
+function showChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    modal.classList.add('show');
+    modal.style.display = 'flex';
+    
+    // 清空表单
+    document.getElementById('change-password-form').reset();
+    
+    // 聚焦到第一个输入框
+    setTimeout(() => {
+        const firstInput = document.getElementById('current-password');
+        if (firstInput) {
+            firstInput.focus();
+        }
+    }, 300);
+}
+
+// 隐藏修改密码模态框
+function hideChangePasswordModal() {
+    const modal = document.getElementById('change-password-modal');
+    modal.classList.remove('show');
+    
+    // 延迟隐藏，等待动画完成
+            setTimeout(() => {
+        modal.style.display = 'none';
+            }, 300);
+}
+
+// 处理修改密码
+async function handleChangePassword(e) {
+    e.preventDefault();
+    
+    try {
+        const currentPassword = document.getElementById('current-password').value.trim();
+        const newPassword = document.getElementById('new-password').value.trim();
+        const confirmPassword = document.getElementById('confirm-password').value.trim();
+        
+        // 表单验证
+        if (!currentPassword) {
+            showNotification('请输入当前密码', 'warning');
+            return;
+        }
+        
+        if (!newPassword) {
+            showNotification('请输入新密码', 'warning');
+            return;
+        }
+        
+        if (newPassword.length < 6) {
+            showNotification('新密码至少需要6位', 'warning');
+            return;
+        }
+        
+        if (newPassword !== confirmPassword) {
+            showNotification('两次输入的新密码不一致', 'warning');
+            return;
+        }
+        
+        if (currentPassword === newPassword) {
+            showNotification('新密码不能与当前密码相同', 'warning');
+            return;
+        }
+        
+        showLoading('正在修改密码...');
+        
+        // 这里应该调用API修改密码，暂时模拟成功
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        hideLoading();
+        showNotification('密码修改成功！', 'success');
+        hideChangePasswordModal();
+        
+    } catch (error) {
+        hideLoading();
+        console.error('修改密码失败:', error);
+        showNotification('修改密码失败，请稍后重试', 'error');
+    }
+}
+
+// 处理用户下拉菜单中的退出登录
+function handleLogout() {
+    const modal = document.getElementById('logout-modal');
+    modal.style.display = 'flex';
+}
+
+// ================== 上传资料模态框相关函数 ==================
+
+// 显示上传资料模态框
+function showUploadModal() {
+    console.log('showUploadModal 被调用');
+    const modal = document.getElementById('upload-material-modal');
+    console.log('Modal element:', modal);
+    
+    if (!modal) {
+        console.error('找不到上传模态框元素！');
+                        console.error('找不到上传模态框元素！');
+        return;
+    }
+    
+    modal.classList.add('show');
+    modal.style.display = 'flex';
+    console.log('Modal 已显示');
+    
+    // 清空表单
+    clearUploadModalForm();
+    
+    // 更新课程选择器
+    updateModalCourseSelect();
+}
+
+// 确保函数在全局作用域中可访问
+window.showUploadModal = showUploadModal;
+
+// 隐藏上传资料模态框
+function hideUploadModal() {
+    const modal = document.getElementById('upload-material-modal');
+    modal.classList.remove('show');
+    
+    // 延迟隐藏，等待动画完成
+            setTimeout(() => {
+        modal.style.display = 'none';
+            }, 300);
+}
+
+// 设置上传模态框 - 使用标记避免重复设置
+let uploadModalSetup = false;
+
+function setupUploadModal() {
+    if (uploadModalSetup) return; // 如果已经设置过，直接返回
+    
+    const modal = document.getElementById('upload-material-modal');
+    const closeBtn = document.getElementById('close-upload-modal');
+    const cancelBtn = document.getElementById('cancel-upload');
+    const form = document.getElementById('upload-material-form');
+    const fileUploadArea = document.getElementById('modal-file-upload-area');
+    const fileInput = document.getElementById('modal-file-input');
+    
+    if (!modal || !closeBtn || !cancelBtn || !form || !fileUploadArea || !fileInput) {
+        console.warn('上传模态框元素未找到，跳过设置');
+        return;
+    }
+    
+    // 关闭模态框事件
+    closeBtn.addEventListener('click', hideUploadModal);
+    cancelBtn.addEventListener('click', hideUploadModal);
+    
+    // 点击模态框外部关闭
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            hideUploadModal();
+        }
+    });
+    
+    // 文件上传区域点击事件
+    fileUploadArea.addEventListener('click', function() {
+        fileInput.click();
+    });
+    
+    // 文件选择事件
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const uploadArea = document.getElementById('modal-file-upload-area');
+            const uploadPrompt = uploadArea.querySelector('.upload-prompt');
+            uploadPrompt.innerHTML = `
+                <i class="fas fa-file" style="color: var(--primary-color);"></i>
+                <p style="color: var(--primary-color); font-weight: 500;">已选择文件: ${file.name}</p>
+                <p class="upload-tips">文件大小: ${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            `;
+            uploadArea.style.borderColor = 'var(--primary-color)';
+            uploadArea.style.background = 'rgba(52, 152, 219, 0.05)';
+        }
+    });
+    
+    // 表单提交事件
+    form.addEventListener('submit', handleModalUpload);
+    
+    // 拖拽上传事件
+    fileUploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        fileUploadArea.style.borderColor = 'var(--primary-color)';
+        fileUploadArea.style.background = 'rgba(52, 152, 219, 0.1)';
+    });
+    
+    fileUploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        fileUploadArea.style.borderColor = '#ddd';
+        fileUploadArea.style.background = '#fafafa';
+    });
+    
+    fileUploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        fileUploadArea.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            // 触发change事件
+            const event = new Event('change', { bubbles: true });
+            fileInput.dispatchEvent(event);
+        }
+        fileUploadArea.style.borderColor = '#ddd';
+        fileUploadArea.style.background = '#fafafa';
+    });
+    
+    uploadModalSetup = true; // 标记已设置
+}
+
+// 更新模态框中的课程选择器
+async function updateModalCourseSelect() {
+    try {
+        const response = await fetch('/api/teacher/courses');
+        const apiResponse = await response.json();
+        
+        if (apiResponse.success && apiResponse.data) {
+            const select = document.getElementById('modal-material-course-select');
+            select.innerHTML = '<option value="">请选择课程</option>';
+            
+            apiResponse.data.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = `${course.name}（${course.courseCode || 'SE-0000'}）`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('更新课程选择器失败:', error);
+    }
+}
+
+
+
+// 清空模态框表单
+function clearUploadModalForm() {
+    console.log('clearUploadModalForm 被调用');
+    
+    const courseSelect = document.getElementById('modal-material-course-select');
+    const typeSelect = document.getElementById('modal-material-type');
+    const descriptionTextarea = document.getElementById('modal-material-description');
+    const fileInput = document.getElementById('modal-file-input');
+    const uploadArea = document.getElementById('modal-file-upload-area');
+    
+    console.log('Form elements:', {
+        courseSelect, typeSelect, descriptionTextarea, fileInput, uploadArea
+    });
+    
+    if (courseSelect) courseSelect.value = '';
+    if (typeSelect) typeSelect.value = 'PPT';
+    if (descriptionTextarea) descriptionTextarea.value = '';
+    if (fileInput) fileInput.value = '';
+    
+    // 重置文件上传区域显示
+    if (uploadArea) {
+        const prompt = uploadArea.querySelector('.upload-prompt');
+        if (prompt) {
+            prompt.innerHTML = `
+                <i class="fas fa-cloud-upload-alt"></i>
+                <p>点击上传文件或拖拽文件至此区域</p>
+                <p class="upload-tips">支持 PDF、Word、PPT、TXT 格式，单个文件不超过50MB</p>
+            `;
+        }
+    }
+}
+
+// 处理模态框中的上传
+async function handleModalUpload(e) {
+    e.preventDefault();
+    
+    try {
+        const courseId = document.getElementById('modal-material-course-select').value;
+        const materialType = document.getElementById('modal-material-type').value;
+        const description = document.getElementById('modal-material-description').value;
+        const fileInput = document.getElementById('modal-file-input');
+        
+        // 表单验证
+        if (!courseId) {
+            showNotification('请选择课程', 'warning');
+            return;
+        }
+        
+        if (!fileInput.files[0]) {
+            showNotification('请选择要上传的文件', 'warning');
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        
+        // 文件大小验证
+        if (file.size > 50 * 1024 * 1024) {
+            showNotification('文件大小不能超过50MB', 'warning');
+            return;
+        }
+        
+        showLoading('正在上传资料...');
+        
+        // 创建FormData
+        const formData = new FormData();
+        formData.append('courseId', courseId);
+        formData.append('file', file);
+        formData.append('materialType', materialType);
+        formData.append('description', description);
+        
+        // 发送上传请求
+        const apiResponse = await TeacherAPI.uploadFile(formData);
+        
+        hideLoading();
+        
+        if (apiResponse.success) {
+            showNotification('资料上传成功！', 'success');
+            hideUploadModal();
+            
+            // 刷新资料列表
+            await loadMaterialsData();
+        } else {
+            showNotification('上传失败：' + (apiResponse.message || '未知错误'), 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('上传资料失败:', error);
+        showNotification('上传失败，请稍后重试', 'error');
+    }
+}
+
+// 页面加载完成后初始化（已在DOMContentLoaded中处理，此处移除重复调用）
+
+// ===== 教学大纲历史功能 =====
+
+// 当前选中的历史大纲数据
+let currentHistoryOutline = null;
+
+// 加载教学大纲历史记录
+async function loadOutlineHistory() {
+    try {
+        console.log('开始加载教学大纲历史记录...');
+        
+        const modal = document.getElementById('outline-history-modal');
+        if (!modal) {
+            console.error('找不到历史记录模态框元素');
+            showNotification('页面元素未找到，请刷新页面重试', 'error');
+            return;
+        }
+        
+        // 显示模态框
+        modal.classList.add('show');
+        modal.style.display = 'flex';
+        console.log('模态框已显示');
+        
+        // 设置模态框事件监听器
+        setupHistoryModalEvents();
+        console.log('事件监听器设置完成');
+        
+        // 加载课程选择器
+        console.log('开始加载课程选择器...');
+        await updateHistoryCourseFilter();
+        console.log('课程选择器加载完成');
+        
+        // 加载历史记录
+        console.log('开始加载历史记录...');
+        await refreshOutlineHistory();
+        console.log('历史记录加载完成');
+        
+    } catch (error) {
+        console.error('加载教学大纲历史记录失败:', error);
+        showNotification('加载历史记录失败: ' + (error.message || '未知错误'), 'error');
+    }
+}
+
+// 设置历史模态框事件监听器
+function setupHistoryModalEvents() {
+    try {
+        console.log('开始设置历史模态框事件监听器...');
+        
+        const modal = document.getElementById('outline-history-modal');
+        const closeBtn = document.getElementById('close-history-modal');
+        const closeFooterBtn = document.getElementById('close-history');
+        const courseFilter = document.getElementById('history-course-filter');
+        
+        console.log('DOM元素查找结果:', {
+            modal: !!modal,
+            closeBtn: !!closeBtn,
+            closeFooterBtn: !!closeFooterBtn,
+            courseFilter: !!courseFilter
+        });
+        
+        // 检查必要的DOM元素
+        if (!modal) {
+            console.error('找不到历史模态框元素');
+            return;
+        }
+        
+        if (!courseFilter) {
+            console.error('找不到课程筛选器元素');
+            return;
+        }
+        
+        // 安全地处理关闭按钮
+        if (closeBtn) {
+            // 移除旧的事件监听器
+            const newCloseBtn = closeBtn.cloneNode(true);
+            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+            // 关闭模态框事件
+            newCloseBtn.addEventListener('click', hideHistoryModal);
+            console.log('头部关闭按钮事件设置完成');
+        } else {
+            console.warn('未找到头部关闭按钮元素');
+        }
+        
+        // 安全地处理底部关闭按钮（这个元素可能不存在）
+        if (closeFooterBtn) {
+            const newCloseFooterBtn = closeFooterBtn.cloneNode(true);
+            closeFooterBtn.parentNode.replaceChild(newCloseFooterBtn, closeFooterBtn);
+            newCloseFooterBtn.addEventListener('click', hideHistoryModal);
+            console.log('底部关闭按钮事件设置完成');
+        } else {
+            console.log('底部关闭按钮元素不存在（这是正常的）');
+        }
+        
+        // 点击模态框外部关闭
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                hideHistoryModal();
+            }
+        });
+        console.log('模态框外部点击事件设置完成');
+        
+        // 课程筛选变化事件
+        courseFilter.addEventListener('change', refreshOutlineHistory);
+        console.log('课程筛选器事件设置完成');
+        
+        console.log('历史模态框事件监听器设置完成');
+        
+    } catch (error) {
+        console.error('设置历史模态框事件监听器失败:', error);
+        throw error;
+    }
+}
+
+// 隐藏历史模态框
+function hideHistoryModal() {
+    const modal = document.getElementById('outline-history-modal');
+    modal.classList.remove('show');
+            setTimeout(() => {
+        modal.style.display = 'none';
+            }, 300);
+}
+
+// 更新历史记录的课程筛选器
+async function updateHistoryCourseFilter() {
+    try {
+        console.log('开始更新课程筛选器...');
+        
+        const select = document.getElementById('history-course-filter');
+        if (!select) {
+            console.error('找不到课程筛选器元素');
+            return;
+        }
+        
+        console.log('调用API获取课程列表...');
+        const response = await TeacherAPI.getCourses();
+        console.log('课程API响应:', response);
+        
+        if (response && response.success && response.data) {
+            console.log('找到课程数量:', response.data.length);
+            
+            select.innerHTML = '<option value="">所有课程</option>';
+            
+            response.data.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = `${course.name}（${course.courseCode || 'SE-0000'}）`;
+                select.appendChild(option);
+            });
+            
+            console.log('课程筛选器更新完成');
+        } else {
+            console.warn('获取课程列表失败或无数据:', response);
+            select.innerHTML = '<option value="">所有课程</option>';
+        }
+    } catch (error) {
+        console.error('更新课程筛选器失败:', error);
+        // 失败时至少保证有一个默认选项
+        const select = document.getElementById('history-course-filter');
+        if (select) {
+            select.innerHTML = '<option value="">所有课程</option>';
+        }
+    }
+}
+
+// 刷新历史记录
+async function refreshOutlineHistory() {
+    const loadingDiv = document.getElementById('history-loading');
+    const emptyDiv = document.getElementById('history-empty');
+    const contentDiv = document.getElementById('history-content');
+    
+    try {
+        console.log('开始刷新历史记录...');
+        
+        // 检查DOM元素是否存在
+        if (!loadingDiv || !emptyDiv || !contentDiv) {
+            console.error('缺少必要的DOM元素:', { loadingDiv: !!loadingDiv, emptyDiv: !!emptyDiv, contentDiv: !!contentDiv });
+            showNotification('页面元素未找到，请刷新页面重试', 'error');
+            return;
+        }
+        
+        const courseFilterEl = document.getElementById('history-course-filter');
+        const courseId = courseFilterEl ? courseFilterEl.value : '';
+        console.log('课程筛选:', courseId || '所有课程');
+        
+        // 显示加载状态
+        loadingDiv.style.display = 'block';
+        emptyDiv.style.display = 'none';
+        contentDiv.innerHTML = '';
+        
+        console.log('开始调用API获取历史记录...');
+        
+        // 获取历史记录
+        const response = await TeacherAPI.getOutlineHistory(courseId || null);
+        
+        console.log('API响应:', response);
+        
+        // 确保隐藏加载状态
+        loadingDiv.style.display = 'none';
+        
+        if (response && response.success) {
+            if (response.data && response.data.length > 0) {
+                console.log('找到历史记录数量:', response.data.length);
+                displayHistoryList(response.data);
+            } else {
+                console.log('没有找到历史记录');
+                emptyDiv.style.display = 'block';
+            }
+        } else {
+            console.error('API调用失败:', response);
+            emptyDiv.style.display = 'block';
+            
+            // 更新空状态显示的内容
+            emptyDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #f39c12; margin-bottom: 16px;"></i><br>
+                <div style="font-size: 16px; margin-bottom: 8px;">获取教学大纲失败</div>
+                <div style="font-size: 14px; color: #7f8c8d;">${response ? response.message || '请稍后重试' : '网络连接失败'}</div>
+            `;
+            
+            showNotification(response ? response.message || '获取历史记录失败' : '网络连接失败', 'error');
+        }
+        
+    } catch (error) {
+        console.error('获取历史记录失败 - 完整错误:', error);
+        
+        // 确保隐藏加载状态
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        
+        // 显示错误状态
+        if (emptyDiv) {
+            emptyDiv.style.display = 'block';
+            emptyDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #e74c3c; margin-bottom: 16px;"></i><br>
+                <div style="font-size: 16px; margin-bottom: 8px;">加载失败</div>
+                <div style="font-size: 14px; color: #7f8c8d;">${error.message || '请检查网络连接或联系管理员'}</div>
+            `;
+        }
+        
+        showNotification('获取历史记录失败: ' + (error.message || '未知错误'), 'error');
+    }
+}
+
+// 显示历史记录列表
+function displayHistoryList(outlines) {
+    const contentDiv = document.getElementById('history-content');
+    let html = '';
+    
+    outlines.forEach((outline, index) => {
+        const createTime = formatDateTime(outline.createdAt);
+        const courseName = outline.course ? outline.course.name : '未知课程';
+        const courseCode = outline.course ? outline.course.courseCode : '';
+        const previewContent = outline.teachingDesign ? 
+            outline.teachingDesign.substring(0, 100) + '...' : '暂无内容';
+        
+        html += `
+            <div class="history-item" style="
+                border: 1px solid #e9ecef;
+                border-radius: 8px;
+                padding: 20px;
+                margin-bottom: 16px;
+                background: #fff;
+                transition: all 0.3s ease;
+                cursor: pointer;
+            " onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" 
+               onmouseout="this.style.boxShadow='none'"
+               onclick="viewHistoryDetail(${outline.id})">
+                
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <div>
+                        <h4 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 16px;">
+                            <i class="fas fa-file-alt" style="color: #3498db; margin-right: 8px;"></i>
+                            ${courseName}${courseCode ? ` (${courseCode})` : ''}
+                        </h4>
+                        <div style="display: flex; align-items: center; gap: 16px; font-size: 13px; color: #7f8c8d;">
+                            <span><i class="fas fa-calendar-alt"></i> ${createTime}</span>
+                            <span><i class="fas fa-list-ol"></i> 第 ${outlines.length - index} 版</span>
+                        </div>
+                    </div>
+                    <div class="btn-group" style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); viewHistoryDetail(${outline.id})" title="查看详情">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-accent" onclick="event.stopPropagation(); downloadHistoryOutline(${outline.id})" title="下载">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); applyHistoryOutline(${outline.id})" title="应用">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteHistoryOutline(${outline.id}, '${courseName.replace(/'/g, "\\'")}')" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #3498db;">
+                    <div style="font-size: 13px; color: #5a6c7d; line-height: 1.5;">
+                        ${previewContent}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    contentDiv.innerHTML = html;
+}
+
+// 查看历史大纲详情
+async function viewHistoryDetail(outlineId) {
+    try {
+        console.log('查看大纲详情，ID:', outlineId);
+        showLoading('正在加载大纲详情...');
+        
+        // 从当前列表中查找大纲
+        const response = await TeacherAPI.getOutlineHistory();
+        hideLoading();
+        
+        if (response.success && response.data) {
+            const outline = response.data.find(o => o.id === outlineId);
+            if (outline) {
+                console.log('找到大纲详情:', outline);
+                currentHistoryOutline = outline;
+                showOutlineDetailModal(outline);
+            } else {
+                console.error('未找到大纲，ID:', outlineId);
+                showNotification('未找到大纲详情', 'error');
+            }
+        } else {
+            console.error('获取大纲列表失败:', response);
+            showNotification('获取大纲列表失败', 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('获取大纲详情失败:', error);
+        showNotification('获取大纲详情失败: ' + error.message, 'error');
+    }
+}
+
+// 显示大纲详情模态框
+function showOutlineDetailModal(outline) {
+    console.log('显示大纲详情模态框:', outline);
+    
+    const modal = document.getElementById('outline-detail-modal');
+    const titleEl = document.getElementById('outline-detail-title');
+    const contentEl = document.getElementById('outline-detail-content');
+    
+    if (!modal || !titleEl || !contentEl) {
+        console.error('缺少必要的DOM元素:', { modal: !!modal, titleEl: !!titleEl, contentEl: !!contentEl });
+        showNotification('页面元素未找到，请刷新页面重试', 'error');
+        return;
+    }
+    
+    // 设置标题
+    const courseName = outline.course ? outline.course.name : '未知课程';
+    const courseCode = outline.course ? outline.course.courseCode : '';
+    const createTime = formatDateTime(outline.createdAt);
+    const title = `${courseName}${courseCode ? ` (${courseCode})` : ''} - ${createTime}`;
+    titleEl.textContent = title;
+    console.log('设置标题:', title);
+    
+    // 设置内容
+    const content = outline.teachingDesign || '暂无内容';
+    console.log('大纲内容长度:', content.length);
+    contentEl.innerHTML = parseMarkdown(content);
+    
+    // 显示模态框
+    modal.classList.add('show');
+    modal.style.display = 'flex';
+    console.log('模态框已显示');
+    
+    // 设置详情模态框事件
+    setupDetailModalEvents();
+}
+
+// 设置详情模态框事件
+function setupDetailModalEvents() {
+    try {
+        console.log('开始设置详情模态框事件监听器...');
+        
+        const modal = document.getElementById('outline-detail-modal');
+        const closeBtn = document.getElementById('close-detail-modal');
+        const closeFooterBtn = document.getElementById('close-detail');
+        
+        console.log('详情模态框DOM元素查找结果:', {
+            modal: !!modal,
+            closeBtn: !!closeBtn,
+            closeFooterBtn: !!closeFooterBtn
+        });
+        
+        // 检查必要的DOM元素
+        if (!modal) {
+            console.error('找不到详情模态框元素');
+            return;
+        }
+        
+        // 安全地处理头部关闭按钮
+        if (closeBtn) {
+            // 移除旧的事件监听器
+            const newCloseBtn = closeBtn.cloneNode(true);
+            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+            // 关闭事件
+            newCloseBtn.addEventListener('click', hideDetailModal);
+            console.log('详情模态框头部关闭按钮事件设置完成');
+        } else {
+            console.warn('未找到详情模态框头部关闭按钮元素');
+        }
+        
+        // 安全地处理底部关闭按钮（这个元素可能不存在）
+        if (closeFooterBtn) {
+            const newCloseFooterBtn = closeFooterBtn.cloneNode(true);
+            closeFooterBtn.parentNode.replaceChild(newCloseFooterBtn, closeFooterBtn);
+            newCloseFooterBtn.addEventListener('click', hideDetailModal);
+            console.log('详情模态框底部关闭按钮事件设置完成');
+        } else {
+            console.log('详情模态框底部关闭按钮元素不存在（这是正常的）');
+        }
+        
+        // 点击模态框外部关闭
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                hideDetailModal();
+            }
+        });
+        console.log('详情模态框外部点击事件设置完成');
+        
+        console.log('详情模态框事件监听器设置完成');
+        
+    } catch (error) {
+        console.error('设置详情模态框事件监听器失败:', error);
+        throw error;
+    }
+}
+
+// 隐藏详情模态框
+function hideDetailModal() {
+    const modal = document.getElementById('outline-detail-modal');
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
+}
+
+// 应用历史大纲到当前编辑器
+function applyHistoryOutline(outlineId) {
+    if (currentHistoryOutline && currentHistoryOutline.id === outlineId) {
+        // 将历史大纲内容应用到当前的大纲生成页面
+        const resultDiv = document.getElementById('outline-result');
+        const contentDiv = document.getElementById('outline-content');
+        
+        if (resultDiv && contentDiv) {
+            displayOutlineResult(currentHistoryOutline);
+            hideDetailModal();
+            hideHistoryModal();
+            
+            // 切换到大纲生成页面
+            showSection('outline');
+            
+            showNotification('历史大纲已应用到当前页面', 'success');
+        } else {
+            showNotification('请先进入教学大纲页面', 'warning');
+        }
+    } else {
+        // 重新获取大纲数据
+        viewHistoryDetail(outlineId).then(() => {
+            applyHistoryOutline(outlineId);
+        });
+    }
+}
+
+// 应用当前预览的大纲（详情模态框中使用）
+function applyCurrentOutline() {
+    if (currentHistoryOutline) {
+        console.log('应用当前预览的大纲:', currentHistoryOutline.id);
+        applyHistoryOutline(currentHistoryOutline.id);
+    } else {
+        console.error('没有当前预览的大纲数据');
+        showNotification('没有可应用的大纲数据', 'error');
+    }
+}
+
+// 下载历史大纲
+function downloadHistoryOutline(outlineId) {
+    if (currentHistoryOutline && currentHistoryOutline.id === outlineId) {
+        const content = currentHistoryOutline.teachingDesign || '暂无内容';
+        const courseName = currentHistoryOutline.course ? currentHistoryOutline.course.name : '未知课程';
+        const createTime = formatDateTime(currentHistoryOutline.createdAt);
+        const fileName = `${courseName}_教学大纲_${createTime.replace(/[:\s]/g, '_')}.md`;
+        
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showNotification('大纲下载成功', 'success');
+    } else {
+        // 重新获取大纲数据
+        viewHistoryDetail(outlineId).then(() => {
+            downloadHistoryOutline(outlineId);
+        });
+    }
+}
+
+// 下载当前预览的大纲（详情模态框中使用）
+function downloadCurrentOutline() {
+    if (currentHistoryOutline) {
+        console.log('下载当前预览的大纲:', currentHistoryOutline.id);
+        downloadHistoryOutline(currentHistoryOutline.id);
+    } else {
+        console.error('没有当前预览的大纲数据');
+        showNotification('没有可下载的大纲数据', 'error');
+    }
+}
+
+// 删除历史大纲
+async function deleteHistoryOutline(outlineId, courseName) {
+    try {
+        console.log('开始删除大纲:', { outlineId, courseName });
+        
+        const confirmed = await showConfirmDialog(
+            '删除教学大纲',
+            `确定要删除课程"${courseName}"的这个教学大纲吗？\n\n此操作不可撤销！`,
+            '删除'
+        );
+        
+        if (!confirmed) {
+            console.log('用户取消删除操作');
+            return;
+        }
+        
+        console.log('用户确认删除，开始调用API...');
+        showLoading('正在删除大纲...');
+        
+        // 验证参数
+        if (!outlineId) {
+            throw new Error('大纲ID不能为空');
+        }
+        
+        // 调用删除API
+        console.log('调用 TeacherAPI.deleteOutline，参数:', outlineId);
+        const response = await TeacherAPI.deleteOutline(outlineId);
+        console.log('API响应:', response);
+        
+        hideLoading();
+        
+        if (response && response.success) {
+            console.log('删除成功');
+            showNotification('教学大纲删除成功', 'success');
+            
+            // 关闭详情模态框（如果打开的是被删除的大纲）
+            if (currentHistoryOutline && currentHistoryOutline.id === outlineId) {
+                console.log('关闭详情模态框');
+                hideDetailModal();
+                currentHistoryOutline = null;
+            }
+            
+            // 刷新历史记录列表
+            console.log('开始刷新历史记录列表');
+            await refreshOutlineHistory();
+        } else {
+            const errorMsg = response ? response.message || '删除失败' : '服务器响应异常';
+            console.error('删除失败:', errorMsg, response);
+            showNotification(errorMsg, 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('删除大纲失败 - 完整错误信息:', error);
+        console.error('错误类型:', error.constructor.name);
+        console.error('错误消息:', error.message);
+        console.error('错误堆栈:', error.stack);
+        
+        // 根据错误类型显示不同的错误消息
+        let errorMessage = '删除大纲时发生错误';
+        if (error.message.includes('Failed to fetch')) {
+            errorMessage = '网络连接失败，请检查网络连接';
+        } else if (error.message.includes('404')) {
+            errorMessage = '删除接口不存在，请联系管理员';
+        } else if (error.message.includes('403') || error.message.includes('401')) {
+            errorMessage = '没有删除权限，请联系管理员';
+        } else if (error.message.includes('500')) {
+            errorMessage = '服务器内部错误，请稍后重试';
+        } else if (error.message) {
+            errorMessage = `删除失败: ${error.message}`;
+        }
+        
+        showNotification(errorMessage, 'error');
+    }
+}
+
+
+// window.addEventListener('load', function() {
+//     console.log('页面已加载完成，开始初始化...');
+//     setupEventListeners();
+//     initializeTeacherPage();
+// }); 
+
+// ==================== 调试工具函数 ====================
+
+// 强制刷新所有数据（调试用）
+async function forceRefreshMaterials(showSuccessNotification = true) {
+    console.log('========== 强制刷新开始 ==========');
+    
+    // 清空所有缓存数据
+    currentCourses = [];
+    currentMaterials = [];
+    
+    try {
+        showLoading('正在强制刷新数据...');
+        
+        // 强制重新加载课程数据
+        console.log('1. 重新加载课程数据...');
+        const coursesResponse = await TeacherAPI.getCourses();
+        currentCourses = coursesResponse.data || [];
+        console.log('课程数据:', currentCourses);
+        
+        // 强制重新加载资料数据  
+        console.log('2. 重新加载资料数据...');
+        const materialsResponse = await TeacherAPI.getMaterials();
+        currentMaterials = materialsResponse.data || [];
+        console.log('资料数据:', currentMaterials);
+        
+        // 更新显示
+        console.log('3. 更新表格显示...');
+        updateMaterialsTable();
+        
+        hideLoading();
+        console.log('========== 强制刷新完成 ==========');
+        
+        if (showSuccessNotification) {
+            showNotification('数据刷新成功！', 'success');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('强制刷新失败:', error);
+        showNotification('数据刷新失败', 'error');
+    }
+}
+
+// 将函数绑定到全局，方便调试
+window.forceRefreshMaterials = forceRefreshMaterials;
+
+// 测试删除大纲功能（调试用）
+window.testDeleteOutline = async function(outlineId) {
+    console.log('=== 测试删除大纲功能 ===');
+    console.log('测试参数:', outlineId);
+    
+    try {
+        // 直接调用API测试
+        console.log('1. 测试直接调用API...');
+        const response = await TeacherAPI.deleteOutline(outlineId);
+        console.log('API调用结果:', response);
+        
+        return response;
+    } catch (error) {
+        console.error('测试失败:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+// 检查API连通性
+window.checkAPIConnection = async function() {
+    console.log('=== 检查API连通性 ===');
+    try {
+        console.log('测试获取课程列表...');
+        const coursesResponse = await TeacherAPI.getCourses();
+        console.log('课程API响应:', coursesResponse);
+        
+        console.log('测试获取大纲历史...');
+        const outlinesResponse = await TeacherAPI.getOutlineHistory();
+        console.log('大纲API响应:', outlinesResponse);
+        
+        return { success: true, message: 'API连接正常' };
+    } catch (error) {
+        console.error('API连接测试失败:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+
+
+// 自定义确认对话框
+function showConfirmDialog(title, message, confirmButtonText = '确定') {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('confirm-modal');
+        const titleElement = document.getElementById('confirm-title');
+        const messageElement = document.getElementById('confirm-message');
+        const cancelBtn = document.getElementById('confirm-cancel-btn');
+        const okBtn = document.getElementById('confirm-ok-btn');
+        
+        // 设置内容
+        titleElement.textContent = title;
+        messageElement.textContent = message;
+        okBtn.innerHTML = `<i class="fas fa-check"></i> ${confirmButtonText}`;
+        
+        // 显示模态框
+        modal.classList.add('show');
+        modal.style.display = 'flex';
+        
+        // 关闭函数
+        const closeModal = (result) => {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+            resolve(result);
+        };
+        
+        // 事件处理函数
+        const cancelHandler = () => closeModal(false);
+        const okHandler = () => closeModal(true);
+        
+        // 移除之前的事件监听器（如果有）
+        cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+        okBtn.replaceWith(okBtn.cloneNode(true));
+        
+        // 重新获取元素引用
+        const newCancelBtn = document.getElementById('confirm-cancel-btn');
+        const newOkBtn = document.getElementById('confirm-ok-btn');
+        
+        // 添加新的事件监听器
+        newCancelBtn.addEventListener('click', cancelHandler);
+        newOkBtn.addEventListener('click', okHandler);
+        
+        // ESC键关闭
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                document.removeEventListener('keydown', escHandler);
+                closeModal(false);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        
+        // 点击背景关闭
+        const backdropHandler = (e) => {
+            if (e.target === modal) {
+                modal.removeEventListener('click', backdropHandler);
+                closeModal(false);
+            }
+        };
+        modal.addEventListener('click', backdropHandler);
+    });
+}

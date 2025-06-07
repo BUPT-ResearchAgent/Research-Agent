@@ -21,11 +21,22 @@
                 <i class="fas fa-bell"></i>
                 <span class="notification-count">3</span>
             </div>
-            <div class="user-profile">
-                <span class="user-name">张教授</span>
+            <div class="user-profile" id="user-profile">
+                <span class="user-name" id="current-username">用户</span>
                 <i class="fas fa-caret-down"></i>
+                <div class="user-dropdown" id="user-dropdown">
+                    <div class="dropdown-item" onclick="showChangePasswordModal()">
+                        <i class="fas fa-key"></i>
+                        <span>修改密码</span>
             </div>
-            <button id="logout-btn" class="btn btn-danger" style="margin-left:16px;">退出</button>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="handleLogout()">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>退出登录</span>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </header>
 
@@ -38,18 +49,18 @@
             <span>教学控制面板</span>
         </div>
         
-        <div class="menu-item" data-section="lesson-design">
+        <div class="menu-item">
             <i class="fas fa-lightbulb"></i>
             <span>备课与设计</span>
             <i class="fas fa-chevron-down arrow"></i>
         </div>
         <div class="submenu">
-            <div class="submenu-item" data-section="upload-material"><i class="fas fa-upload"></i> 上传课程资料</div>
+                                    <div class="submenu-item" data-section="upload-material"><i class="fas fa-upload"></i> 构建课程知识库</div>
             <div class="submenu-item active" data-section="outline"><i class="fas fa-sitemap"></i> 生成教学大纲</div>
             <div class="submenu-item" data-section="publish-notice"><i class="fas fa-bullhorn"></i> 发布通知</div>
         </div>
         
-        <div class="menu-item" data-section="exam-gen">
+        <div class="menu-item">
             <i class="fas fa-file-signature"></i>
             <span>考核内容生成</span>
             <i class="fas fa-chevron-down arrow"></i>
@@ -60,7 +71,7 @@
             <div class="submenu-item" data-section="answer-manage"><i class="fas fa-key"></i> 答案管理</div>
         </div>
         
-        <div class="menu-item" data-section="analysis">
+        <div class="menu-item">
             <i class="fas fa-chart-pie"></i>
             <span>学情数据分析</span>
             <i class="fas fa-chevron-down arrow"></i>
@@ -78,10 +89,10 @@
             <div class="content-header">
                 <h1 class="page-title">教学控制面板</h1>
                 <div class="header-actions">
-                    <button class="btn btn-primary">
+                    <button class="btn btn-primary" onclick="loadDashboardData()">
                         <i class="fas fa-sync-alt"></i> 刷新数据
                     </button>
-                    <button class="btn btn-accent">
+                    <button class="btn btn-accent" onclick="showCreateCourseModal()">
                         <i class="fas fa-plus"></i> 新建课程
                     </button>
                 </div>
@@ -95,9 +106,9 @@
                             <i class="fas fa-users" style="color: var(--primary-color);"></i>
                         </div>
                     </div>
-                    <div class="stat-value">1,428</div>
+                    <div class="stat-value">0</div>
                     <div class="stat-change">
-                        <i class="fas fa-arrow-up"></i> 12% 较上周
+                        <!-- 动态数据，无变化趋势 -->
                     </div>
                 </div>
                 
@@ -108,9 +119,9 @@
                             <i class="fas fa-chart-line" style="color: var(--success-color);"></i>
                         </div>
                     </div>
-                    <div class="stat-value">78.6%</div>
+                    <div class="stat-value">0.0%</div>
                     <div class="stat-change">
-                        <i class="fas fa-arrow-up"></i> 3.2% 较上周
+                        <!-- 动态数据，无变化趋势 -->
                     </div>
                 </div>
                 
@@ -121,9 +132,9 @@
                             <i class="fas fa-file-alt" style="color: var(--danger-color);"></i>
                         </div>
                     </div>
-                    <div class="stat-value">48</div>
+                    <div class="stat-value">0</div>
                     <div class="stat-change down">
-                        <i class="fas fa-arrow-down"></i> 15% 较上周
+                        <!-- 动态数据，无变化趋势 -->
                     </div>
                 </div>
                 
@@ -134,9 +145,9 @@
                             <i class="fas fa-book" style="color: var(--accent-color);"></i>
                         </div>
                     </div>
-                    <div class="stat-value">86%</div>
+                    <div class="stat-value">0%</div>
                     <div class="stat-change">
-                        <i class="fas fa-arrow-up"></i> 8% 较上周
+                        <!-- 动态数据，无变化趋势 -->
                     </div>
                 </div>
             </div>
@@ -156,6 +167,7 @@
                         <thead>
                             <tr>
                                 <th>课程名称</th>
+                                <th>课程号</th>
                                 <th>学生数量</th>
                                 <th>最后更新</th>
                                 <th>完成率</th>
@@ -163,101 +175,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>
-                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                        <i class="fas fa-calculator" style="color: var(--primary-color);"></i>
-                                        <span>高等数学A</span>
-                                    </div>
-                                </td>
-                                <td>156人</td>
-                                <td>2小时前</td>
-                                <td>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill progress-high" style="width: 85%;"></div>
-                                    </div>
-                                    <span style="font-size: 12px; color: #7f8c8d;">85%</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary">管理</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                        <i class="fas fa-code" style="color: var(--accent-color);"></i>
-                                        <span>数据结构与算法</span>
-                                    </div>
-                                </td>
-                                <td>124人</td>
-                                <td>昨天 16:30</td>
-                                <td>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill progress-medium" style="width: 68%;"></div>
-                                    </div>
-                                    <span style="font-size: 12px; color: #7f8c8d;">68%</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary">管理</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                        <i class="fas fa-brain" style="color: var(--warning-color);"></i>
-                                        <span>机器学习导论</span>
-                                    </div>
-                                </td>
-                                <td>89人</td>
-                                <td>3天前</td>
-                                <td>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill progress-low" style="width: 45%;"></div>
-                                    </div>
-                                    <span style="font-size: 12px; color: #7f8c8d;">45%</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary">管理</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                        <i class="fas fa-language" style="color: var(--success-color);"></i>
-                                        <span>英语写作技巧</span>
-                                    </div>
-                                </td>
-                                <td>78人</td>
-                                <td>1周前</td>
-                                <td>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill progress-high" style="width: 92%;"></div>
-                                    </div>
-                                    <span style="font-size: 12px; color: #7f8c8d;">92%</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary">管理</button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div style="display: flex; align-items: center; gap: 10px;">
-                                        <i class="fas fa-database" style="color: var(--danger-color);"></i>
-                                        <span>数据库系统概论</span>
-                                    </div>
-                                </td>
-                                <td>102人</td>
-                                <td>5天前</td>
-                                <td>
-                                    <div class="progress-bar">
-                                        <div class="progress-fill progress-medium" style="width: 73%;"></div>
-                                    </div>
-                                    <span style="font-size: 12px; color: #7f8c8d;">73%</span>
-                                </td>
-                                <td>
-                                    <button class="btn btn-sm btn-primary">管理</button>
-                                </td>
-                            </tr>
+                            <!-- 动态内容，由JavaScript加载 -->
                         </tbody>
                     </table>
                 </div>
@@ -268,13 +186,10 @@
                 <div class="card-header">
                     <i class="fas fa-chart-bar"></i> 知识点掌握情况
                     <div class="card-actions">
-                        <select class="form-select" style="margin-right: 10px;">
-                            <option>高等数学</option>
-                            <option>数据结构与算法</option>
-                            <option>机器学习导论</option>
-                            <option>英语写作技巧</option>
+                        <select id="knowledge-course-select" class="form-select">
+                            <option value="">请选择课程</option>
                         </select>
-                        <select class="form-select" style="margin-right: 10px;">
+                        <select class="form-select">
                             <option>本周</option>
                             <option>本月</option>
                             <option>本学期</option>
@@ -291,32 +206,12 @@
                         <div><div class="legend-color low"></div> 需要强化 (<60%学生)</div>
                     </div>
                     <div class="chart-bars">
-                        <div class="bar-container">
-                            <div class="bar high" style="height: 85%;"></div>
-                            <div class="bar-value">85%</div>
-                            <div class="bar-label">函数与极限</div>
+                        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                            <i class="fas fa-chart-bar" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                            <p>暂无知识点掌握数据</p>
+                            <p>完成课程测评后这里会显示学生的知识点掌握情况</p>
                         </div>
-                        <div class="bar-container">
-                            <div class="bar medium" style="height: 68%;"></div>
-                            <div class="bar-value">68%</div>
-                            <div class="bar-label">导数应用</div>
                         </div>
-                        <div class="bar-container">
-                            <div class="bar low" style="height: 45%;"></div>
-                            <div class="bar-value">45%</div>
-                            <div class="bar-label">积分计算</div>
-                        </div>
-                        <div class="bar-container">
-                            <div class="bar high" style="height: 92%;"></div>
-                            <div class="bar-value">92%</div>
-                            <div class="bar-label">基础概念</div>
-                        </div>
-                        <div class="bar-container">
-                            <div class="bar medium" style="height: 73%;"></div>
-                            <div class="bar-value">73%</div>
-                            <div class="bar-label">应用题</div>
-                        </div>
-                    </div>
                 </div>
             </div>
             
@@ -332,60 +227,13 @@
                                 </button>
                             </div>
                         </div>
-                        <ul class="recent-activity">
-                            <li class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-bullhorn"></i>
+                        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                            <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                            <p>暂无最新通知</p>
+                            <p>发布通知后会在这里显示</p>
                                 </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">期中考试时间安排通知</div>
-                                    <div class="activity-desc">本学期期中考试将于11月20日-11月25日进行，请各位老师提前准备</div>
-                                    <div class="activity-time">2小时前发布</div>
                                 </div>
-                            </li>
-                            <li class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-book"></i>
                                 </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">《高等数学》课程资料已更新</div>
-                                    <div class="activity-desc">更新了第3章和第4章的习题集，新增了20道练习题</div>
-                                    <div class="activity-time">昨天 15:32</div>
-                                </div>
-                            </li>
-                            <li class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-clipboard-check"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">数据结构作业已批改完成</div>
-                                    <div class="activity-desc">2023级2班的数据结构作业已批改完成，平均分82分</div>
-                                    <div class="activity-time">昨天 10:15</div>
-                                </div>
-                            </li>
-                            <li class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-users"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">张老师加入了教学团队</div>
-                                    <div class="activity-desc">张教授将负责机器学习课程的教学工作</div>
-                                    <div class="activity-time">2023年11月5日</div>
-                                </div>
-                            </li>
-                            <li class="activity-item">
-                                <div class="activity-icon">
-                                    <i class="fas fa-exclamation-triangle"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">系统将于本周六进行维护</div>
-                                    <div class="activity-desc">系统将在本周六凌晨2:00-4:00进行维护升级</div>
-                                    <div class="activity-time">2023年11月4日</div>
-                                </div>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
                 
                 <div class="content-column">
                     <div class="content-card">
@@ -395,127 +243,906 @@
                                 <button class="btn btn-sm btn-primary">
                                     <i class="fas fa-check"></i> 全部标记
                                 </button>
-                            </div>
-                        </div>
-                        <ul class="recent-activity">
-                            <li class="activity-item">
-                                <div class="activity-icon" style="background-color: rgba(231, 76, 60, 0.1); color: var(--danger-color);">
-                                    <i class="fas fa-edit"></i>
                                 </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">批改数据结构作业（48份）</div>
-                                    <div class="activity-time">截止日期：2023年11月15日</div>
                                 </div>
-                                <div class="activity-action">
-                                    <i class="fas fa-ellipsis-v"></i>
+                        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                            <i class="fas fa-check-circle" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                            <p>暂无待办事项</p>
+                            <p>创建课程和发布测评后会在这里显示相关任务</p>
                                 </div>
-                            </li>
-                            <li class="activity-item">
-                                <div class="activity-icon" style="background-color: rgba(52, 152, 219, 0.1); color: var(--primary-color);">
-                                    <i class="fas fa-book"></i>
                                 </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">准备下周机器学习课程资料</div>
-                                    <div class="activity-time">截止日期：2023年11月10日</div>
                                 </div>
-                                <div class="activity-action">
-                                    <i class="fas fa-ellipsis-v"></i>
                                 </div>
-                            </li>
-                            <li class="activity-item">
-                                <div class="activity-icon" style="background-color: rgba(243, 156, 18, 0.1); color: var(--warning-color);">
-                                    <i class="fas fa-clipboard-list"></i>
+        </section>
+        
+        <section id="lesson-design" class="main-section hidden-section">
+            <div class="content-header"><h1 class="page-title">备课与设计</h1></div>
+            <div style="padding:2em;">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-graduation-cap"></i> 备课与设计
                                 </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">设计期中考试题目</div>
-                                    <div class="activity-time">截止日期：2023年11月20日</div>
-                                </div>
-                                <div class="activity-action">
-                                    <i class="fas fa-ellipsis-v"></i>
-                                </div>
-                            </li>
-                            <li class="activity-item">
-                                <div class="activity-icon" style="background-color: rgba(26, 188, 156, 0.1); color: var(--accent-color);">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                                <div class="activity-content">
-                                    <div class="activity-title">分析上周测验数据</div>
-                                    <div class="activity-time">截止日期：2023年11月12日</div>
-                                </div>
-                                <div class="activity-action">
-                                    <i class="fas fa-ellipsis-v"></i>
-                                </div>
-                            </li>
-                        </ul>
+                    <div style="padding: 24px; text-align: center; color: #7f8c8d;">
+                        <i class="fas fa-book-open" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                        <p>备课与设计功能正在开发中...</p>
+                        <p>请通过左侧菜单选择具体功能</p>
                     </div>
                 </div>
             </div>
         </section>
         
-        <section id="lesson-design" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">备课与设计</h1></div>
-            <div style="padding:2em;">这里是备课与设计页面内容示例。</div>
-        </section>
-        
         <section id="upload-material" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">上传课程资料</h1></div>
-            <div style="padding:2em;">这里是上传课程资料页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">构建课程知识库</h1>
+                <div class="header-actions">
+                    <button class="btn btn-accent" onclick="loadMaterialsData()">
+                        <i class="fas fa-sync-alt"></i> 刷新资料
+                    </button>
+                    <button class="btn btn-primary" onclick="showUploadModal()">
+                        <i class="fas fa-plus"></i> 上传资料
+                    </button>
+                </div>
+                        </div>
+            
+            <div class="main-content">
+                <!-- 上传表单已移至模态框，此处隐藏 -->
+                
+                    <div class="content-card">
+                        <div class="card-header">
+                        <i class="fas fa-database"></i> 知识库
+                            <div class="card-actions">
+                            <input type="text" id="material-search" class="form-input" placeholder="搜索资料..." style="width: 200px;">
+                            </div>
+                        </div>
+                    <div class="table-container">
+                        <table id="materials-table">
+                            <thead>
+                                <tr>
+                                    <th>课程</th>
+                                    <th>资料名称</th>
+                                    <th>上传时间</th>
+                                    <th>文件大小</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 动态加载内容 -->
+                            </tbody>
+                        </table>
+                                </div>
+                                </div>
+                                </div>
         </section>
         
         <section id="outline" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">生成教学大纲</h1></div>
-            <div style="padding:2em;">这里是生成教学大纲页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">生成教学大纲</h1>
+                <div class="header-actions">
+                    <button class="btn btn-accent" onclick="loadOutlineHistory()">
+                        <i class="fas fa-folder-open"></i> 我的大纲
+                    </button>
+                                </div>
+                                </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-magic"></i> AI智能生成教学大纲
+                                </div>
+                    <div style="padding: 24px;">
+                        <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                                <label>选择课程：<span style="color: #e74c3c;">*</span></label>
+                                <select id="outline-course-select" class="form-select" onchange="loadCourseMaterials()">
+                                    <option value="">请选择课程</option>
+                                </select>
+                                </div>
+                            <div class="form-group" style="flex: 0 0 200px; margin-bottom: 0;">
+                                <label>教学学时：<span style="color: #e74c3c;">*</span></label>
+                                <input type="number" id="outline-hours" class="form-input" placeholder="输入学时" min="1" max="100" step="1" title="1学时 = 45分钟">
+                                <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">1学时 = 45分钟</div>
+                                </div>
+                                </div>
+                        
+                        <div class="form-group">
+                            <label>选择资料：<span style="color: #e74c3c;">*</span></label>
+                            <div id="materials-loading" style="display: none; padding: 16px; text-align: center; color: #7f8c8d;">
+                                <i class="fas fa-spinner fa-spin"></i> 加载课程资料中...
+                                </div>
+                            <div id="materials-selection" style="display: none;">
+                                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 13px; color: #7f8c8d;">从该课程的知识库中选择资料作为生成依据</span>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllMaterials()">全选</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="clearAllMaterials()">清空</button>
+                                </div>
+                                </div>
+                                <div id="materials-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #e0e6ed; border-radius: 8px; padding: 12px;">
+                                    <!-- 动态加载的资料列表 -->
+                    </div>
+                </div>
+                            <div id="materials-empty" style="display: block; padding: 20px; text-align: center; color: #7f8c8d;">
+                                <i class="fas fa-info-circle"></i> 请先选择课程，或该课程暂无知识库资料
+            </div>
+                </div>
+        
+                        <div class="form-group">
+                            <label>教学要求：</label>
+                            <textarea id="outline-requirements" class="form-input" rows="3" placeholder="请输入特殊教学要求或重点内容（可选）..."></textarea>
+            </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-primary" onclick="generateOutline()">
+                                <i class="fas fa-magic"></i> 生成教学大纲
+                            </button>
+                            <button class="btn btn-secondary" onclick="clearOutlineForm()">
+                                <i class="fas fa-times"></i> 清空表单
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 教学大纲结果显示 -->
+                    <div id="outline-result" style="display: none;">
+                        <div id="outline-content"></div>
+                    </div>
+                </div>
+        
+                <div class="content-card" id="outline-result" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-file-alt"></i> 生成的教学大纲
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-accent" onclick="editOutline()">
+                                <i class="fas fa-edit"></i> 编辑
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="saveOutline()">
+                                <i class="fas fa-save"></i> 保存
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="exportOutline()">
+                                <i class="fas fa-download"></i> 导出
+                            </button>
+                        </div>
+                    </div>
+                    <div id="outline-content" style="padding: 24px;">
+                        <!-- 动态生成的教学大纲内容 -->
+                    </div>
+                </div>
+            </div>
         </section>
         
         <section id="publish-notice" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">发布通知</h1></div>
-            <div style="padding:2em;">这里是发布通知页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">发布通知</h1>
+                <div class="header-actions">
+                    <button class="btn btn-accent" onclick="loadNoticeHistory()">
+                        <i class="fas fa-history"></i> 历史通知
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-bullhorn"></i> 发布新通知
+                    </div>
+                    <div style="padding: 24px;">
+                        <div class="form-group">
+                            <label>通知标题：</label>
+                            <input type="text" id="notice-title" class="form-input" placeholder="请输入通知标题">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>通知内容：</label>
+                            <textarea id="notice-content" class="form-input" rows="6" placeholder="请输入通知详细内容..." style="resize: none;"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>发送对象：</label>
+                            <select id="notice-target-type" class="form-select" onchange="updateTargetOptions()">
+                                <option value="ALL">全体学生</option>
+                                <option value="COURSE">指定课程</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="notice-target-detail" style="display: none;">
+                            <label>选择课程：</label>
+                            <select id="notice-target-select" class="form-select">
+                                <!-- 动态加载课程选项 -->
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>优先级：</label>
+                            <select id="notice-priority" class="form-select">
+                                <option value="NORMAL">普通</option>
+                                <option value="IMPORTANT">重要</option>
+                                <option value="URGENT">紧急</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>推送时间：</label>
+                            <select id="notice-push-time" class="form-select" onchange="handlePushTimeChange()">
+                                <option value="now">立即推送</option>
+                                <option value="scheduled">定时推送</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="notice-schedule-detail" style="display: none;">
+                            <label>选择推送时间：</label>
+                            <input type="datetime-local" id="notice-schedule-time" class="form-input">
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-primary" onclick="publishNotice()">
+                                <i class="fas fa-paper-plane"></i> 发布通知
+                            </button>
+                            <button class="btn btn-accent" onclick="previewNotice()">
+                                <i class="fas fa-eye"></i> 预览
+                            </button>
+                            <button class="btn btn-secondary" onclick="clearNoticeForm()">
+                                <i class="fas fa-times"></i> 清空
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-list"></i> 最近发布的通知
+                    </div>
+                    <div class="table-container">
+                        <table id="notices-table">
+                            <thead>
+                                <tr>
+                                    <th>标题</th>
+                                    <th>发布时间</th>
+                                    <th>发送对象</th>
+                                    <th>优先级</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 动态加载内容 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </section>
         
         <section id="exam-gen" class="main-section hidden-section">
             <div class="content-header"><h1 class="page-title">考核内容生成</h1></div>
-            <div style="padding:2em;">这里是考核内容生成页面内容示例。</div>
+            <div style="padding:2em;">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-clipboard-check"></i> 考核内容生成
+                    </div>
+                    <div style="padding: 24px; text-align: center; color: #7f8c8d;">
+                        <i class="fas fa-tasks" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                        <p>考核内容生成功能正在开发中...</p>
+                        <p>请通过左侧菜单选择具体功能</p>
+                    </div>
+                </div>
+            </div>
         </section>
         
         <section id="gen-test" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">生成测评</h1></div>
-            <div style="padding:2em;">这里是生成测评页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">生成测评</h1>
+                <div class="header-actions">
+                    <button class="btn btn-accent" onclick="loadExamTemplates()">
+                        <i class="fas fa-copy"></i> 模板库
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-magic"></i> AI智能出题
+                    </div>
+                    <div style="padding: 24px;">
+                        <div class="form-group">
+                            <label>选择课程：</label>
+                            <select id="exam-course-select" class="form-select">
+                                <option value="">请选择课程</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>选择章节：</label>
+                            <div id="exam-chapters" class="checkbox-group">
+                                <!-- 动态加载章节复选框 -->
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>题型设置：</label>
+                            <div class="question-types-config">
+                                <div class="question-type-item">
+                                    <label>
+                                        <input type="checkbox" id="q-multiple-choice" checked>
+                                        选择题
+                                    </label>
+                                    <input type="number" id="q-multiple-choice-count" class="form-input-sm" value="10" min="0" max="50">
+                                    <span>题</span>
+                                </div>
+                                <div class="question-type-item">
+                                    <label>
+                                        <input type="checkbox" id="q-fill-blank">
+                                        填空题
+                                    </label>
+                                    <input type="number" id="q-fill-blank-count" class="form-input-sm" value="5" min="0" max="20">
+                                    <span>题</span>
+                                </div>
+                                <div class="question-type-item">
+                                    <label>
+                                        <input type="checkbox" id="q-true-false">
+                                        判断题
+                                    </label>
+                                    <input type="number" id="q-true-false-count" class="form-input-sm" value="5" min="0" max="20">
+                                    <span>题</span>
+                                </div>
+                                <div class="question-type-item">
+                                    <label>
+                                        <input type="checkbox" id="q-calculation">
+                                        计算题
+                                    </label>
+                                    <input type="number" id="q-calculation-count" class="form-input-sm" value="3" min="0" max="10">
+                                    <span>题</span>
+                                </div>
+                                <div class="question-type-item">
+                                    <label>
+                                        <input type="checkbox" id="q-essay">
+                                        论述题
+                                    </label>
+                                    <input type="number" id="q-essay-count" class="form-input-sm" value="2" min="0" max="5">
+                                    <span>题</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>难度分布：</label>
+                            <div class="difficulty-config">
+                                <div class="difficulty-item">
+                                    <label>简单：</label>
+                                    <input type="range" id="difficulty-easy" min="0" max="100" value="30">
+                                    <span id="difficulty-easy-value">30%</span>
+                                </div>
+                                <div class="difficulty-item">
+                                    <label>中等：</label>
+                                    <input type="range" id="difficulty-medium" min="0" max="100" value="50">
+                                    <span id="difficulty-medium-value">50%</span>
+                                </div>
+                                <div class="difficulty-item">
+                                    <label>困难：</label>
+                                    <input type="range" id="difficulty-hard" min="0" max="100" value="20">
+                                    <span id="difficulty-hard-value">20%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>考试时长：</label>
+                            <input type="number" id="exam-duration" class="form-input" value="90" min="30" max="180">
+                            <span>分钟</span>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>总分设置：</label>
+                            <input type="number" id="exam-total-score" class="form-input" value="100" min="50" max="200">
+                            <span>分</span>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button class="btn btn-primary" onclick="generateExam()">
+                                <i class="fas fa-magic"></i> 生成试卷
+                            </button>
+                            <button class="btn btn-secondary" onclick="clearExamForm()">
+                                <i class="fas fa-times"></i> 清空设置
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="content-card" id="exam-preview" style="display: none;">
+                    <div class="card-header">
+                        <i class="fas fa-file-alt"></i> 试卷预览
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-accent" onclick="editExam()">
+                                <i class="fas fa-edit"></i> 编辑
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="publishExam()">
+                                <i class="fas fa-paper-plane"></i> 发布
+                            </button>
+                            <button class="btn btn-sm btn-secondary" onclick="exportExam()">
+                                <i class="fas fa-download"></i> 导出
+                            </button>
+                        </div>
+                    </div>
+                    <div id="exam-content" style="padding: 24px;">
+                        <!-- 动态生成的试卷内容 -->
+                    </div>
+                </div>
+            </div>
         </section>
         
         <section id="test-manage" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">测评管理</h1></div>
-            <div style="padding:2em;">这里是测评管理页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">测评管理</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="loadExamList()">
+                        <i class="fas fa-sync-alt"></i> 刷新列表
+                    </button>
+                    <button class="btn btn-accent" onclick="showScheduleModal()">
+                        <i class="fas fa-calendar-plus"></i> 定时发布
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-list"></i> 试卷列表
+                        <div class="card-actions">
+                            <select id="exam-status-filter" class="form-select" onchange="filterExams()">
+                                <option value="">所有状态</option>
+                                <option value="DRAFT">草稿</option>
+                                <option value="PUBLISHED">已发布</option>
+                                <option value="ONGOING">进行中</option>
+                                <option value="FINISHED">已结束</option>
+                            </select>
+                            <input type="text" id="exam-search" class="form-input" placeholder="搜索试卷..." style="width: 200px;">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="exams-table">
+                            <thead>
+                                <tr>
+                                    <th>试卷名称</th>
+                                    <th>课程</th>
+                                    <th>题目数量</th>
+                                    <th>考试时长</th>
+                                    <th>状态</th>
+                                    <th>参考人数</th>
+                                    <th>发布时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 动态加载内容 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-bar"></i> 考试统计
+                    </div>
+                    <div style="padding: 24px;">
+                        <div class="stats-container">
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">待发布试卷</div>
+                                    <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
+                                        <i class="fas fa-file-alt" style="color: var(--primary-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="stat-draft-exams">0</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">进行中考试</div>
+                                    <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
+                                        <i class="fas fa-play-circle" style="color: var(--success-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="stat-ongoing-exams">0</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">待批改答卷</div>
+                                    <div class="stat-icon" style="background-color: rgba(231, 76, 60, 0.1);">
+                                        <i class="fas fa-marker" style="color: var(--danger-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="stat-pending-grades">0</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">本月考试数</div>
+                                    <div class="stat-icon" style="background-color: rgba(26, 188, 156, 0.1);">
+                                        <i class="fas fa-calendar" style="color: var(--accent-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="stat-monthly-exams">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
         
         <section id="answer-manage" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">答案管理</h1></div>
-            <div style="padding:2em;">这里是答案管理页面内容示例。</div>
-        </section>
-        
-        <section id="analysis" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">学情数据分析</h1></div>
-            <div style="padding:2em;">这里是学情数据分析页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">答案管理</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="loadAnswersList()">
+                        <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-key"></i> 答案与解析管理
+                    </div>
+                    <div class="table-container">
+                        <table id="answers-table">
+                            <thead>
+                                <tr>
+                                    <th>试卷名称</th>
+                                    <th>题目数量</th>
+                                    <th>答案状态</th>
+                                    <th>解析状态</th>
+                                    <th>公布设置</th>
+                                    <th>最后编辑</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 动态加载内容 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </section>
         
         <section id="grade-mark" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">成绩批改</h1></div>
-            <div style="padding:2em;">这里是成绩批改页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">成绩批改</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="loadGradeList()">
+                        <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                    <button class="btn btn-accent" onclick="autoGradeAll()">
+                        <i class="fas fa-magic"></i> 批量AI批改
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-marker"></i> 待批改试卷
+                        <div class="card-actions">
+                            <select id="grade-exam-filter" class="form-select" onchange="filterGrades()">
+                                <option value="">所有考试</option>
+                            </select>
+                            <select id="grade-status-filter" class="form-select" onchange="filterGrades()">
+                                <option value="">所有状态</option>
+                                <option value="PENDING">待批改</option>
+                                <option value="AI_GRADED">AI已批改</option>
+                                <option value="MANUAL_GRADED">人工已批改</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="grades-table">
+                            <thead>
+                                <tr>
+                                    <th>学生姓名</th>
+                                    <th>学号</th>
+                                    <th>考试名称</th>
+                                    <th>提交时间</th>
+                                    <th>AI预分</th>
+                                    <th>最终得分</th>
+                                    <th>批改状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 动态加载内容 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </section>
         
         <section id="grade-analysis" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">成绩分析</h1></div>
-            <div style="padding:2em;">这里是成绩分析页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">成绩分析</h1>
+                <div class="header-actions">
+                    <select id="analysis-exam-select" class="form-select" onchange="loadAnalysisData()">
+                        <option value="">选择考试</option>
+                    </select>
+                    <button class="btn btn-accent" onclick="exportAnalysisReport()">
+                        <i class="fas fa-download"></i> 导出报告
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-chart-pie"></i> 成绩分布统计
+                    </div>
+                    <div style="padding: 24px;">
+                        <div class="stats-container">
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">平均分</div>
+                                    <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
+                                        <i class="fas fa-calculator" style="color: var(--primary-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="analysis-avg-score">--</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">最高分</div>
+                                    <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
+                                        <i class="fas fa-trophy" style="color: var(--success-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="analysis-max-score">--</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">及格率</div>
+                                    <div class="stat-icon" style="background-color: rgba(26, 188, 156, 0.1);">
+                                        <i class="fas fa-percentage" style="color: var(--accent-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="analysis-pass-rate">--%</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">标准差</div>
+                                    <div class="stat-icon" style="background-color: rgba(243, 156, 18, 0.1);">
+                                        <i class="fas fa-chart-line" style="color: var(--warning-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="analysis-std-dev">--</div>
+                            </div>
+                        </div>
+                        
+                        <div class="chart-container" style="margin-top: 24px;">
+                            <div id="score-distribution-chart" style="height: 300px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #7f8c8d;">
+                                选择考试后显示成绩分布图表
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-exclamation-triangle"></i> 错误率分析
+                    </div>
+                    <div class="table-container">
+                        <table id="error-analysis-table">
+                            <thead>
+                                <tr>
+                                    <th>题目编号</th>
+                                    <th>题目类型</th>
+                                    <th>知识点</th>
+                                    <th>错误率</th>
+                                    <th>常见错误</th>
+                                    <th>改进建议</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 动态加载内容 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </section>
         
         <section id="improve-suggest" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">教学改进建议</h1></div>
-            <div style="padding:2em;">这里是教学改进建议页面内容示例。</div>
+            <div class="content-header">
+                <h1 class="page-title">教学改进建议</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="generateImprovements()">
+                        <i class="fas fa-magic"></i> AI生成建议
+                    </button>
+                    <button class="btn btn-accent" onclick="exportImprovements()">
+                        <i class="fas fa-download"></i> 导出报告
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-lightbulb"></i> 智能教学改进建议
+                    </div>
+                    <div style="padding: 24px;">
+                        <div class="form-group">
+                            <label>分析范围：</label>
+                            <select id="improve-scope" class="form-select">
+                                <option value="COURSE">单个课程</option>
+                                <option value="SEMESTER">本学期</option>
+                                <option value="YEAR">本学年</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="improve-course-group">
+                            <label>选择课程：</label>
+                            <select id="improve-course-select" class="form-select">
+                                <option value="">请选择课程</option>
+                            </select>
+                        </div>
+                        
+                        <div id="improvements-content">
+                            <!-- AI生成的改进建议将显示在这里 -->
+                            <div class="empty-state">
+                                <i class="fas fa-lightbulb" style="font-size: 48px; color: #ddd; margin-bottom: 16px;"></i>
+                                <p>点击"AI生成建议"获取个性化教学改进建议</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
         
         <div class="content-footer">
             <p>© 2023 智教SmartEdu - 教学实训智能体软件 | 基于DeepSeek大模型</p>
         </div>
     </main>
+
+    <!-- 上传资料模态框 -->
+    <div id="upload-material-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 800px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-upload"></i>
+                    </div>
+                    <h3>上传资料文件</h3>
+                </div>
+                <button id="close-upload-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <form id="upload-material-form">
+                    <!-- 第一行：选择课程和资料类型 -->
+                    <div class="form-row" style="display: flex; gap: 20px; margin-bottom: 20px;">
+                        <div class="course-form-group" style="flex: 1; min-width: 0; width: calc(50% - 10px);">
+                            <label class="course-form-label">
+                                <i class="fas fa-book"></i>
+                                选择课程 <span class="required">*</span>
+                            </label>
+                            <select id="modal-material-course-select" class="course-form-input" required>
+                                <option value="">请选择课程</option>
+                            </select>
+                        </div>
+                        
+                        <div class="course-form-group" style="flex: 1; min-width: 0; width: calc(50% - 10px);">
+                            <label class="course-form-label">
+                                <i class="fas fa-tags"></i>
+                                资料类型 <span class="required">*</span>
+                            </label>
+                            <select id="modal-material-type" class="course-form-input" required>
+                                <option value="PPT">PPT课件</option>
+                                <option value="PDF">PDF文档</option>
+                                <option value="WORD">Word文档</option>
+                                <option value="OTHER">其他资料</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- 第二行：选择文件和资料描述 -->
+                    <div class="form-row" style="display: flex; gap: 20px; margin-bottom: 20px;">
+                        <div class="course-form-group" style="flex: 1; min-width: 0; width: calc(50% - 10px);">
+                            <label class="course-form-label">
+                                <i class="fas fa-file"></i>
+                                选择文件 <span class="required">*</span>
+                            </label>
+                            <div class="file-upload-area" id="modal-file-upload-area" style="height: 200px; min-height: 200px;">
+                                <input type="file" id="modal-file-input" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt" style="display: none;" required>
+                                <div class="upload-prompt">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p>点击上传文件或拖拽文件至此区域</p>
+                                    <p class="upload-tips">支持 PDF、Word、PPT、TXT 格式，单个文件不超过50MB</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="course-form-group" style="flex: 1; min-width: 0; width: calc(50% - 10px);">
+                            <label class="course-form-label">
+                                <i class="fas fa-edit"></i>
+                                资料描述
+                            </label>
+                            <textarea id="modal-material-description" class="course-form-input" rows="3" placeholder="请输入资料的简要描述..." style="height: 200px; min-height: 200px; max-height: 200px; resize: none;"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="course-modal-actions">
+                        <button type="button" id="cancel-upload" class="course-btn course-btn-cancel">
+                            <i class="fas fa-times"></i>
+                            <span>取消</span>
+                        </button>
+                        <button type="submit" class="course-btn course-btn-primary">
+                            <i class="fas fa-upload"></i>
+                            <span>上传资料</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改密码模态框 -->
+    <div id="change-password-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 450px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-key"></i>
+                    </div>
+                    <h3>修改密码</h3>
+                </div>
+                <button id="close-password-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <form id="change-password-form">
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            当前密码 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="current-password" class="course-form-input" placeholder="请输入当前密码" required>
+                    </div>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            新密码 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="new-password" class="course-form-input" placeholder="请输入新密码（至少6位）" required minlength="6">
+                    </div>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            确认新密码 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="confirm-password" class="course-form-input" placeholder="请再次输入新密码" required minlength="6">
+                    </div>
+                    
+                    <div class="course-modal-actions">
+                        <button type="button" id="cancel-password-change" class="course-btn course-btn-cancel">
+                            <i class="fas fa-times"></i>
+                            <span>取消</span>
+                        </button>
+                        <button type="submit" class="course-btn course-btn-primary">
+                            <i class="fas fa-save"></i>
+                            <span>确认修改</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- 退出确认弹窗 -->
     <div id="logout-modal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.2);align-items:center;justify-content:center;z-index:999;">
@@ -528,6 +1155,708 @@
         </div>
     </div>
 
+    <!-- 新建课程模态框 -->
+    <div id="create-course-modal" class="course-modal-overlay">
+        <div class="course-modal-container">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-plus-circle"></i>
+                    </div>
+                    <h3>新建课程</h3>
+                </div>
+                <button id="close-course-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <form id="create-course-form">
+                    <div class="course-form-grid">
+                        <div class="course-form-group">
+                            <label class="course-form-label">
+                                <i class="fas fa-book"></i>
+                                课程名称 <span class="required">*</span>
+                            </label>
+                            <input type="text" id="course-name" class="course-form-input" placeholder="请输入课程名称" required>
+                        </div>
+                        
+                        <div class="course-form-group" id="course-code-display" style="display: none;">
+                            <label class="course-form-label">
+                                <i class="fas fa-hashtag"></i>
+                                课程号
+                            </label>
+                            <div class="course-code-readonly" id="course-code-readonly">
+                                <span id="course-code-value">-</span>
+                                <small class="form-help">课程号创建后不可修改</small>
+                            </div>
+                        </div>
+                        
+                        <div class="course-form-group full-width">
+                            <label class="course-form-label">
+                                <i class="fas fa-align-left"></i>
+                                课程描述
+                            </label>
+                            <textarea id="course-description" class="course-form-textarea" rows="3" placeholder="请简要描述课程内容与目标"></textarea>
+                        </div>
+                        
+                        <div class="course-form-group">
+                            <label class="course-form-label">
+                                <i class="fas fa-star"></i>
+                                学分 <span class="required">*</span>
+                            </label>
+                            <input type="number" id="course-credit" class="course-form-input" placeholder="1-10" min="1" max="10" required>
+                        </div>
+                        
+                        <div class="course-form-group">
+                            <label class="course-form-label">
+                                <i class="fas fa-clock"></i>
+                                学时 <span class="required">*</span>
+                            </label>
+                            <input type="number" id="course-hours" class="course-form-input" placeholder="16-200" min="16" max="200" required>
+                        </div>
+                    </div>
+                    
+                    <div class="course-modal-actions">
+                        <button type="button" id="cancel-course-create" class="course-btn course-btn-cancel">
+                            <i class="fas fa-times"></i>
+                            <span>取消</span>
+                        </button>
+                        <button type="submit" class="course-btn course-btn-primary">
+                            <i class="fas fa-save"></i>
+                            <span>创建课程</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="teacher-api.js"></script>
+    <script src="teacher.js"></script>
+    
+    <!-- 临时解决方案：直接在HTML中定义函数 -->
+    <script>
+        function showUploadModal() {
+            console.log('showUploadModal 被调用 - HTML版本');
+            const modal = document.getElementById('upload-material-modal');
+            console.log('Modal element:', modal);
+            
+            if (!modal) {
+                console.error('找不到上传模态框元素！');
+                                 showNotification('找不到上传模态框元素！', 'error');
+                return;
+            }
+            
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+            console.log('Modal 已显示');
+            
+            // 简单的清空表单
+            const courseSelect = document.getElementById('modal-material-course-select');
+            const typeSelect = document.getElementById('modal-material-type');
+            const descriptionTextarea = document.getElementById('modal-material-description');
+            const fileInput = document.getElementById('modal-file-input');
+            const uploadArea = document.getElementById('modal-file-upload-area');
+            
+            if (courseSelect) courseSelect.value = '';
+            if (typeSelect) typeSelect.value = 'PPT';
+            if (descriptionTextarea) descriptionTextarea.value = '';
+            if (fileInput) fileInput.value = '';
+            
+            // 重置文件上传区域显示
+            if (uploadArea) {
+                const prompt = uploadArea.querySelector('.upload-prompt');
+                if (prompt) {
+                    prompt.innerHTML = `
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>点击上传文件或拖拽文件至此区域</p>
+                        <p class="upload-tips">支持 PDF、Word、PPT、TXT 格式，单个文件不超过50MB</p>
+                    `;
+                }
+            }
+            
+            // 更新课程选择器
+            updateModalCourseSelect();
+        }
+        
+        function hideUploadModal() {
+            const modal = document.getElementById('upload-material-modal');
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+        
+        async function updateModalCourseSelect() {
+            try {
+                const response = await fetch('/api/teacher/courses');
+                const apiResponse = await response.json();
+                
+                if (apiResponse.success && apiResponse.data) {
+                    const select = document.getElementById('modal-material-course-select');
+                    select.innerHTML = '<option value="">请选择课程</option>';
+                    
+                    apiResponse.data.forEach(course => {
+                        const option = document.createElement('option');
+                        option.value = course.id;
+                        option.textContent = `${course.name}（${course.courseCode || 'SE-0000'}）`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('更新课程选择器失败:', error);
+            }
+        }
+        
+        // 设置关闭按钮事件和文件上传事件
+        // 页面加载完成后自动加载资料列表（不显示成功通知）
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化教师页面，会在teacher.js中处理所有事件设置
+            // 这里仅保留必要的初始化逻辑
+        });
+         
+         // 加载资料列表函数
+         async function loadMaterials(showSuccessNotification = true) {
+             try {
+                 // 显示加载状态
+                 const tableBody = document.querySelector('#materials-table tbody');
+                 if (tableBody) {
+                     tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> 加载中...</td></tr>';
+                 }
+                 
+                 // 调用API获取资料列表
+                 const response = await fetch('/api/teacher/materials');
+                 const result = await response.json();
+                 
+                 if (result.success && result.data) {
+                     displayMaterials(result.data);
+                     if (showSuccessNotification) {
+                         showNotification('资料列表刷新成功', 'success');
+                     }
+                 } else {
+                     tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #7f8c8d;">暂无资料数据</td></tr>';
+                     showNotification('刷新失败：' + (result.message || '未知错误'), 'error');
+                 }
+             } catch (error) {
+                 console.error('加载资料失败:', error);
+                 const tableBody = document.querySelector('#materials-table tbody');
+                 if (tableBody) {
+                     tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #e74c3c;">加载失败，请检查网络连接</td></tr>';
+                 }
+                 showNotification('加载失败：网络错误', 'error');
+             }
+         }
+         
+         // 显示资料列表函数
+         function displayMaterials(materials) {
+             const tableBody = document.querySelector('#materials-table tbody');
+             if (!tableBody) return;
+             
+             if (!materials || materials.length === 0) {
+                 tableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #7f8c8d;">暂无资料</td></tr>';
+                 return;
+             }
+             
+             // 按课程分组
+             const groupedMaterials = groupMaterialsByCourse(materials);
+             
+             // 生成课程颜色映射
+             const courseColors = generateCourseColors(Object.keys(groupedMaterials));
+             
+             let html = '';
+             
+             // 遍历每个课程组
+             Object.entries(groupedMaterials).forEach(([courseKey, courseMaterials]) => {
+                 const color = courseColors[courseKey];
+                 const courseInfo = courseMaterials[0].course;
+                 const courseName = courseInfo ? courseInfo.name : '未知课程';
+                 const courseCode = courseInfo ? courseInfo.courseCode : '';
+                 
+                 // 为每个课程的资料添加相同的背景色
+                 courseMaterials.forEach((material, index) => {
+                     const fileSize = formatFileSize(material.fileSize);
+                     const uploadTime = formatDateTime(material.uploadedAt);
+                     
+                     html += `
+                         <tr style="background-color: ${color}20; border-left: 4px solid ${color};">
+                             <td style="position: relative;">
+                                 ${index === 0 ? `
+                                     <div style="
+                                         background: ${color}; 
+                                         color: white; 
+                                         padding: 4px 12px; 
+                                         border-radius: 20px; 
+                                         font-size: 13px; 
+                                         font-weight: 500;
+                                         display: inline-block;
+                                         margin-bottom: 4px;
+                                     ">
+                                         ${courseName}${courseCode ? ` (${courseCode})` : ''}
+                                     </div>
+                                                                   ` : ''}
+                              </td>
+                             <td>
+                                 <div style="display: flex; align-items: center; gap: 8px;">
+                                     <i class="fas ${getFileIcon(material.materialType)}" style="color: ${color};"></i>
+                                     <span>${material.originalName || material.filename}</span>
+                                 </div>
+                             </td>
+                             <td>${uploadTime}</td>
+                             <td>${fileSize}</td>
+                             <td>
+                                 <button class="btn btn-sm btn-primary" onclick="downloadMaterial(${material.id})" title="下载">
+                                     <i class="fas fa-download"></i>
+                                 </button>
+                                 <button class="btn btn-sm btn-danger" onclick="deleteMaterial(${material.id})" title="删除">
+                                     <i class="fas fa-trash"></i>
+                                 </button>
+                             </td>
+                         </tr>
+                     `;
+                 });
+             });
+             
+             tableBody.innerHTML = html;
+         }
+         
+         // 按课程分组资料
+         function groupMaterialsByCourse(materials) {
+             const grouped = {};
+             
+             materials.forEach(material => {
+                 const courseId = material.course ? material.course.id : 'unknown';
+                 const courseName = material.course ? material.course.name : '未知课程';
+                 const key = `${courseId}_${courseName}`;
+                 
+                 if (!grouped[key]) {
+                     grouped[key] = [];
+                 }
+                 grouped[key].push(material);
+             });
+             
+             // 对每个课程内的资料按上传时间排序
+             Object.keys(grouped).forEach(key => {
+                 grouped[key].sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+             });
+             
+             return grouped;
+         }
+         
+         // 生成课程颜色映射
+         function generateCourseColors(courseKeys) {
+             const colors = [
+                 '#3498db', '#e74c3c', '#2ecc71', '#f39c12', 
+                 '#9b59b6', '#1abc9c', '#34495e', '#e67e22',
+                 '#ad4e00', '#7f8c8d', '#27ae60', '#8e44ad',
+                 '#16a085', '#2980b9', '#d35400', '#c0392b'
+             ];
+             
+             const colorMap = {};
+             courseKeys.forEach((key, index) => {
+                 colorMap[key] = colors[index % colors.length];
+             });
+             
+             return colorMap;
+         }
+         
+         // 格式化文件大小
+         function formatFileSize(bytes) {
+             if (!bytes) return '0 B';
+             const sizes = ['B', 'KB', 'MB', 'GB'];
+             const i = Math.floor(Math.log(bytes) / Math.log(1024));
+             return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+         }
+         
+         // 格式化日期时间
+         function formatDateTime(dateString) {
+             if (!dateString) return '未知时间';
+             const date = new Date(dateString);
+             return date.toLocaleString('zh-CN', {
+                 year: 'numeric',
+                 month: '2-digit',
+                 day: '2-digit',
+                 hour: '2-digit',
+                 minute: '2-digit'
+             });
+         }
+         
+         // 获取文件类型标签
+         function getFileTypeTag(materialType) {
+             const typeMap = {
+                 'PPT': '<span style="background: #e67e22; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">PPT</span>',
+                 'PDF': '<span style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">PDF</span>',
+                 'WORD': '<span style="background: #3498db; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">WORD</span>',
+                 'OTHER': '<span style="background: #95a5a6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">其他</span>'
+             };
+             return typeMap[materialType] || typeMap['OTHER'];
+         }
+         
+         // 获取文件图标
+         function getFileIcon(materialType) {
+             const iconMap = {
+                 'PPT': 'fa-file-powerpoint',
+                 'PDF': 'fa-file-pdf',
+                 'WORD': 'fa-file-word',
+                 'OTHER': 'fa-file'
+             };
+             return iconMap[materialType] || iconMap['OTHER'];
+         }
+         
+         // 下载资料
+         function downloadMaterial(materialId) {
+             window.open(`/api/teacher/materials/${materialId}/download`, '_blank');
+         }
+         
+         // 删除资料
+         async function deleteMaterial(materialId) {
+             // 使用美观的确认对话框替代confirm
+             if (!await showConfirmDialog('确定要删除这个资料吗？', '此操作不可恢复')) {
+                 return;
+             }
+             
+             try {
+                 const response = await fetch(`/api/teacher/materials/${materialId}`, {
+                     method: 'DELETE'
+                 });
+                 
+                 const result = await response.json();
+                 
+                 if (result.success) {
+                     showNotification('资料删除成功', 'success');
+                     loadMaterialsData(); // 删除后直接调用刷新资料
+                 } else {
+                     showNotification('删除失败：' + (result.message || '未知错误'), 'error');
+                 }
+             } catch (error) {
+                 console.error('删除资料失败:', error);
+                 showNotification('删除失败：网络错误', 'error');
+             }
+         }
+
+          // 美观的确认对话框函数
+         function showConfirmDialog(title, message) {
+             return new Promise((resolve) => {
+                 // 创建模态框
+                 const modal = document.createElement('div');
+                 modal.style.cssText = `
+                     position: fixed;
+                     top: 0;
+                     left: 0;
+                     width: 100%;
+                     height: 100%;
+                     background: rgba(0, 0, 0, 0.5);
+                     display: flex;
+                     align-items: center;
+                     justify-content: center;
+                     z-index: 10001;
+                     animation: fadeIn 0.3s ease;
+                 `;
+                 
+                 const dialog = document.createElement('div');
+                 dialog.style.cssText = `
+                     background: white;
+                     border-radius: 12px;
+                     padding: 24px;
+                     max-width: 400px;
+                     width: 90%;
+                     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                     animation: slideIn 0.3s ease;
+                 `;
+                 
+                 dialog.innerHTML = `
+                     <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                         <i class="fas fa-exclamation-triangle" style="color: #f39c12; font-size: 24px; margin-right: 12px;"></i>
+                         <h3 style="margin: 0; color: #2c3e50; font-size: 18px;">${title}</h3>
+                     </div>
+                     <p style="margin: 0 0 24px 0; color: #5a6c7d; line-height: 1.5;">${message}</p>
+                     <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                         <button id="confirm-cancel" style="
+                             padding: 10px 20px;
+                             border: 1px solid #ddd;
+                             border-radius: 6px;
+                             background: #f8f9fa;
+                             color: #6c757d;
+                             cursor: pointer;
+                             font-size: 14px;
+                             transition: all 0.2s ease;
+                         ">取消</button>
+                         <button id="confirm-ok" style="
+                             padding: 10px 20px;
+                             border: none;
+                             border-radius: 6px;
+                             background: #e74c3c;
+                             color: white;
+                             cursor: pointer;
+                             font-size: 14px;
+                             transition: all 0.2s ease;
+                         ">确定删除</button>
+                     </div>
+                 `;
+                 
+                 modal.appendChild(dialog);
+                 document.body.appendChild(modal);
+                 
+                 // 添加动画样式
+                 const style = document.createElement('style');
+                 style.textContent = `
+                     @keyframes fadeIn {
+                         from { opacity: 0; }
+                         to { opacity: 1; }
+                     }
+                     @keyframes slideIn {
+                         from { transform: scale(0.9) translateY(-20px); opacity: 0; }
+                         to { transform: scale(1) translateY(0); opacity: 1; }
+                     }
+                 `;
+                 document.head.appendChild(style);
+                 
+                 // 绑定事件
+                 document.getElementById('confirm-ok').addEventListener('click', () => {
+                     document.body.removeChild(modal);
+                     document.head.removeChild(style);
+                     resolve(true);
+                 });
+                 
+                 document.getElementById('confirm-cancel').addEventListener('click', () => {
+                     document.body.removeChild(modal);
+                     document.head.removeChild(style);
+                     resolve(false);
+                 });
+                 
+                 // 点击背景关闭
+                 modal.addEventListener('click', (e) => {
+                     if (e.target === modal) {
+                         document.body.removeChild(modal);
+                         document.head.removeChild(style);
+                         resolve(false);
+                     }
+                 });
+                 
+                 // 按钮悬停效果
+                 const cancelBtn = document.getElementById('confirm-cancel');
+                 const okBtn = document.getElementById('confirm-ok');
+                 
+                 cancelBtn.addEventListener('mouseenter', () => {
+                     cancelBtn.style.background = '#e9ecef';
+                 });
+                 cancelBtn.addEventListener('mouseleave', () => {
+                     cancelBtn.style.background = '#f8f9fa';
+                 });
+                 
+                 okBtn.addEventListener('mouseenter', () => {
+                     okBtn.style.background = '#c0392b';
+                 });
+                 okBtn.addEventListener('mouseleave', () => {
+                     okBtn.style.background = '#e74c3c';
+                 });
+             });
+         }
+
+          // 美观的通知提示函数
+         function showNotification(message, type = 'info') {
+             // 创建通知容器（如果不存在）
+             let container = document.getElementById('notification-container');
+             if (!container) {
+                 container = document.createElement('div');
+                 container.id = 'notification-container';
+                 container.style.cssText = `
+                     position: fixed;
+                     top: 20px;
+                     right: 20px;
+                     z-index: 10000;
+                     pointer-events: none;
+                 `;
+                 document.body.appendChild(container);
+             }
+             
+             // 创建通知元素
+             const notification = document.createElement('div');
+             notification.style.cssText = `
+                 margin-bottom: 10px;
+                 padding: 16px 20px;
+                 border-radius: 8px;
+                 color: white;
+                 font-size: 14px;
+                 font-weight: 500;
+                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                 transform: translateX(400px);
+                 transition: all 0.3s ease;
+                 pointer-events: auto;
+                 cursor: pointer;
+                 max-width: 350px;
+                 word-wrap: break-word;
+                 display: flex;
+                 align-items: center;
+                 gap: 10px;
+             `;
+             
+             // 根据类型设置颜色和图标
+             let bgColor, icon;
+             switch (type) {
+                 case 'success':
+                     bgColor = '#27ae60';
+                     icon = '<i class="fas fa-check-circle"></i>';
+                     break;
+                 case 'error':
+                     bgColor = '#e74c3c';
+                     icon = '<i class="fas fa-exclamation-circle"></i>';
+                     break;
+                 case 'warning':
+                     bgColor = '#f39c12';
+                     icon = '<i class="fas fa-exclamation-triangle"></i>';
+                     break;
+                 default:
+                     bgColor = '#3498db';
+                     icon = '<i class="fas fa-info-circle"></i>';
+             }
+             
+             notification.style.backgroundColor = bgColor;
+             notification.innerHTML = `${icon}<span>${message}</span>`;
+             
+             // 添加到容器
+             container.appendChild(notification);
+             
+             // 延迟显示动画
+             setTimeout(() => {
+                 notification.style.transform = 'translateX(0)';
+             }, 10);
+             
+             // 点击关闭
+             notification.addEventListener('click', () => {
+                 notification.style.transform = 'translateX(400px)';
+                 setTimeout(() => {
+                     if (notification.parentNode) {
+                         notification.parentNode.removeChild(notification);
+                     }
+                 }, 300);
+             });
+             
+             // 自动关闭
+             setTimeout(() => {
+                 if (notification.parentNode) {
+                     notification.style.transform = 'translateX(400px)';
+                     setTimeout(() => {
+                         if (notification.parentNode) {
+                             notification.parentNode.removeChild(notification);
+                         }
+                     }, 300);
+                 }
+             }, type === 'error' ? 5000 : 3000); // 错误消息显示更久
+         }
+     </script>
+    
+    <!-- 教学大纲历史模态框 -->
+    <div id="outline-history-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 1000px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-folder-open"></i>
+                    </div>
+                    <h3>我的教学大纲</h3>
+                </div>
+                <button id="close-history-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <!-- 筛选器 -->
+                <div class="history-filters" style="margin-bottom: 20px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 400px;">
+                        <label class="course-form-label">筛选课程：</label>
+                        <select id="history-course-filter" class="course-form-input" style="width: 100%; height: 50px; font-size: 14px; min-width: 400px; max-width: 600px; line-height: 1.5; padding: 12px 30px 12px 12px;">
+                            <option value="">所有课程</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-accent" onclick="refreshOutlineHistory()" style="height: 50px; padding: 0 16px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                </div>
+                
+                <!-- 历史记录列表 -->
+                <div class="history-list" style="max-height: 500px; overflow-y: auto;">
+                    <div id="history-loading" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                        <i class="fas fa-spinner fa-spin"></i> 加载中...
+                    </div>
+                    <div id="history-empty" style="display: none; text-align: center; padding: 40px; color: #7f8c8d;">
+                        <i class="fas fa-folder-open"></i><br>
+                        暂无已保存的教学大纲
+                    </div>
+                    <div id="history-content"></div>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: none;">
+                <!-- 移除关闭按钮 -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- 大纲详情查看模态框 -->
+    <div id="outline-detail-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 800px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <h3 id="outline-detail-title">教学大纲详情</h3>
+                </div>
+                <button id="close-detail-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body" style="padding: 20px; overflow: hidden;">
+                <div id="outline-detail-content" style="max-height: 500px; overflow-y: auto; padding: 20px; background: #f8f9fa; border-radius: 8px; line-height: 1.7;">
+                    <!-- 动态加载大纲内容 -->
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; padding: 15px 20px; margin-top: 20px; border-top: 1px solid #e9ecef;">
+                <button id="apply-outline" class="btn btn-primary" onclick="applyCurrentOutline()" style="flex: 0 0 auto; min-width: 120px; height: 40px;">
+                    <i class="fas fa-copy"></i> 应用此大纲
+                </button>
+                <button id="download-outline" class="btn btn-accent" onclick="downloadCurrentOutline()" style="flex: 0 0 auto; min-width: 100px; height: 40px;">
+                    <i class="fas fa-download"></i> 下载
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认对话框模态框 -->
+    <div id="confirm-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 450px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(243, 156, 18, 0.1);">
+                        <i class="fas fa-exclamation-triangle" style="color: #f39c12;"></i>
+                    </div>
+                    <h3 id="confirm-title">确认操作</h3>
+                </div>
+            </div>
+            
+            <div class="course-modal-body">
+                <div id="confirm-message" style="padding: 20px 0; font-size: 16px; line-height: 1.6; color: #2c3e50;">
+                    确定要执行此操作吗？
+                </div>
+            </div>
+            
+            <div class="course-modal-footer">
+                <button id="confirm-cancel-btn" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button id="confirm-ok-btn" class="btn btn-warning">
+                    <i class="fas fa-check"></i> 确定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 文件引入 -->
+    <script src="teacher-api.js"></script>
     <script src="teacher.js"></script>
 </body>
 </html> 

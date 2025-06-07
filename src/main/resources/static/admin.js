@@ -1,21 +1,113 @@
+// 美观的通知提示函数
+function showNotification(message, type = 'info') {
+    // 创建通知容器（如果不存在�?
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            pointer-events: none;
+        `;
+        document.body.appendChild(container);
+    }
+    
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        margin-bottom: 10px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateX(400px);
+        transition: all 0.3s ease;
+        pointer-events: auto;
+        cursor: pointer;
+        max-width: 350px;
+        word-wrap: break-word;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    `;
+    
+    // 根据类型设置颜色和图�?
+    let bgColor, icon;
+    switch (type) {
+        case 'success':
+            bgColor = '#27ae60';
+            icon = '<i class="fas fa-check-circle"></i>';
+            break;
+        case 'error':
+            bgColor = '#e74c3c';
+            icon = '<i class="fas fa-exclamation-circle"></i>';
+            break;
+        case 'warning':
+            bgColor = '#f39c12';
+            icon = '<i class="fas fa-exclamation-triangle"></i>';
+            break;
+        default:
+            bgColor = '#3498db';
+            icon = '<i class="fas fa-info-circle"></i>';
+    }
+    
+    notification.style.backgroundColor = bgColor;
+    notification.innerHTML = `${icon}<span>${message}</span>`;
+    
+    // 添加到容�?
+    container.appendChild(notification);
+    
+    // 延迟显示动画
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // 点击关闭
+    notification.addEventListener('click', () => {
+        notification.style.transform = 'translateX(400px)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    });
+    
+    // 自动关闭
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.transform = 'translateX(400px)';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+    }, type === 'error' ? 5000 : 3000);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    // 检查登录状态
+    // 检查登录状�?
     const currentUser = JSON.parse(localStorage.getItem('smartedu_current_user') || 'null');
     if (!currentUser || currentUser.role !== 'admin') {
         window.location.href = 'login.html';
         return;
     }
 
-    // 设置用户名
+    // 设置用户�?
     document.querySelector('.user-name').textContent = currentUser.username;
 
     // 菜单点击切换功能
     document.querySelectorAll('.menu-item').forEach(item => {
         item.addEventListener('click', function() {
-            // 移除所有活动状态
+            // 移除所有活动状�?
             document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
             
-            // 添加当前活动状态
+            // 添加当前活动状�?
             this.classList.add('active');
         });
     });
@@ -58,7 +150,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const userProfile = document.querySelector('.user-profile');
     if(userProfile) {
         userProfile.addEventListener('click', function() {
-            alert('用户菜单功能');
+            showNotification('用户菜单功能', 'info');
         });
     }
 
@@ -83,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // 退出相关
+    // 退出相�?
     const logoutBtn = document.getElementById('logout-btn');
     const logoutModal = document.getElementById('logout-modal');
     const confirmLogout = document.getElementById('confirm-logout');
@@ -101,11 +193,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // 清除当前用户
         localStorage.removeItem('smartedu_current_user');
         logoutModal.style.display = 'none';
-        // 跳转到首页
+        // 跳转到首�?
         window.location.href = 'SmartEdu.html';
     });
 
-    // 初始化用户管理功能
+    // 初始化用户管理功�?
     initUserManagement();
 });
 
@@ -132,7 +224,7 @@ function initUserManagement() {
     const userEditModal = document.getElementById('user-edit-modal');
     const batchRoleModal = document.getElementById('batch-role-modal');
 
-    // 获取所有用户数据
+    // 获取所有用户数�?
     function getAllUsers() {
         const users = JSON.parse(localStorage.getItem('smartedu_users') || '[]');
         return users.map(user => ({
@@ -157,7 +249,7 @@ function initUserManagement() {
         document.querySelector('.stat-card:nth-child(4) .stat-value').textContent = studentCount;
     }
 
-    // 搜索和筛选用户
+    // 搜索和筛选用�?
     function filterUsers() {
         const searchTerm = userSearch.value.toLowerCase();
         const roleFilter = document.getElementById('role-filter').value;
@@ -197,14 +289,14 @@ function initUserManagement() {
                 <td>${user.username}</td>
                 <td>
                     <span class="role-badge role-${user.role}">
-                        ${user.role === 'teacher' ? '教师' : user.role === 'student' ? '学生' : '管理员'}
+                        ${user.role === 'teacher' ? '教师' : user.role === 'student' ? '学生' : '管理�?}
                     </span>
                 </td>
                 <td>${formatDate(user.registeredAt)}</td>
                 <td>${user.lastLogin}</td>
                 <td>
                     <span class="status-badge status-${user.status}">
-                        ${user.status === 'active' ? '活跃' : '非活跃'}
+                        ${user.status === 'active' ? '活跃' : '非活�?}
                     </span>
                 </td>
                 <td>
@@ -232,13 +324,13 @@ function initUserManagement() {
     function handleUserSelection() {
         selectedUsers = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
         
-        // 更新全选状态
+        // 更新全选状�?
         const allCheckboxes = document.querySelectorAll('.user-checkbox');
         const checkedCheckboxes = document.querySelectorAll('.user-checkbox:checked');
         selectAll.indeterminate = checkedCheckboxes.length > 0 && checkedCheckboxes.length < allCheckboxes.length;
         selectAll.checked = checkedCheckboxes.length === allCheckboxes.length && allCheckboxes.length > 0;
         
-        // 更新批量操作按钮状态
+        // 更新批量操作按钮状�?
         const selectedCount = selectedUsers.length;
         batchDelete.disabled = selectedCount === 0;
         batchRole.disabled = selectedCount === 0;
@@ -290,7 +382,7 @@ function initUserManagement() {
         }
     }
 
-    // 格式化日期
+    // 格式化日�?
     function formatDate(dateString) {
         const date = new Date(dateString);
         return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -333,7 +425,7 @@ function initUserManagement() {
     exportUsers.addEventListener('click', function() {
         const users = getAllUsers();
         const csvContent = "data:text/csv;charset=utf-8," 
-            + "用户名,角色,注册时间,最后登录,状态\n"
+            + "用户�?角色,注册时间,最后登�?状态\n"
             + users.map(u => `${u.username},${u.role},${formatDate(u.registeredAt)},${u.lastLogin},${u.status}`).join('\n');
         
         const encodedUri = encodeURI(csvContent);
@@ -345,13 +437,13 @@ function initUserManagement() {
         document.body.removeChild(link);
     });
 
-    // 初始化
+    // 初始�?
     filteredUsers = getAllUsers();
     updateStats();
     renderUserTable();
     updatePagination();
 
-    // 使函数全局可访问
+    // 使函数全局可访�?
     window.editUser = editUser;
     window.deleteUser = deleteUser;
     window.filterUsers = filterUsers;
@@ -363,12 +455,12 @@ function editUser(username) {
     const user = users.find(u => u.username === username);
     
     if (!user) {
-        alert('用户不存在！');
+        showNotification('用户不存在！', 'error');
         return;
     }
     
     if (user.username === 'admin') {
-        alert('不允许编辑管理员账户！');
+        showNotification('不允许编辑管理员账户�?, 'warning');
         return;
     }
     
@@ -407,7 +499,7 @@ function bindEditModalEvents(originalUser) {
         
         // 验证数据
         if (!newRole || !newStatus) {
-            alert('请填写所有必填字段！');
+            showNotification('请填写所有必填字段！', 'warning');
             return;
         }
         
@@ -422,7 +514,7 @@ function bindEditModalEvents(originalUser) {
             // 如果提供了新密码，则更新密码
             if (newPassword) {
                 if (newPassword.length < 6) {
-                    alert('密码长度至少6位！');
+                    showNotification('密码长度至少6位！', 'warning');
                     return;
                 }
                 users[userIndex].password = newPassword;
@@ -437,7 +529,7 @@ function bindEditModalEvents(originalUser) {
             // 刷新页面数据
             window.location.reload();
             
-            alert('用户信息更新成功！');
+            alert('用户信息更新成功�?);
         }
     });
     
@@ -459,11 +551,11 @@ function bindEditModalEvents(originalUser) {
 // 删除用户功能
 function deleteUser(username) {
     if (username === 'admin') {
-        alert('不允许删除管理员账户！');
+        showNotification('不允许删除管理员账户！', 'warning');
         return;
     }
     
-    if (!confirm(`确定要删除用户 "${username}" 吗？此操作不可撤销！`)) {
+    if (!confirm(`确定要删除用�?"${username}" 吗？此操作不可撤销！`)) {
         return;
     }
     
@@ -475,7 +567,7 @@ function deleteUser(username) {
     // 刷新页面数据
     window.location.reload();
     
-    alert('用户删除成功！');
+    showNotification('用户删除成功！', 'success');
 }
 
 // 批量删除用户
@@ -489,16 +581,16 @@ function initBatchOperations() {
         const selectedUsers = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
         
         if (selectedUsers.length === 0) {
-            alert('请选择要删除的用户！');
+            showNotification('请选择要删除的用户！', 'warning');
             return;
         }
         
         if (selectedUsers.includes('admin')) {
-            alert('不允许删除管理员账户！');
+            alert('不允许删除管理员账户�?);
             return;
         }
         
-        if (!confirm(`确定要删除选中的 ${selectedUsers.length} 个用户吗？此操作不可撤销！`)) {
+        if (!confirm(`确定要删除选中�?${selectedUsers.length} 个用户吗？此操作不可撤销！`)) {
             return;
         }
         
@@ -518,12 +610,12 @@ function initBatchOperations() {
         const selectedUsers = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
         
         if (selectedUsers.length === 0) {
-            alert('请选择要修改的用户！');
+            alert('请选择要修改的用户�?);
             return;
         }
         
         if (selectedUsers.includes('admin')) {
-            alert('不允许修改管理员账户！');
+            alert('不允许修改管理员账户�?);
             return;
         }
         
@@ -551,7 +643,7 @@ function bindBatchRoleEvents(selectedUsers) {
         const newRole = document.getElementById('batch-new-role').value;
         
         if (!newRole) {
-            alert('请选择新角色！');
+            showNotification('请选择新角色！', 'warning');
             return;
         }
         
@@ -620,7 +712,7 @@ function bindAddUserEvents() {
     const newSaveBtn = saveBtn.cloneNode(true);
     saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
     
-    // 保存新用户
+    // 保存新用�?
     newSaveBtn.addEventListener('click', function() {
         const username = document.getElementById('add-username').value.trim();
         const password = document.getElementById('add-password').value;
@@ -630,38 +722,38 @@ function bindAddUserEvents() {
         
         // 验证数据
         if (!username || !password || !confirmPassword || !role) {
-            alert('请填写所有必填字段！');
+            showNotification('请填写所有必填字段！', 'warning');
             return;
         }
         
         if (username.length < 3) {
-            alert('用户名长度至少3位！');
+            showNotification('用户名长度至�?位！', 'warning');
             return;
         }
         
         if (password.length < 6) {
-            alert('密码长度至少6位！');
+            showNotification('密码长度至少6位！', 'warning');
             return;
         }
         
         if (password !== confirmPassword) {
-            alert('两次输入的密码不一致！');
+            showNotification('两次输入的密码不一致！', 'warning');
             return;
         }
         
         if (username === 'admin') {
-            alert('不允许创建admin用户名！');
+            showNotification('不允许创建admin用户名！', 'warning');
             return;
         }
         
-        // 检查用户名是否已存在
+        // 检查用户名是否已存�?
         const users = JSON.parse(localStorage.getItem('smartedu_users') || '[]');
         if (users.find(u => u.username === username)) {
-            alert('用户名已存在！');
+            alert('用户名已存在�?);
             return;
         }
         
-        // 创建新用户
+        // 创建新用�?
         const newUser = {
             username: username,
             password: password,
@@ -680,7 +772,7 @@ function bindAddUserEvents() {
         // 刷新页面数据
         window.location.reload();
         
-        alert('用户添加成功！');
+        alert('用户添加成功�?);
     });
     
     // 取消/关闭

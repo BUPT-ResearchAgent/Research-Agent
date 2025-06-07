@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const userProfile = document.querySelector('.user-profile');
     if(userProfile) {
         userProfile.addEventListener('click', function() {
-            alert('用户菜单功能');
+            // 用户菜单功能已移除alert
         });
     }
     
@@ -179,17 +179,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const password = document.getElementById('register-password').value;
         const role = document.getElementById('register-role').value;
         if (!username || !password) {
-            alert('账号和密码不能为空');
+                            console.log('账号和密码不能为空');
             return;
         }
         let users = JSON.parse(localStorage.getItem('smartedu_users') || '[]');
         if (users.find(u => u.username === username)) {
-            alert('该账号已存在');
+                            console.log('该账号已存在');
             return;
         }
         users.push({ username, password, role });
         localStorage.setItem('smartedu_users', JSON.stringify(users));
-        alert('注册成功，请登录');
+                        console.log('注册成功，请登录');
         registerModal.style.display = 'none';
         registerForm.reset();
     });
@@ -205,11 +205,11 @@ document.addEventListener('DOMContentLoaded', function() {
             let users = JSON.parse(localStorage.getItem('smartedu_users') || '[]');
             const user = users.find(u => u.username === username && u.role === role);
             if (!user) {
-                alert('用户不存在或角色不匹配');
+                console.log('用户不存在或角色不匹配');
                 return;
             }
             if (user.password !== password) {
-                alert('密码错误');
+                console.log('密码错误');
                 return;
             }
             // 登录成功，保存当前用户

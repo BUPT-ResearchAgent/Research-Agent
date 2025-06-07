@@ -1,0 +1,310 @@
+// SmartEdu教师端API调用模块
+const API_BASE_URL = 'http://localhost:8080';
+
+class TeacherAPI {
+    // 通用请求方法
+    static async request(url, options = {}) {
+        try {
+            const response = await fetch(`${API_BASE_URL}${url}`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                ...options
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('API请求失败:', error);
+            throw error;
+        }
+    }
+
+    // 获取课程列表
+    static async getCourses() {
+        return this.request('/api/teacher/courses');
+    }
+
+    // 新建课程
+    static async createCourse(courseData) {
+        return this.request('/api/teacher/courses', {
+            method: 'POST',
+            body: JSON.stringify(courseData)
+        });
+    }
+
+    // 更新课程
+    static async updateCourse(courseId, courseData) {
+        return this.request(`/api/teacher/courses/${courseId}`, {
+            method: 'PUT',
+            body: JSON.stringify(courseData)
+        });
+    }
+
+    // 删除课程
+    static async deleteCourse(courseId) {
+        return this.request(`/api/teacher/courses/${courseId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // 获取控制面板统计数据
+    static async getDashboardStats() {
+        return this.request('/api/teacher/dashboard/stats');
+    }
+
+    // 获取通知列表
+    static async getNotices() {
+        return this.request('/api/teacher/notices');
+    }
+
+    // 上传文件
+    static async uploadFile(formData) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/teacher/materials/upload`, {
+                method: 'POST',
+                body: formData,
+                // 不设置Content-Type，让浏览器自动设置multipart/form-data
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Upload error response:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('文件上传失败:', error);
+            throw error;
+        }
+    }
+
+    // 生成教学大纲
+    static async generateOutline(data) {
+        return this.request('/api/teacher/outline/generate', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
+    // 发布通知
+    static async publishNotice(noticeData) {
+        return this.request('/api/teacher/notices', {
+            method: 'POST',
+            body: JSON.stringify(noticeData)
+        });
+    }
+
+    // 生成试卷
+    static async generateExam(examData) {
+        return this.request('/api/exam/generate', {
+            method: 'POST',
+            body: JSON.stringify(examData)
+        });
+    }
+
+    // 获取试卷列表
+    static async getExams() {
+        return this.request('/api/exam/list');
+    }
+
+    // 发布试卷
+    static async publishExam(examId, publishData) {
+        return this.request(`/api/exam/${examId}/publish`, {
+            method: 'POST',
+            body: JSON.stringify(publishData)
+        });
+    }
+
+    // 获取答案列表
+    static async getAnswers() {
+        return this.request('/api/exam/answers');
+    }
+
+    // 更新答案设置
+    static async updateAnswerSettings(examId, settings) {
+        return this.request(`/api/exam/${examId}/answer-settings`, {
+            method: 'PUT',
+            body: JSON.stringify(settings)
+        });
+    }
+
+    // 获取待批改试卷
+    static async getGradeList() {
+        return this.request('/api/teacher/grades');
+    }
+
+    // AI自动批改
+    static async autoGrade(resultId) {
+        return this.request(`/api/teacher/grades/${resultId}/auto-grade`, {
+            method: 'POST'
+        });
+    }
+
+    // 手动评分
+    static async manualGrade(resultId, gradeData) {
+        return this.request(`/api/teacher/grades/${resultId}/manual-grade`, {
+            method: 'POST',
+            body: JSON.stringify(gradeData)
+        });
+    }
+
+    // 获取成绩分析数据
+    static async getGradeAnalysis(examId) {
+        return this.request(`/api/teacher/analysis/${examId}`);
+    }
+
+    // 生成教学改进建议
+    static async generateImprovements(scope, courseId = null) {
+        return this.request('/api/teacher/improvements', {
+            method: 'POST',
+            body: JSON.stringify({ scope, courseId })
+        });
+    }
+
+    // 获取课程资料列表
+    static async getMaterials(courseId = null) {
+        const url = courseId ? `/api/teacher/materials?courseId=${courseId}` : '/api/teacher/materials';
+        return this.request(url);
+    }
+
+    // 删除课程资料
+    static async deleteMaterial(materialId) {
+        return this.request(`/api/teacher/materials/${materialId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // 获取教学大纲历史
+    static async getOutlineHistory(courseId = null) {
+        const url = courseId ? `/api/teacher/outlines?courseId=${courseId}` : '/api/teacher/outlines';
+        return this.request(url);
+    }
+
+    // 保存教学大纲
+    static async saveOutline(outlineData) {
+        return this.request('/api/teacher/outlines', {
+            method: 'POST',
+            body: JSON.stringify(outlineData)
+        });
+    }
+
+    // 删除通知
+    static async deleteNotice(noticeId) {
+        return this.request(`/api/teacher/notices/${noticeId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // 获取试卷详情
+    static async getExamDetail(examId) {
+        return this.request(`/api/exam/${examId}`);
+    }
+
+    // 删除试卷
+    static async deleteExam(examId) {
+        return this.request(`/api/exam/${examId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // 获取成绩详情
+    static async getGradeDetail(resultId) {
+        return this.request(`/api/teacher/grades/${resultId}`);
+    }
+
+    // 批量自动批改
+    static async batchAutoGrade(examId) {
+        return this.request(`/api/teacher/grades/batch-auto-grade`, {
+            method: 'POST',
+            body: JSON.stringify({ examId })
+        });
+    }
+
+    // 导出分析报告
+    static async exportAnalysisReport(examId) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/teacher/analysis/${examId}/export`, {
+                method: 'GET'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            // 处理文件下载
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analysis_report_${examId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            return { success: true, message: '报告导出成功' };
+        } catch (error) {
+            console.error('导出报告失败:', error);
+            throw error;
+        }
+    }
+
+    // 定时发布试卷
+    static async scheduleExam(examId, scheduleData) {
+        return this.request(`/api/exam/${examId}/schedule`, {
+            method: 'POST',
+            body: JSON.stringify(scheduleData)
+        });
+    }
+
+    // 获取考试统计数据
+    static async getExamStats() {
+        return this.request('/api/exam/stats');
+    }
+}
+
+// 创建全局API实例
+const teacherAPI = new TeacherAPI();
+
+// 显示消息提示
+function showMessage(message, type = 'info') {
+    const messageDiv = document.createElement('div');
+    messageDiv.textContent = message;
+    messageDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 6px;
+        color: white;
+        z-index: 1000;
+        font-size: 14px;
+        background-color: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#3498db'};
+    `;
+    
+    document.body.appendChild(messageDiv);
+    
+    setTimeout(() => {
+        if (messageDiv.parentNode) {
+            messageDiv.parentNode.removeChild(messageDiv);
+        }
+    }, 3000);
+}
+
+// 测试API连接
+async function testAPI() {
+    try {
+        const response = await teacherAPI.getTeacherCourses();
+        console.log('API测试成功:', response);
+        showMessage('API连接成功', 'success');
+    } catch (error) {
+        console.error('API测试失败:', error);
+        showMessage('API连接失败', 'error');
+    }
+} 

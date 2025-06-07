@@ -1,3 +1,95 @@
+// 美观的通知提示函数
+function showNotification(message, type = 'info') {
+    // 创建通知容器（如果不存在）
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            pointer-events: none;
+        `;
+        document.body.appendChild(container);
+    }
+    
+    // 创建通知元素
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        margin-bottom: 10px;
+        padding: 16px 20px;
+        border-radius: 8px;
+        color: white;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        transform: translateX(400px);
+        transition: all 0.3s ease;
+        pointer-events: auto;
+        cursor: pointer;
+        max-width: 350px;
+        word-wrap: break-word;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    `;
+    
+    // 根据类型设置颜色和图标
+    let bgColor, icon;
+    switch (type) {
+        case 'success':
+            bgColor = '#27ae60';
+            icon = '<i class="fas fa-check-circle"></i>';
+            break;
+        case 'error':
+            bgColor = '#e74c3c';
+            icon = '<i class="fas fa-exclamation-circle"></i>';
+            break;
+        case 'warning':
+            bgColor = '#f39c12';
+            icon = '<i class="fas fa-exclamation-triangle"></i>';
+            break;
+        default:
+            bgColor = '#3498db';
+            icon = '<i class="fas fa-info-circle"></i>';
+    }
+    
+    notification.style.backgroundColor = bgColor;
+    notification.innerHTML = `${icon}<span>${message}</span>`;
+    
+    // 添加到容器
+    container.appendChild(notification);
+    
+    // 延迟显示动画
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    // 点击关闭
+    notification.addEventListener('click', () => {
+        notification.style.transform = 'translateX(400px)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    });
+    
+    // 自动关闭
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.transform = 'translateX(400px)';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+    }, type === 'error' ? 5000 : 3000);
+}
+
 // 初始化管理员账号函数
 function initializeAdminAccount() {
     let users = JSON.parse(localStorage.getItem('smartedu_users') || '[]');
@@ -27,7 +119,7 @@ function bindLoginEvent() {
             const role = document.getElementById('login-role').value;
             
             if (!role) {
-                alert('请选择登录类型');
+                showNotification('请选择登录类型', 'warning');
                 return;
             }
             
@@ -35,12 +127,12 @@ function bindLoginEvent() {
             const user = users.find(u => u.username === username && u.role === role);
             
             if (!user) {
-                alert('用户不存在或角色不匹配');
+                showNotification('用户不存在或角色不匹配', 'error');
                 return;
             }
             
             if (user.password !== password) {
-                alert('密码错误');
+                showNotification('密码错误', 'error');
                 return;
             }
             
@@ -103,35 +195,35 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 验证输入
         if (!username || !password || !confirmPassword || !role) {
-            alert('请填写完整信息');
+            showNotification('请填写完整信息', 'warning');
             return;
         }
         
         // 防止注册管理员账号
         if (username.toLowerCase() === 'admin') {
-            alert('admin为系统预留账号，请使用其他账号名');
+            showNotification('admin为系统预留账号，请使用其他账号名', 'warning');
             return;
         }
         
         if (password !== confirmPassword) {
-            alert('两次输入的密码不一致');
+            showNotification('两次输入的密码不一致', 'warning');
             return;
         }
         
         if (password.length < 6) {
-            alert('密码长度至少6位');
+            showNotification('密码长度至少6位', 'warning');
             return;
         }
         
         let users = JSON.parse(localStorage.getItem('smartedu_users') || '[]');
         if (users.find(u => u.username === username && u.role === role)) {
-            alert('该账号已存在');
+            showNotification('该账号已存在', 'warning');
             return;
         }
         
         users.push({ username, password, role });
         localStorage.setItem('smartedu_users', JSON.stringify(users));
-        alert('注册成功，请登录');
+        showNotification('注册成功，请登录', 'success');
         registerModal.style.display = 'none';
         registerForm.reset();
     });
@@ -156,28 +248,28 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 验证输入
         if (!username || !oldPassword || !newPassword || !confirmPassword || !role) {
-            alert('请填写完整信息');
+            showNotification('请填写完整信息', 'warning');
             return;
         }
         
         // 防止重置管理员密码
         if (username.toLowerCase() === 'admin') {
-            alert('管理员密码不允许重置');
+            showNotification('管理员密码不允许重置', 'warning');
             return;
         }
         
         if (newPassword !== confirmPassword) {
-            alert('两次输入的新密码不一致');
+            showNotification('两次输入的新密码不一致', 'warning');
             return;
         }
         
         if (newPassword.length < 6) {
-            alert('新密码长度至少6位');
+            showNotification('新密码长度至少6位', 'warning');
             return;
         }
         
         if (oldPassword === newPassword) {
-            alert('新密码不能与原密码相同');
+            showNotification('新密码不能与原密码相同', 'warning');
             return;
         }
         
@@ -186,12 +278,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const userIndex = users.findIndex(u => u.username === username && u.role === role);
         
         if (userIndex === -1) {
-            alert('用户不存在或角色不匹配');
+            showNotification('用户不存在或角色不匹配', 'error');
             return;
         }
         
         if (users[userIndex].password !== oldPassword) {
-            alert('原密码错误');
+            showNotification('原密码错误', 'error');
             return;
         }
         
@@ -199,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
         users[userIndex].password = newPassword;
         localStorage.setItem('smartedu_users', JSON.stringify(users));
         
-        alert('密码重置成功，请使用新密码登录');
+        showNotification('密码重置成功，请使用新密码登录', 'success');
         resetModal.style.display = 'none';
         resetForm.reset();
     });
