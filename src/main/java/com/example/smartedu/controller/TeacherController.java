@@ -208,39 +208,7 @@ public class TeacherController {
         }
     }
     
-    /**
-     * 保存教学大纲
-     */
-    @PostMapping("/outlines")
-    public ApiResponse<TeachingOutline> saveOutline(@RequestBody Map<String, Object> request) {
-        try {
-            System.out.println("接收到保存教学大纲请求");
-            System.out.println("请求参数: " + request);
-            
-            Long courseId = Long.valueOf(request.get("courseId").toString());
-            String content = (String) request.get("content");
-            String title = (String) request.get("title");
-            
-            System.out.println("课程ID: " + courseId + ", 标题: " + title);
-            System.out.println("内容长度: " + (content != null ? content.length() : 0));
-            
-            // 创建新的教学大纲记录
-            TeachingOutline outline = new TeachingOutline();
-            outline.setCourse(teacherService.getCourseById(courseId));
-            outline.setTeachingDesign(content);
-            outline.setTeachingObjective(title);
-            
-            System.out.println("准备保存教学大纲到数据库");
-            TeachingOutline savedOutline = teacherService.saveOutline(outline);
-            System.out.println("教学大纲保存成功，ID: " + savedOutline.getId());
-            
-            return ApiResponse.success("保存成功", savedOutline);
-        } catch (Exception e) {
-            System.err.println("保存教学大纲失败: " + e.getMessage());
-            e.printStackTrace();
-            return ApiResponse.error("保存失败：" + e.getMessage());
-        }
-    }
+
     
     /**
      * 发布通知

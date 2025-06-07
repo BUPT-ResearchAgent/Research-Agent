@@ -178,13 +178,7 @@ public class TeacherService {
         }
     }
     
-    /**
-     * 保存教学大纲
-     */
-    public TeachingOutline saveOutline(TeachingOutline outline) {
-        outline.setUpdatedAt(LocalDateTime.now());
-        return outlineRepository.save(outline);
-    }
+
     
     /**
      * 根据ID获取课程

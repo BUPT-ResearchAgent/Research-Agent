@@ -957,9 +957,6 @@ function displayOutlineResult(outlineData) {
                     AI生成的教学大纲
                 </h3>
                 <div style="display: flex; gap: 12px;">
-                    <button class="btn btn-success" onclick="saveOutlineToDatabase()">
-                        <i class="fas fa-save"></i> 保存大纲
-                    </button>
                     <button class="btn btn-warning" onclick="regenerateOutline()">
                         <i class="fas fa-redo"></i> 重新生成
                     </button>
@@ -1077,51 +1074,7 @@ function formatOutlineContent(content) {
     return parseMarkdown(content);
 }
 
-// 保存教学大纲到数据库
-async function saveOutlineToDatabase() {
-    try {
-        const courseId = document.getElementById('outline-course-select').value;
-        const outlineContentDiv = document.querySelector('.outline-content');
-        
-        if (!courseId) {
-            showNotification('请先选择课程', 'warning');
-            return;
-        }
-        
-        if (!outlineContentDiv) {
-            showNotification('没有可保存的教学大纲', 'warning');
-            return;
-        }
-        
-        // 获取原始Markdown内容
-        const markdownContent = outlineContentDiv.getAttribute('data-markdown');
-        if (!markdownContent) {
-            showNotification('教学大纲内容为空', 'warning');
-            return;
-        }
-        
-        showLoading('正在保存教学大纲...');
-        
-        const response = await TeacherAPI.saveOutline({
-            courseId: parseInt(courseId),
-            content: markdownContent,
-            title: '教学大纲'
-        });
-        
-        hideLoading();
-        
-        if (response.success) {
-            showNotification('教学大纲保存成功！', 'success');
-        } else {
-            showNotification(response.message || '保存失败', 'error');
-        }
-        
-    } catch (error) {
-        hideLoading();
-        console.error('保存教学大纲失败:', error);
-        showNotification('保存失败，请重试', 'error');
-    }
-}
+
 
 // 重新生成教学大纲
 async function regenerateOutline() {

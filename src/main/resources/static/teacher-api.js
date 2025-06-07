@@ -186,13 +186,7 @@ class TeacherAPI {
         return this.request(url);
     }
 
-    // 保存教学大纲
-    static async saveOutline(outlineData) {
-        return this.request('/api/teacher/outlines', {
-            method: 'POST',
-            body: JSON.stringify(outlineData)
-        });
-    }
+
 
     // 删除通知
     static async deleteNotice(noticeId) {

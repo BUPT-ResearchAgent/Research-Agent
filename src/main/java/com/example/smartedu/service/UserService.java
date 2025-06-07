@@ -1,0 +1,214 @@
+package com.example.smartedu.service;
+
+import com.example.smartedu.entity.User;
+import com.example.smartedu.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
+import java.util.Base64;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class UserService {
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    private static final String SALT = "SmartEdu2024"; // 固定盐值，实际项目中应为每个用户生成不同的盐
+    
+    /**
+     * 用户注册
+     */
+    public User register(String username, String password, String role) {
+        // 检查用户名是否已存在
+        if (userRepository.existsByUsername(username)) {
+            throw new RuntimeException("用户名已存在");
+        }
+        
+        // 验证角色
+        if (!isValidRole(role)) {
+            throw new RuntimeException("无效的角色");
+        }
+        
+        // 密码长度验证
+        if (password.length() < 3) {
+            throw new RuntimeException("密码长度至少3位");
+        }
+        
+        // 创建新用户
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(hashPassword(password)); // 加密密码
+        user.setRole(role);
+        user.setStatus("active");
+        
+        return userRepository.save(user);
+    }
+    
+    /**
+     * 用户登录
+     */
+    public User login(String username, String password, String role) {
+        // 查找用户
+        Optional<User> userOptional = userRepository.findByUsernameAndRole(username, role);
+        if (!userOptional.isPresent()) {
+            throw new RuntimeException("用户不存在或角色不匹配");
+        }
+        
+        User user = userOptional.get();
+        
+        // 检查用户状态
+        if (!"active".equals(user.getStatus())) {
+            throw new RuntimeException("账户已被禁用");
+        }
+        
+        // 验证密码
+        if (!verifyPassword(password, user.getPassword())) {
+            throw new RuntimeException("密码错误");
+        }
+        
+        // 更新登录信息
+        user.updateLastLogin();
+        userRepository.save(user);
+        
+        return user;
+    }
+    
+    /**
+     * 修改密码
+     */
+    public void changePassword(Long userId, String oldPassword, String newPassword) {
+        Optional<User> userOptional = userRepository.findById(userId);
+        if (!userOptional.isPresent()) {
+            throw new RuntimeException("用户不存在");
+        }
+        
+        User user = userOptional.get();
+        
+        // 验证旧密码
+        if (!verifyPassword(oldPassword, user.getPassword())) {
+            throw new RuntimeException("原密码错误");
+        }
+        
+        // 密码长度验证
+        if (newPassword.length() < 3) {
+            throw new RuntimeException("新密码长度至少3位");
+        }
+        
+        // 更新密码
+        user.setPassword(hashPassword(newPassword));
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+    }
+    
+    /**
+     * 重置密码（管理员功能）
+     */
+    public void resetPassword(Long userId, String newPassword) {
+        Optional<User> userOptional = userRepository.findById(userId);
+        if (!userOptional.isPresent()) {
+            throw new RuntimeException("用户不存在");
+        }
+        
+        User user = userOptional.get();
+        user.setPassword(hashPassword(newPassword));
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+    }
+    
+    /**
+     * 获取所有用户
+     */
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+    
+    /**
+     * 根据角色获取用户
+     */
+    public List<User> getUsersByRole(String role) {
+        return userRepository.findByRole(role);
+    }
+    
+    /**
+     * 更新用户状态
+     */
+    public void updateUserStatus(Long userId, String status) {
+        Optional<User> userOptional = userRepository.findById(userId);
+        if (!userOptional.isPresent()) {
+            throw new RuntimeException("用户不存在");
+        }
+        
+        User user = userOptional.get();
+        user.setStatus(status);
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+    }
+    
+    /**
+     * 删除用户
+     */
+    public void deleteUser(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new RuntimeException("用户不存在");
+        }
+        userRepository.deleteById(userId);
+    }
+    
+    /**
+     * 获取用户统计信息
+     */
+    public UserStats getUserStats() {
+        UserStats stats = new UserStats();
+        stats.totalUsers = userRepository.countAllUsers();
+        stats.activeUsers = userRepository.countByStatus("active");
+        stats.teacherCount = userRepository.countByRole("teacher");
+        stats.studentCount = userRepository.countByRole("student");
+        stats.adminCount = userRepository.countByRole("admin");
+        return stats;
+    }
+    
+    /**
+     * 密码加密
+     */
+    private String hashPassword(String password) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            String saltedPassword = password + SALT;
+            byte[] hashedBytes = md.digest(saltedPassword.getBytes());
+            return Base64.getEncoder().encodeToString(hashedBytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("密码加密失败", e);
+        }
+    }
+    
+    /**
+     * 密码验证
+     */
+    private boolean verifyPassword(String plainPassword, String hashedPassword) {
+        return hashPassword(plainPassword).equals(hashedPassword);
+    }
+    
+    /**
+     * 验证角色有效性
+     */
+    private boolean isValidRole(String role) {
+        return "teacher".equals(role) || "student".equals(role) || "admin".equals(role);
+    }
+    
+    /**
+     * 用户统计数据内部类
+     */
+    public static class UserStats {
+        public long totalUsers;
+        public long activeUsers;
+        public long teacherCount;
+        public long studentCount;
+        public long adminCount;
+    }
+} 
