@@ -1,6 +1,7 @@
 package com.example.smartedu.entity;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 
 @Entity
@@ -10,15 +11,21 @@ public class ExamResult {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name = "student_id", nullable = false)
-    private Long studentId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "student_id", nullable = false)
+    @JsonIgnore
+    private Student student;
     
-    @Column(name = "student_name")
-    private String studentName;
+    @Column(name = "student_id", insertable = false, updatable = false)
+    private Long studentId;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_id", nullable = false)
+    @JsonIgnore
     private Exam exam;
+    
+    @Column(name = "exam_id", insertable = false, updatable = false)
+    private Long examId;
     
     private Integer score; // 得分
     
@@ -26,6 +33,12 @@ public class ExamResult {
     
     @Column(name = "submit_time")
     private LocalDateTime submitTime;
+    
+    @Column(name = "start_time")
+    private LocalDateTime startTime; // 开始答题时间
+    
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes; // 实际用时（分钟）
     
     @Column(name = "is_corrected")
     private Boolean isCorrected = false; // 是否已批改
@@ -39,7 +52,22 @@ public class ExamResult {
     @Column(name = "ai_score")
     private Double aiScore; // AI评分
     
-    public ExamResult() {}
+    @Column(name = "teacher_comments", columnDefinition = "TEXT")
+    private String teacherComments; // 教师评语
+    
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+    
+    public ExamResult() {
+        this.createdAt = LocalDateTime.now();
+    }
+    
+    public ExamResult(Student student, Exam exam) {
+        this();
+        this.student = student;
+        this.exam = exam;
+        this.startTime = LocalDateTime.now();
+    }
     
     // Getter和Setter方法
     public Long getId() {
@@ -50,6 +78,14 @@ public class ExamResult {
         this.id = id;
     }
     
+    public Student getStudent() {
+        return student;
+    }
+    
+    public void setStudent(Student student) {
+        this.student = student;
+    }
+    
     public Long getStudentId() {
         return studentId;
     }
@@ -58,20 +94,20 @@ public class ExamResult {
         this.studentId = studentId;
     }
     
-    public String getStudentName() {
-        return studentName;
-    }
-    
-    public void setStudentName(String studentName) {
-        this.studentName = studentName;
-    }
-    
     public Exam getExam() {
         return exam;
     }
     
     public void setExam(Exam exam) {
         this.exam = exam;
+    }
+    
+    public Long getExamId() {
+        return examId;
+    }
+    
+    public void setExamId(Long examId) {
+        this.examId = examId;
     }
     
     public Integer getScore() {
@@ -96,6 +132,22 @@ public class ExamResult {
     
     public void setSubmitTime(LocalDateTime submitTime) {
         this.submitTime = submitTime;
+    }
+    
+    public LocalDateTime getStartTime() {
+        return startTime;
+    }
+    
+    public void setStartTime(LocalDateTime startTime) {
+        this.startTime = startTime;
+    }
+    
+    public Integer getDurationMinutes() {
+        return durationMinutes;
+    }
+    
+    public void setDurationMinutes(Integer durationMinutes) {
+        this.durationMinutes = durationMinutes;
     }
     
     public Boolean getIsCorrected() {
@@ -128,5 +180,31 @@ public class ExamResult {
     
     public void setAiScore(Double aiScore) {
         this.aiScore = aiScore;
+    }
+    
+    public String getTeacherComments() {
+        return teacherComments;
+    }
+    
+    public void setTeacherComments(String teacherComments) {
+        this.teacherComments = teacherComments;
+    }
+    
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+    
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+    
+    // 便捷方法：获取学生姓名
+    public String getStudentName() {
+        return student != null ? student.getRealName() : null;
+    }
+    
+    // 便捷方法：获取考试标题
+    public String getExamTitle() {
+        return exam != null ? exam.getTitle() : null;
     }
 } 

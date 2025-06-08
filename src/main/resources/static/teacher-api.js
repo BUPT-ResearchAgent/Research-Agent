@@ -2,7 +2,7 @@
 const API_BASE_URL = 'http://localhost:8080';
 
 class TeacherAPI {
-    // 通用请求方法
+    // 通用请求方法 - 依赖服务器session，不需要手动传递用户ID
     static async request(url, options = {}) {
         try {
             const response = await fetch(`${API_BASE_URL}${url}`, {
@@ -10,6 +10,7 @@ class TeacherAPI {
                     'Content-Type': 'application/json',
                     ...options.headers
                 },
+                credentials: 'include', // 重要：包含cookie以维持session
                 ...options
             });
             
@@ -67,6 +68,7 @@ class TeacherAPI {
         try {
             const response = await fetch(`${API_BASE_URL}/api/teacher/materials/upload`, {
                 method: 'POST',
+                credentials: 'include', // 包含cookie以维持session
                 body: formData,
                 // 不设置Content-Type，让浏览器自动设置multipart/form-data
             });

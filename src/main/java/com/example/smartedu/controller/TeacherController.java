@@ -4,6 +4,7 @@ import com.example.smartedu.dto.ApiResponse;
 import com.example.smartedu.entity.*;
 import com.example.smartedu.repository.*;
 import com.example.smartedu.service.TeacherService;
+import com.example.smartedu.service.TeacherManagementService;
 import com.example.smartedu.service.CourseCodeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -19,14 +20,14 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/teacher")
-@CrossOrigin(origins = "*")
+@CrossOrigin(originPatterns = "*", allowCredentials = "true")
 public class TeacherController {
-    
-    // 模拟当前登录教师ID
-    private static final Long CURRENT_TEACHER_ID = 1L;
     
     @Autowired
     private TeacherService teacherService;
+    
+    @Autowired
+    private TeacherManagementService teacherManagementService;
     
     @Autowired
     private CourseRepository courseRepository;
@@ -44,15 +45,22 @@ public class TeacherController {
      * 获取教师课程列表
      */
     @GetMapping("/courses")
-    public ApiResponse<List<Course>> getTeacherCourses() {
+    public ApiResponse<List<Course>> getTeacherCourses(jakarta.servlet.http.HttpSession session) {
         try {
-            // 使用当前登录教师ID
-            List<Course> courses = teacherService.getTeacherCourses(CURRENT_TEACHER_ID);
-            
-            System.out.println("获取课程列表，数量: " + courses.size());
-            for (Course course : courses) {
-                System.out.println("  课程ID: " + course.getId() + ", 名称: " + course.getName() + ", 创建时间: " + course.getCreatedAt());
+            // 从session获取用户ID
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
             }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            List<Course> courses = teacherService.getTeacherCoursesByUserId(userId);
+            
+            System.out.println("获取课程列表，用户ID: " + userId + ", 课程数量: " + courses.size());
             
             return ApiResponse.success(courses);
         } catch (Exception e) {
@@ -61,17 +69,122 @@ public class TeacherController {
     }
     
     /**
+     * 获取教师课程列表 - 兼容参数方式（用于测试）
+     */
+    @GetMapping("/courses/by-user")
+    public ApiResponse<List<Course>> getTeacherCoursesByParam(@RequestParam Long userId) {
+        try {
+            List<Course> courses = teacherService.getTeacherCoursesByUserId(userId);
+            
+            System.out.println("获取课程列表，用户ID: " + userId + ", 课程数量: " + courses.size());
+            
+            return ApiResponse.success(courses);
+        } catch (Exception e) {
+            return ApiResponse.error("获取课程列表失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 创建课程
+     */
+    @PostMapping("/courses")
+    public ApiResponse<Course> createCourse(jakarta.servlet.http.HttpSession session,
+                                          @RequestBody Map<String, Object> request) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            String name = (String) request.get("name");
+            String description = (String) request.get("description");
+            Integer credit = request.get("credit") != null ? Integer.valueOf(request.get("credit").toString()) : null;
+            Integer hours = request.get("hours") != null ? Integer.valueOf(request.get("hours").toString()) : null;
+            String semester = (String) request.get("semester");
+            String academicYear = (String) request.get("academicYear");
+            String classTime = (String) request.get("classTime");
+            String classLocation = (String) request.get("classLocation");
+            Integer maxStudents = request.get("maxStudents") != null ? Integer.valueOf(request.get("maxStudents").toString()) : null;
+            
+            // 通过用户ID获取教师信息
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Course course = teacherService.createCourse(teacherOpt.get().getId(), name, description, 
+                                                      credit, hours, semester, academicYear, classTime, classLocation, maxStudents);
+            
+            return ApiResponse.success("课程创建成功", course);
+        } catch (Exception e) {
+            return ApiResponse.error("创建课程失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 创建课程 - 兼容参数方式（用于测试）
+     */
+    @PostMapping("/courses/by-user")
+    public ApiResponse<Course> createCourseByParam(@RequestBody Map<String, Object> request) {
+        try {
+            Long userId = Long.valueOf(request.get("userId").toString());
+            String name = (String) request.get("name");
+            String description = (String) request.get("description");
+            Integer credit = request.get("credit") != null ? Integer.valueOf(request.get("credit").toString()) : null;
+            Integer hours = request.get("hours") != null ? Integer.valueOf(request.get("hours").toString()) : null;
+            String semester = (String) request.get("semester");
+            String academicYear = (String) request.get("academicYear");
+            String classTime = (String) request.get("classTime");
+            String classLocation = (String) request.get("classLocation");
+            Integer maxStudents = request.get("maxStudents") != null ? Integer.valueOf(request.get("maxStudents").toString()) : null;
+            
+            // 通过用户ID获取教师信息
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Course course = teacherService.createCourse(teacherOpt.get().getId(), name, description, 
+                                                      credit, hours, semester, academicYear, classTime, classLocation, maxStudents);
+            
+            return ApiResponse.success("课程创建成功", course);
+        } catch (Exception e) {
+            return ApiResponse.error("创建课程失败：" + e.getMessage());
+        }
+    }
+    
+    /**
      * 获取课程资料列表
      */
     @GetMapping("/materials")
-    public ApiResponse<List<CourseMaterial>> getMaterials(@RequestParam(required = false) Long courseId) {
+    public ApiResponse<List<CourseMaterial>> getMaterials(@RequestParam(required = false) Long courseId,
+                                                         jakarta.servlet.http.HttpSession session) {
         try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
             List<CourseMaterial> materials;
             if (courseId != null) {
                 materials = teacherService.getCourseMaterials(courseId);
             } else {
-                // 获取当前教师的所有课程的资料
-                materials = teacherService.getAllTeacherMaterials(CURRENT_TEACHER_ID);
+                // 通过用户ID获取教师信息
+                Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+                if (!teacherOpt.isPresent()) {
+                    return ApiResponse.error("教师信息不存在");
+                }
+                materials = teacherService.getAllTeacherMaterials(teacherOpt.get().getId());
             }
             return ApiResponse.success("获取成功", materials);
         } catch (Exception e) {
@@ -201,14 +314,12 @@ public class TeacherController {
                     ", 创建时间: " + outline.getCreatedAt());
             }
             
-            return ApiResponse.success("获取历史记录成功", outlines);
+            return ApiResponse.success("获取成功", outlines);
         } catch (Exception e) {
             e.printStackTrace();
-            return ApiResponse.error("获取历史记录失败：" + e.getMessage());
+            return ApiResponse.error("获取教学大纲历史失败：" + e.getMessage());
         }
     }
-    
-
     
     /**
      * 发布通知
@@ -225,165 +336,135 @@ public class TeacherController {
             return ApiResponse.error("发布通知失败：" + e.getMessage());
         }
     }
-
+    
     /**
-     * 新建课程
-     */
-    @PostMapping("/courses")
-    public ApiResponse<Course> createCourse(@RequestBody Course course) {
-        try {
-            System.out.println("接收到创建课程请求: " + course.getName());
-            
-            // 生成唯一的课程号
-            String courseCode = courseCodeService.generateUniqueCourseCode();
-            course.setCourseCode(courseCode);
-            
-            // 设置创建者为当前教师
-            course.setTeacherId(CURRENT_TEACHER_ID);
-            course.setTeacherName("教师"); // 默认教师姓名，实际应从用户会话获取
-            course.setCreatedAt(LocalDateTime.now());
-            course.setUpdatedAt(LocalDateTime.now());
-            
-            Course savedCourse = courseRepository.save(course);
-            System.out.println("课程保存成功，ID: " + savedCourse.getId() + ", 名称: " + savedCourse.getName() + ", 课程号: " + savedCourse.getCourseCode());
-            
-            return ApiResponse.success("课程创建成功", savedCourse);
-        } catch (Exception e) {
-            System.err.println("创建课程失败: " + e.getMessage());
-            return ApiResponse.error("创建课程失败: " + e.getMessage());
-        }
-    }
-
-    /* 暂时注释掉更新和删除课程功能，避免编译错误
-    @PutMapping("/courses/{courseId}")
-    public ApiResponse<?> updateCourse(@PathVariable Long courseId, @RequestBody Course course) {
-        // TODO: 实现更新课程功能
-        return ApiResponse.error("功能开发中");
-    }
-
-    @DeleteMapping("/courses/{courseId}")
-    public ApiResponse<?> deleteCourse(@PathVariable Long courseId) {
-        // TODO: 实现删除课程功能
-        return ApiResponse.error("功能开发中");
-    }
-    */
-
-    /**
-     * 根据课程号查找课程
+     * 根据课程代码获取课程信息
      */
     @GetMapping("/courses/code/{courseCode}")
     public ApiResponse<Course> getCourseByCode(@PathVariable String courseCode) {
         try {
             Course course = courseRepository.findByCourseCode(courseCode);
             if (course == null) {
-                return ApiResponse.error("课程号不存在");
+                return ApiResponse.error("课程不存在");
             }
-            return ApiResponse.success("查找成功", course);
+            return ApiResponse.success("获取成功", course);
         } catch (Exception e) {
-            return ApiResponse.error("查找课程失败：" + e.getMessage());
+            return ApiResponse.error("获取课程信息失败：" + e.getMessage());
         }
     }
-
+    
     /**
-     * 更新课程
+     * 更新课程信息
      */
     @PutMapping("/courses/{courseId}")
     public ApiResponse<Course> updateCourse(@PathVariable Long courseId, @RequestBody Course courseData) {
         try {
-            System.out.println("接收到更新课程请求，课程ID: " + courseId);
-            
-            Course existingCourse = courseRepository.findById(courseId).orElse(null);
-            if (existingCourse == null) {
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
                 return ApiResponse.error("课程不存在");
             }
             
-            // 更新允许修改的字段，但不能修改课程号
-            existingCourse.setName(courseData.getName());
-            existingCourse.setDescription(courseData.getDescription());
-            existingCourse.setCredit(courseData.getCredit());
-            existingCourse.setHours(courseData.getHours());
-            existingCourse.setUpdatedAt(LocalDateTime.now());
+            Course course = courseOpt.get();
+            course.setName(courseData.getName());
+            course.setDescription(courseData.getDescription());
+            course.setCredit(courseData.getCredit());
+            course.setHours(courseData.getHours());
+            course.setSemester(courseData.getSemester());
+            course.setAcademicYear(courseData.getAcademicYear());
+            course.setClassTime(courseData.getClassTime());
+            course.setClassLocation(courseData.getClassLocation());
+            course.setMaxStudents(courseData.getMaxStudents());
+            course.setUpdatedAt(LocalDateTime.now());
             
-            Course updatedCourse = courseRepository.save(existingCourse);
-            System.out.println("课程更新成功，ID: " + courseId + ", 课程号: " + updatedCourse.getCourseCode());
-            
-            return ApiResponse.success("课程更新成功", updatedCourse);
+            Course savedCourse = courseRepository.save(course);
+            return ApiResponse.success("课程更新成功", savedCourse);
         } catch (Exception e) {
-            System.err.println("更新课程失败: " + e.getMessage());
             return ApiResponse.error("更新课程失败：" + e.getMessage());
         }
     }
-
+    
     /**
      * 删除课程
      */
     @DeleteMapping("/courses/{courseId}")
     public ApiResponse<Void> deleteCourse(@PathVariable Long courseId) {
         try {
-            System.out.println("接收到删除课程请求，课程ID: " + courseId);
-            
             if (!courseRepository.existsById(courseId)) {
                 return ApiResponse.error("课程不存在");
             }
             
             courseRepository.deleteById(courseId);
-            System.out.println("课程删除成功，ID: " + courseId);
-            
             return ApiResponse.success("课程删除成功", null);
         } catch (Exception e) {
-            System.err.println("删除课程失败: " + e.getMessage());
             return ApiResponse.error("删除课程失败：" + e.getMessage());
         }
     }
-
+    
     /**
-     * 获取教学统计数据
+     * 获取教师仪表板统计数据
      */
     @GetMapping("/dashboard/stats")
-    public ApiResponse<Map<String, Object>> getDashboardStats() {
+    public ApiResponse<Map<String, Object>> getDashboardStats(jakarta.servlet.http.HttpSession session) {
         try {
+            // 从session获取用户ID
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 通过用户ID获取教师信息
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Teacher teacher = teacherOpt.get();
+            
+            // 获取教师的课程
+            List<Course> courses = teacherService.getTeacherCourses(teacher.getId());
+            
+            // 获取课程ID列表
+            List<Long> courseIds = courses.stream().map(Course::getId).collect(Collectors.toList());
+            
+            // 统计数据
             Map<String, Object> stats = new HashMap<>();
+            stats.put("courseCount", courses.size());
             
-            // 获取真实的课程统计
-            List<Course> courses = courseRepository.findByTeacherId(CURRENT_TEACHER_ID);
-            stats.put("totalCourses", courses.size());
+            // 统计资料数量
+            int materialCount = 0;
+            for (Course course : courses) {
+                materialCount += teacherService.getCourseMaterials(course.getId()).size();
+            }
+            stats.put("materialCount", materialCount);
             
-            // 学生统计：初始为0，实际应该从学生选课表获取
-            stats.put("totalStudents", 0);
+            // 统计考试数量
+            int examCount = 0;
+            for (Long courseId : courseIds) {
+                examCount += examRepository.findByCourseIdOrderByCreatedAtDesc(courseId).size();
+            }
+            stats.put("examCount", examCount);
             
-            // 获取真实的试卷统计
-            List<Exam> exams = examRepository.findByTeacherId(CURRENT_TEACHER_ID);
-            stats.put("totalExams", exams.size());
-            
-            // 获取真实的待批改试卷数量
-            List<Long> examIds = exams.stream().map(Exam::getId).collect(Collectors.toList());
-            long pendingGrades = 0;
-            if (!examIds.isEmpty()) {
-                try {
-                    pendingGrades = examResultRepository.countByExamIdInAndGradeStatus(examIds, "PENDING");
-                } catch (Exception e) {
-                    // 如果查询失败，返回0
-                    pendingGrades = 0;
+            // 统计待批改的考试数量
+            long pendingGradeCount = 0;
+            if (!courseIds.isEmpty()) {
+                for (Long courseId : courseIds) {
+                    List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+                    for (Exam exam : exams) {
+                        pendingGradeCount += examResultRepository.findByExamAndGradeStatus(exam, "PENDING").size();
+                    }
                 }
             }
-            stats.put("pendingGrades", pendingGrades);
+            stats.put("pendingGradeCount", pendingGradeCount);
             
-            // 获取真实的平均成绩
-            Double avgScore = null;
-            try {
-                avgScore = examResultRepository.getAverageScoreByTeacherId(CURRENT_TEACHER_ID);
-            } catch (Exception e) {
-                // 如果查询失败，返回null
-                avgScore = null;
-            }
-            stats.put("averageScore", avgScore != null ? avgScore : 0.0);
-            
-            // 计算真实的完成率：初始为0
-            stats.put("completionRate", 0.0);
-            
-            return ApiResponse.success("统计数据获取成功", stats);
+            return ApiResponse.success("获取统计数据成功", stats);
         } catch (Exception e) {
-            return ApiResponse.error("获取统计数据失败: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.error("获取统计数据失败：" + e.getMessage());
         }
     }
 } 

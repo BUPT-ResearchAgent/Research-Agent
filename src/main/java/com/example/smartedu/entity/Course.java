@@ -24,11 +24,34 @@ public class Course {
     
     private Integer hours;
     
-    @Column(name = "teacher_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "teacher_id", nullable = false)
+    @JsonIgnore
+    private Teacher teacher;
+    
+    @Column(name = "teacher_id", insertable = false, updatable = false)
     private Long teacherId;
     
-    @Column(name = "teacher_name")
-    private String teacherName;
+    @Column(name = "semester")
+    private String semester; // 学期
+    
+    @Column(name = "academic_year")
+    private String academicYear; // 学年
+    
+    @Column(name = "class_time")
+    private String classTime; // 上课时间
+    
+    @Column(name = "class_location")
+    private String classLocation; // 上课地点
+    
+    @Column(name = "max_students")
+    private Integer maxStudents; // 最大学生数
+    
+    @Column(name = "current_students")
+    private Integer currentStudents = 0; // 当前学生数
+    
+    @Column(name = "status")
+    private String status = "active"; // active, inactive, completed
     
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -48,18 +71,21 @@ public class Course {
     @JsonIgnore
     private List<Exam> exams;
     
+    @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<TeachingOutline> teachingOutlines;
+    
     // 构造函数
     public Course() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
     
-    public Course(String name, String description, Long teacherId, String teacherName) {
+    public Course(String name, String description, Teacher teacher) {
         this();
         this.name = name;
         this.description = description;
-        this.teacherId = teacherId;
-        this.teacherName = teacherName;
+        this.teacher = teacher;
     }
     
     // Getter和Setter方法
@@ -111,6 +137,14 @@ public class Course {
         this.hours = hours;
     }
     
+    public Teacher getTeacher() {
+        return teacher;
+    }
+    
+    public void setTeacher(Teacher teacher) {
+        this.teacher = teacher;
+    }
+    
     public Long getTeacherId() {
         return teacherId;
     }
@@ -119,12 +153,60 @@ public class Course {
         this.teacherId = teacherId;
     }
     
-    public String getTeacherName() {
-        return teacherName;
+    public String getSemester() {
+        return semester;
     }
     
-    public void setTeacherName(String teacherName) {
-        this.teacherName = teacherName;
+    public void setSemester(String semester) {
+        this.semester = semester;
+    }
+    
+    public String getAcademicYear() {
+        return academicYear;
+    }
+    
+    public void setAcademicYear(String academicYear) {
+        this.academicYear = academicYear;
+    }
+    
+    public String getClassTime() {
+        return classTime;
+    }
+    
+    public void setClassTime(String classTime) {
+        this.classTime = classTime;
+    }
+    
+    public String getClassLocation() {
+        return classLocation;
+    }
+    
+    public void setClassLocation(String classLocation) {
+        this.classLocation = classLocation;
+    }
+    
+    public Integer getMaxStudents() {
+        return maxStudents;
+    }
+    
+    public void setMaxStudents(Integer maxStudents) {
+        this.maxStudents = maxStudents;
+    }
+    
+    public Integer getCurrentStudents() {
+        return currentStudents;
+    }
+    
+    public void setCurrentStudents(Integer currentStudents) {
+        this.currentStudents = currentStudents;
+    }
+    
+    public String getStatus() {
+        return status;
+    }
+    
+    public void setStatus(String status) {
+        this.status = status;
     }
     
     public LocalDateTime getCreatedAt() {
@@ -165,5 +247,18 @@ public class Course {
     
     public void setExams(List<Exam> exams) {
         this.exams = exams;
+    }
+    
+    public List<TeachingOutline> getTeachingOutlines() {
+        return teachingOutlines;
+    }
+    
+    public void setTeachingOutlines(List<TeachingOutline> teachingOutlines) {
+        this.teachingOutlines = teachingOutlines;
+    }
+    
+    // 便捷方法：获取教师姓名
+    public String getTeacherName() {
+        return teacher != null ? teacher.getRealName() : null;
     }
 } 

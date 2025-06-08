@@ -32,6 +32,9 @@ public class TeacherService {
     private TeachingOutlineRepository outlineRepository;
     
     @Autowired
+    private TeacherRepository teacherRepository;
+    
+    @Autowired
     private FileService fileService;
     
     @Autowired
@@ -140,10 +143,68 @@ public class TeacherService {
     }
     
     /**
-     * 获取教师的课程列表
+     * 获取教师的课程列表 - 通过Teacher实体
      */
     public List<Course> getTeacherCourses(Long teacherId) {
-        return courseRepository.findByTeacherIdOrderByUpdatedAtDesc(teacherId);
+        Teacher teacher = teacherRepository.findById(teacherId)
+                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        return courseRepository.findByTeacherOrderByUpdatedAtDesc(teacher);
+    }
+    
+    /**
+     * 获取教师的课程列表 - 通过用户ID
+     */
+    public List<Course> getTeacherCoursesByUserId(Long userId) {
+        Teacher teacher = teacherRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        return courseRepository.findByTeacherOrderByUpdatedAtDesc(teacher);
+    }
+    
+    /**
+     * 生成唯一的课程代码
+     */
+    private String generateUniqueCourseCode() {
+        String courseCode;
+        int maxAttempts = 100; // 最多尝试100次
+        int attempts = 0;
+        
+        do {
+            // 生成4位随机数
+            int randomNum = (int) (Math.random() * 10000);
+            courseCode = String.format("SE-%04d", randomNum);
+            attempts++;
+            
+            if (attempts > maxAttempts) {
+                throw new RuntimeException("无法生成唯一的课程代码，请稍后重试");
+            }
+        } while (courseRepository.existsByCourseCode(courseCode));
+        
+        return courseCode;
+    }
+
+    /**
+     * 创建课程（自动生成课程代码）
+     */
+    public Course createCourse(Long teacherId, String name, String description, 
+                             Integer credit, Integer hours, String semester, String academicYear,
+                             String classTime, String classLocation, Integer maxStudents) {
+        Teacher teacher = teacherRepository.findById(teacherId)
+                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        
+        // 自动生成唯一的课程代码
+        String courseCode = generateUniqueCourseCode();
+        
+        Course course = new Course(name, description, teacher);
+        course.setCourseCode(courseCode);
+        course.setCredit(credit);
+        course.setHours(hours);
+        course.setSemester(semester);
+        course.setAcademicYear(academicYear);
+        course.setClassTime(classTime);
+        course.setClassLocation(classLocation);
+        course.setMaxStudents(maxStudents);
+        
+        return courseRepository.save(course);
     }
     
     /**
@@ -178,8 +239,6 @@ public class TeacherService {
         }
     }
     
-
-    
     /**
      * 根据ID获取课程
      */
@@ -193,74 +252,90 @@ public class TeacherService {
      */
     public List<CourseMaterial> getAllTeacherMaterials(Long teacherId) {
         // 先获取教师的所有课程
-        List<Course> courses = courseRepository.findByTeacherIdOrderByUpdatedAtDesc(teacherId);
+        Teacher teacher = teacherRepository.findById(teacherId)
+                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        List<Course> courses = courseRepository.findByTeacherOrderByUpdatedAtDesc(teacher);
         if (courses.isEmpty()) {
             return new java.util.ArrayList<>();
         }
         
-        // 获取这些课程的所有资料
-        List<Long> courseIds = courses.stream().map(Course::getId).collect(java.util.stream.Collectors.toList());
-        return materialRepository.findByCourseIdInOrderByUploadedAtDesc(courseIds);
+        // 获取所有课程的资料
+        List<CourseMaterial> allMaterials = new java.util.ArrayList<>();
+        for (Course course : courses) {
+            List<CourseMaterial> materials = materialRepository.findByCourseIdOrderByUploadedAtDesc(course.getId());
+            allMaterials.addAll(materials);
+        }
+        
+        return allMaterials;
     }
     
     /**
      * 获取教学大纲
      */
     public TeachingOutline getTeachingOutline(Long courseId) {
-        return outlineRepository.findByCourseId(courseId).orElse(null);
+        Optional<TeachingOutline> outline = outlineRepository.findByCourseId(courseId);
+        return outline.orElse(null);
     }
     
     /**
      * 根据ID获取课程资料
      */
     public CourseMaterial getMaterialById(Long materialId) {
-        return materialRepository.findById(materialId).orElse(null);
+        return materialRepository.findById(materialId)
+                .orElseThrow(() -> new RuntimeException("资料不存在"));
     }
     
     /**
      * 删除课程资料
      */
     public void deleteMaterial(Long materialId) {
+        if (!materialRepository.existsById(materialId)) {
+            throw new RuntimeException("资料不存在");
+        }
         materialRepository.deleteById(materialId);
     }
     
     /**
-     * 基于选中资料生成教学大纲
+     * 根据选定的资料生成教学大纲
      */
     public TeachingOutline generateOutlineWithMaterials(Long courseId, List<Integer> materialIds, String requirements, Integer hours) {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("课程不存在"));
         
-        // 获取选中的资料内容
+        // 获取选定的课程资料
         StringBuilder contentBuilder = new StringBuilder();
         for (Integer materialId : materialIds) {
             Optional<CourseMaterial> materialOpt = materialRepository.findById(materialId.longValue());
-            if (materialOpt.isPresent()) {
-                CourseMaterial material = materialOpt.get();
-                if (material.getContent() != null) {
-                    contentBuilder.append("【").append(material.getOriginalName()).append("】\n");
-                    contentBuilder.append(material.getContent()).append("\n\n");
-                }
+            if (materialOpt.isPresent() && materialOpt.get().getContent() != null) {
+                contentBuilder.append(materialOpt.get().getContent()).append("\n\n");
             }
         }
         
         if (contentBuilder.length() == 0) {
-            throw new RuntimeException("选中的资料内容为空，无法生成教学大纲");
+            throw new RuntimeException("选定的资料中没有可用的内容");
         }
         
-        // 调用DeepSeek生成教学大纲（包含学时信息）
-        String outlineContent = deepSeekService.generateTeachingOutlineWithHours(
-            course.getName(), 
-            contentBuilder.toString(), 
-            requirements,
-            hours
-        );
+        // 构建生成请求
+        String prompt = String.format("课程名称：%s\n学时：%d\n特殊要求：%s\n\n课程资料内容：\n%s", 
+                course.getName(), hours, requirements, contentBuilder.toString());
         
-        // 创建新的教学大纲版本（保留历史记录）
+        // 调用DeepSeek生成教学大纲
+        String outlineContent = deepSeekService.generateTeachingOutline(course.getName(), prompt);
+        
+        // 创建或更新教学大纲
         TeachingOutline outline = new TeachingOutline();
         outline.setCourse(course);
         outline.setTeachingDesign(outlineContent);
         
-        return outlineRepository.save(outline);
+        // 检查是否已存在教学大纲
+        Optional<TeachingOutline> existingOutline = outlineRepository.findByCourseId(courseId);
+        if (existingOutline.isPresent()) {
+            TeachingOutline existing = existingOutline.get();
+            existing.setTeachingDesign(outlineContent);
+            existing.setUpdatedAt(LocalDateTime.now());
+            return outlineRepository.save(existing);
+        } else {
+            return outlineRepository.save(outline);
+        }
     }
 } 

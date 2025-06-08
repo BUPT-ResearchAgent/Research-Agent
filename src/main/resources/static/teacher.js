@@ -184,11 +184,23 @@ async function handleCreateCourse(e) {
     e.preventDefault();
     
     try {
+        // 先检查所有必需的元素是否存在
+        const nameElement = document.getElementById('course-name');
+        const descElement = document.getElementById('course-description');
+        const creditElement = document.getElementById('course-credit');
+        const hoursElement = document.getElementById('course-hours');
+        
+        if (!nameElement || !descElement || !creditElement || !hoursElement) {
+            console.error('找不到必需的表单元素');
+            showNotification('表单初始化失败，请刷新页面重试', 'error');
+            return;
+        }
+        
         const courseData = {
-            name: document.getElementById('course-name').value.trim(),
-            description: document.getElementById('course-description').value.trim(),
-            credit: parseInt(document.getElementById('course-credit').value),
-            hours: parseInt(document.getElementById('course-hours').value)
+            name: nameElement.value.trim(),
+            description: descElement.value.trim(),
+            credit: parseInt(creditElement.value),
+            hours: parseInt(hoursElement.value)
         };
         
         if (!courseData.name) {
@@ -584,22 +596,19 @@ function resetCreateCourseModal() {
         modalIcon.className = 'fas fa-plus-circle';
     }
     
+    // 直接重置表单，不要替换DOM元素
     const form = document.getElementById('create-course-form');
+    if (form) {
+        form.reset(); // 重置表单数据
+    }
     
-    // 移除旧的事件监听器
-    const newForm = form.cloneNode(true);
-    form.parentNode.replaceChild(newForm, form);
-    
-    // 重置按钮文字（在替换表单后）
-    const submitButton = newForm.querySelector('button[type="submit"]');
+    // 重置按钮文字
+    const submitButton = form.querySelector('button[type="submit"]');
     if (submitButton) {
         submitButton.innerHTML = '<i class="fas fa-save"></i> 创建课程';
     }
     
-    // 重新绑定创建课程事件
-    newForm.addEventListener('submit', handleCreateCourse);
-    
-    // 隐藏课程号显示区域
+    // 隐藏课程号显示区域（在编辑模式时会显示）
     const courseCodeDisplay = document.getElementById('course-code-display');
     if (courseCodeDisplay) {
         courseCodeDisplay.style.display = 'none';
@@ -1683,10 +1692,18 @@ function showDeleteConfirmModal(courseName, courseCode) {
     });
 }
 
-function confirmLogout() {
-    // 清除用户信息
-    localStorage.removeItem('smartedu_current_user');
-    // 跳转到SmartEdu主页
+async function confirmLogout() {
+    try {
+        // 调用服务器端的登出API
+        await fetch('http://localhost:8080/api/auth/logout', {
+            method: 'POST',
+            credentials: 'include' // 包含cookie以维持session
+        });
+    } catch (error) {
+        console.error('登出请求失败:', error);
+    }
+    
+    // 无论服务器端登出是否成功，都跳转到主页
     window.location.href = 'SmartEdu.html';
 }
 
@@ -2130,20 +2147,27 @@ function clearExamForm() { /* 实现清空试卷表单 */ }
 // 用户相关功能
 async function loadCurrentUser() {
     try {
-        // 从localStorage获取当前用户信息
-        const currentUser = JSON.parse(localStorage.getItem('smartedu_current_user') || 'null');
+        // 检查登录状态
+        const response = await fetch('http://localhost:8080/api/auth/check', {
+            method: 'GET',
+            credentials: 'include'
+        });
         
-        if (!currentUser) {
-            // 如果没有用户信息，跳转到主页
-        window.location.href = 'SmartEdu.html';
+        const result = await response.json();
+        
+        if (!result.success) {
+            // 未登录，跳转到主页
+            window.location.href = 'SmartEdu.html';
             return;
         }
         
-        // 如果不是教师角色，跳转到对应的页面
-        if (currentUser.role && currentUser.role !== 'teacher' && currentUser.role !== 'TEACHER') {
-            if (currentUser.role === 'admin' || currentUser.role === 'ADMIN') {
+        const userData = result.data;
+        
+        // 检查是否是教师角色
+        if (userData.role !== 'teacher') {
+            if (userData.role === 'admin') {
                 window.location.href = 'admin.html';
-            } else if (currentUser.role === 'student' || currentUser.role === 'STUDENT') {
+            } else if (userData.role === 'student') {
                 window.location.href = 'student.html';
             } else {
                 window.location.href = 'SmartEdu.html';
@@ -2154,13 +2178,12 @@ async function loadCurrentUser() {
         // 更新页面显示的用户名
         const usernameElement = document.getElementById('current-username');
         if (usernameElement) {
-            usernameElement.textContent = currentUser.realName || currentUser.username || '教师';
+            usernameElement.textContent = userData.username || '教师';
         }
         
-        console.log('当前用户:', currentUser);
+        console.log('当前用户:', userData);
     } catch (error) {
         console.error('加载用户信息失败:', error);
-        // 如果加载失败，跳转到主页
         window.location.href = 'SmartEdu.html';
     }
 }
