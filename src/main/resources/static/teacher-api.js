@@ -94,6 +94,14 @@ class TeacherAPI {
         });
     }
 
+    // 重新生成教学大纲（更新现有大纲）
+    static async regenerateOutline(data) {
+        return this.request('/api/teacher/outline/regenerate', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
+
     // 发布通知
     static async publishNotice(noticeData) {
         return this.request('/api/teacher/notices', {
@@ -107,6 +115,17 @@ class TeacherAPI {
         return this.request('/api/exam/generate', {
             method: 'POST',
             body: JSON.stringify(examData)
+        });
+    }
+
+    // 更新试卷
+    static async updateExam(examId, content) {
+        return this.request(`/api/exam/${examId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
+            body: content
         });
     }
 
@@ -186,6 +205,21 @@ class TeacherAPI {
     static async getOutlineHistory(courseId = null) {
         const url = courseId ? `/api/teacher/outlines?courseId=${courseId}` : '/api/teacher/outlines';
         return this.request(url);
+    }
+
+    // 删除教学大纲
+    static async deleteOutline(outlineId) {
+        return this.request(`/api/teacher/outlines/${outlineId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    // 注销账户
+    static async deleteAccount(password) {
+        return this.request('/api/teacher/delete-account', {
+            method: 'DELETE',
+            body: JSON.stringify({ password })
+        });
     }
 
 

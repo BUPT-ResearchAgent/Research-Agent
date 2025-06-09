@@ -1,11 +1,14 @@
 package com.example.smartedu.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
 @Table(name = "exams")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Exam {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,6 +28,9 @@ public class Exam {
     @Column(nullable = false)
     private Integer duration; // 考试时长（分钟）
     
+    @Column(name = "total_score")
+    private Integer totalScore; // 总分
+    
     @Column(name = "start_time")
     private LocalDateTime startTime;
     
@@ -39,12 +45,15 @@ public class Exam {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "exams"})
     private Course course;
     
     @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference
     private List<Question> questions;
     
     @OneToMany(mappedBy = "exam", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private List<ExamResult> results;
     
     @Column(name = "created_at")
@@ -141,6 +150,21 @@ public class Exam {
     
     public void setCourse(Course course) {
         this.course = course;
+    }
+    
+    public void setCourseId(Long courseId) {
+        if (this.course == null) {
+            this.course = new Course();
+        }
+        this.course.setId(courseId);
+    }
+    
+    public Integer getTotalScore() {
+        return totalScore;
+    }
+    
+    public void setTotalScore(Integer totalScore) {
+        this.totalScore = totalScore;
     }
     
     public List<Question> getQuestions() {

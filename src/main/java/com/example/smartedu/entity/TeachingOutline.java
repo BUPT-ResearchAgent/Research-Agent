@@ -32,6 +32,9 @@ public class TeachingOutline {
     @Column(columnDefinition = "TEXT")
     private String teachingDesign; // 教学设计（表格形式）
     
+    @Column(name = "hours")
+    private Integer hours; // 教学学时
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
@@ -106,6 +109,14 @@ public class TeachingOutline {
     
     public void setTeachingDesign(String teachingDesign) {
         this.teachingDesign = teachingDesign;
+    }
+    
+    public Integer getHours() {
+        return hours;
+    }
+    
+    public void setHours(Integer hours) {
+        this.hours = hours;
     }
     
     public LocalDateTime getCreatedAt() {

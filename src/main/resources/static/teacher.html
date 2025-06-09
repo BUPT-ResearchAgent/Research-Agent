@@ -7,6 +7,72 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* 自定义checkbox样式 */
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            position: relative;
+            padding-left: 0;
+            padding-top: 4px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+            line-height: 1.5;
+        }
+
+        .checkbox-container input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+
+        .checkmark {
+            position: relative;
+            top: 0;
+            left: 0;
+            height: 20px;
+            width: 20px;
+            min-width: 20px;
+            margin-right: 12px;
+            background-color: #eee;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-container:hover input ~ .checkmark {
+            background-color: #ccc;
+        }
+
+        .checkbox-container input:checked ~ .checkmark {
+            background-color: #e74c3c;
+            border-color: #e74c3c;
+        }
+
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+        }
+
+        .checkbox-container input:checked ~ .checkmark:after {
+            display: block;
+        }
+
+        .checkbox-container .checkmark:after {
+            left: 5px;
+            top: 1px;
+            width: 6px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 3px 3px 0;
+            transform: rotate(45deg);
+        }
+    </style>
 </head>
 <body>
     <!-- 顶部导航栏 -->
@@ -28,6 +94,11 @@
                     <div class="dropdown-item" onclick="showChangePasswordModal()">
                         <i class="fas fa-key"></i>
                         <span>修改密码</span>
+            </div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="showDeleteAccountModal()" style="color: #e74c3c;">
+                        <i class="fas fa-user-times"></i>
+                        <span>注销账户</span>
             </div>
                     <div class="dropdown-divider"></div>
                     <div class="dropdown-item" onclick="handleLogout()">
@@ -325,6 +396,7 @@
                                 </div>
             
             <div class="main-content">
+                <!-- AI智能生成教学大纲输入卡片 -->
                 <div class="content-card">
                     <div class="card-header">
                         <i class="fas fa-magic"></i> AI智能生成教学大纲
@@ -380,26 +452,11 @@
                             </button>
                         </div>
                     </div>
-                    
-                    <!-- 教学大纲结果显示 -->
-                    <div id="outline-result" style="display: none;">
-                        <div id="outline-content"></div>
-                    </div>
                 </div>
         
+                <!-- 教学大纲预览卡片 -->
                 <div class="content-card" id="outline-result" style="display: none;">
-                    <div class="card-header">
-                        <i class="fas fa-file-alt"></i> 生成的教学大纲
-                        <div class="card-actions">
-                            <button class="btn btn-sm btn-accent" onclick="editOutline()">
-                                <i class="fas fa-edit"></i> 编辑
-                            </button>
-                            <button class="btn btn-sm btn-secondary" onclick="exportOutline()">
-                                <i class="fas fa-download"></i> 导出
-                            </button>
-                        </div>
-                    </div>
-                    <div id="outline-content" style="padding: 24px;">
+                    <div id="outline-content">
                         <!-- 动态生成的教学大纲内容 -->
                     </div>
                 </div>
@@ -527,110 +584,153 @@
         <section id="gen-test" class="main-section hidden-section">
             <div class="content-header">
                 <h1 class="page-title">生成测评</h1>
-                <div class="header-actions">
-                    <button class="btn btn-accent" onclick="loadExamTemplates()">
-                        <i class="fas fa-copy"></i> 模板库
-                    </button>
-                </div>
             </div>
             
-            <div class="main-content">
-                <div class="content-card">
+            <div class="main-content" style="display: flex !important; flex-direction: column !important; grid-template-columns: none !important;">
+                <div class="content-card ai-generator-card" style="width: 100% !important; flex: none !important;">
                     <div class="card-header">
                         <i class="fas fa-magic"></i> AI智能出题
                     </div>
                     <div style="padding: 24px;">
                         <div class="form-group">
-                            <label>选择课程：</label>
-                            <select id="exam-course-select" class="form-select">
+                            <label>选择课程：<span style="color: #e74c3c;">*</span></label>
+                            <select id="exam-course-select" class="form-select" onchange="loadExamCourseMaterials()">
                                 <option value="">请选择课程</option>
                             </select>
                         </div>
                         
                         <div class="form-group">
-                            <label>选择章节：</label>
-                            <div id="exam-chapters" class="checkbox-group">
-                                <!-- 动态加载章节复选框 -->
+                            <label>选择资料：<span style="color: #e74c3c;">*</span></label>
+                            <div id="exam-materials-loading" style="display: none; padding: 16px; text-align: center; color: #7f8c8d;">
+                                <i class="fas fa-spinner fa-spin"></i> 加载课程资料中...
+                            </div>
+                            <div id="exam-materials-selection" style="display: none;">
+                                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-size: 13px; color: #7f8c8d;">从该课程的知识库中选择资料作为生成依据</span>
+                                    <div>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllExamMaterials()">全选</button>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="clearAllExamMaterials()">清空</button>
+                                    </div>
+                                </div>
+                                <div id="exam-materials-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #e0e6ed; border-radius: 8px; padding: 12px;">
+                                    <!-- 动态加载的资料列表 -->
+                                </div>
+                            </div>
+                            <div id="exam-materials-empty" style="display: block; padding: 20px; text-align: center; color: #7f8c8d;">
+                                <i class="fas fa-info-circle"></i> 请先选择课程，或该课程暂无知识库资料
                             </div>
                         </div>
                         
                         <div class="form-group">
-                            <label>题型设置：</label>
+                            <label>题型设置：<span style="color: #e74c3c;">*</span></label>
                             <div class="question-types-config">
                                 <div class="question-type-item">
                                     <label>
-                                        <input type="checkbox" id="q-multiple-choice" checked>
-                                        选择题
+                                        <input type="checkbox" id="q-multiple-choice">
+                                        <span>📝 选择题</span>
                                     </label>
-                                    <input type="number" id="q-multiple-choice-count" class="form-input-sm" value="10" min="0" max="50">
+                                    <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="q-multiple-choice-count" class="form-input-sm" placeholder="0" min="0" max="50">
                                     <span>题</span>
+                                    </div>
                                 </div>
                                 <div class="question-type-item">
                                     <label>
                                         <input type="checkbox" id="q-fill-blank">
-                                        填空题
+                                        <span>✏️ 填空题</span>
                                     </label>
-                                    <input type="number" id="q-fill-blank-count" class="form-input-sm" value="5" min="0" max="20">
+                                    <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="q-fill-blank-count" class="form-input-sm" placeholder="0" min="0" max="20">
                                     <span>题</span>
+                                    </div>
                                 </div>
                                 <div class="question-type-item">
                                     <label>
                                         <input type="checkbox" id="q-true-false">
-                                        判断题
+                                        <span>✅ 判断题</span>
                                     </label>
-                                    <input type="number" id="q-true-false-count" class="form-input-sm" value="5" min="0" max="20">
+                                    <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="number" id="q-true-false-count" class="form-input-sm" placeholder="0" min="0" max="20">
                                     <span>题</span>
+                                    </div>
                                 </div>
                                 <div class="question-type-item">
                                     <label>
-                                        <input type="checkbox" id="q-calculation">
-                                        计算题
+                                        <input type="checkbox" id="q-answer">
+                                        <span>📝 解答题</span>
                                     </label>
-                                    <input type="number" id="q-calculation-count" class="form-input-sm" value="3" min="0" max="10">
+                                    <div style="display: flex; align-items: center; gap: 4px;">
+                                        <input type="number" id="q-answer-count" class="form-input-sm" placeholder="0" min="0" max="10">
                                     <span>题</span>
                                 </div>
-                                <div class="question-type-item">
+                                </div>
+                            </div>
+                            
+                            <!-- 自定义题型 -->
+                            <div class="custom-question-type">
+                                <div class="custom-question-item">
                                     <label>
-                                        <input type="checkbox" id="q-essay">
-                                        论述题
+                                        <input type="checkbox" id="q-custom">
+                                        <span>🎯 自定义题型</span>
                                     </label>
-                                    <input type="number" id="q-essay-count" class="form-input-sm" value="2" min="0" max="5">
+                                    <input type="text" id="q-custom-requirement" class="form-input-custom" 
+                                           placeholder="请描述题型要求，如：案例分析题、实操题、综合应用题、编程题等..." 
+                                           style="width: 200px;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <input type="number" id="q-custom-count" class="form-input-sm" placeholder="0" min="0" max="10">
                                     <span>题</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="form-group">
-                            <label>难度分布：</label>
+                            <label>难度分布：<span style="color: #e74c3c;">*</span></label>
                             <div class="difficulty-config">
                                 <div class="difficulty-item">
                                     <label>简单：</label>
                                     <input type="range" id="difficulty-easy" min="0" max="100" value="30">
-                                    <span id="difficulty-easy-value">30%</span>
+                                    <input type="number" id="difficulty-easy-input" class="difficulty-input" min="0" max="100" value="30">
+                                    <span>%</span>
                                 </div>
                                 <div class="difficulty-item">
                                     <label>中等：</label>
                                     <input type="range" id="difficulty-medium" min="0" max="100" value="50">
-                                    <span id="difficulty-medium-value">50%</span>
+                                    <input type="number" id="difficulty-medium-input" class="difficulty-input" min="0" max="100" value="50">
+                                    <span>%</span>
                                 </div>
                                 <div class="difficulty-item">
                                     <label>困难：</label>
                                     <input type="range" id="difficulty-hard" min="0" max="100" value="20">
-                                    <span id="difficulty-hard-value">20%</span>
+                                    <input type="number" id="difficulty-hard-input" class="difficulty-input" min="0" max="100" value="20">
+                                    <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row" style="display: flex; gap: 24px; align-items: flex-end;">
+                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label>考试时长：<span style="color: #e74c3c;">*</span></label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="number" id="exam-duration" class="form-input" value="90" min="30" max="180">
+                                    <span style="white-space: nowrap; display: inline-block;">分钟</span>
+                                </div>
+                        </div>
+                        
+                            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label>总分设置：<span style="color: #e74c3c;">*</span></label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="number" id="exam-total-score" class="form-input" value="100" min="50" max="200">
+                                    <span style="white-space: nowrap; display: inline-block;">分</span>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="form-group">
-                            <label>考试时长：</label>
-                            <input type="number" id="exam-duration" class="form-input" value="90" min="30" max="180">
-                            <span>分钟</span>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>总分设置：</label>
-                            <input type="number" id="exam-total-score" class="form-input" value="100" min="50" max="200">
-                            <span>分</span>
+                            <label>特殊要求：<span style="color: #999; font-size: 12px;">（可选）</span></label>
+                            <textarea id="exam-special-requirements" class="form-input" 
+                                placeholder="如：重点考察理论应用能力、增加实际案例分析、注重计算题的步骤展示等..." 
+                                rows="3" style="resize: vertical;"></textarea>
                         </div>
                         
                         <div class="form-actions">
@@ -644,10 +744,13 @@
                     </div>
                 </div>
                 
-                <div class="content-card" id="exam-preview" style="display: none;">
+                <div class="content-card" id="exam-preview" style="display: none; width: 100% !important; flex: none !important;">
                     <div class="card-header">
                         <i class="fas fa-file-alt"></i> 试卷预览
                         <div class="card-actions">
+                            <button class="btn btn-sm btn-secondary" onclick="returnToExamGeneration()" title="返回试卷生成页面">
+                                <i class="fas fa-arrow-left"></i> 返回
+                            </button>
                             <button class="btn btn-sm btn-accent" onclick="editExam()">
                                 <i class="fas fa-edit"></i> 编辑
                             </button>
@@ -1134,6 +1237,73 @@
                         <button type="submit" class="course-btn course-btn-primary">
                             <i class="fas fa-save"></i>
                             <span>确认修改</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 注销账户模态框 -->
+    <div id="delete-account-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 500px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background-color: rgba(231, 76, 60, 0.1);">
+                        <i class="fas fa-user-times" style="color: #e74c3c;"></i>
+                    </div>
+                    <h3 style="color: #e74c3c;">注销账户</h3>
+                </div>
+                <button id="close-delete-account-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <div class="alert-danger" style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                        <i class="fas fa-exclamation-triangle" style="color: #721c24; font-size: 20px; margin-top: 2px;"></i>
+                        <div style="color: #721c24;">
+                            <h4 style="margin: 0 0 8px 0; font-size: 16px;">危险操作警告</h4>
+                            <p style="margin: 0; font-size: 14px; line-height: 1.4;">
+                                注销账户将永久删除以下所有数据，且<strong>无法恢复</strong>：
+                            </p>
+                            <ul style="margin: 8px 0 0 16px; font-size: 14px;">
+                                <li>个人资料和账户信息</li>
+                                <li>所有课程及课程资料</li>
+                                <li>教学大纲和通知</li>
+                                <li>考试和成绩数据</li>
+                                <li>其他相关教学数据</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="delete-account-form">
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            请输入您的密码以确认注销 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="delete-account-password" class="course-form-input" placeholder="请输入您的登录密码" required>
+                    </div>
+                    
+                    <div class="course-form-group" style="margin-top: 20px;">
+                        <label class="checkbox-container" style="margin-top: 8px;">
+                            <input type="checkbox" id="delete-account-confirm" required>
+                            <span class="checkmark"></span>
+                            <span>我已知晓此操作的风险，确认要永久注销账户</span>
+                        </label>
+                    </div>
+                    
+                    <div class="course-modal-actions">
+                        <button type="button" id="cancel-delete-account" class="course-btn course-btn-cancel">
+                            <i class="fas fa-times"></i>
+                            <span>取消</span>
+                        </button>
+                        <button type="submit" class="course-btn" style="background: #e74c3c; border-color: #e74c3c;">
+                            <i class="fas fa-user-times"></i>
+                            <span>确认注销账户</span>
                         </button>
                     </div>
                 </form>
@@ -1815,6 +1985,7 @@
             </div>
             
             <div class="course-modal-footer" style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; padding: 15px 20px; margin-top: 20px; border-top: 1px solid #e9ecef;">
+
                 <button id="apply-outline" class="btn btn-primary" onclick="applyCurrentOutline()" style="flex: 0 0 auto; min-width: 120px; height: 40px;">
                     <i class="fas fa-copy"></i> 应用此大纲
                 </button>

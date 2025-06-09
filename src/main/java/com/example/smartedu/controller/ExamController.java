@@ -1,6 +1,7 @@
 package com.example.smartedu.controller;
 
 import com.example.smartedu.dto.ApiResponse;
+import com.example.smartedu.dto.ExamDTO;
 import com.example.smartedu.dto.ExamGenerationRequest;
 import com.example.smartedu.entity.Exam;
 import com.example.smartedu.entity.Question;
@@ -22,10 +23,11 @@ public class ExamController {
      * 生成考试
      */
     @PostMapping("/generate")
-    public ApiResponse<Exam> generateExam(@RequestBody ExamGenerationRequest request) {
+    public ApiResponse<ExamDTO> generateExam(@RequestBody ExamGenerationRequest request) {
         try {
             Exam exam = examService.generateExam(request);
-            return ApiResponse.success("考试生成成功", exam);
+            ExamDTO examDTO = new ExamDTO(exam);
+            return ApiResponse.success("考试生成成功", examDTO);
         } catch (Exception e) {
             return ApiResponse.error("生成考试失败：" + e.getMessage());
         }
@@ -35,10 +37,11 @@ public class ExamController {
      * 获取考试详情
      */
     @GetMapping("/{examId}")
-    public ApiResponse<Exam> getExamDetails(@PathVariable Long examId) {
+    public ApiResponse<ExamDTO> getExamDetails(@PathVariable Long examId) {
         try {
             Exam exam = examService.getExamById(examId);
-            return ApiResponse.success(exam);
+            ExamDTO examDTO = new ExamDTO(exam);
+            return ApiResponse.success(examDTO);
         } catch (Exception e) {
             return ApiResponse.error("获取考试详情失败：" + e.getMessage());
         }
@@ -54,6 +57,20 @@ public class ExamController {
             return ApiResponse.success(questions);
         } catch (Exception e) {
             return ApiResponse.error("获取考试题目失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 更新考试
+     */
+    @PutMapping("/{examId}")
+    public ApiResponse<ExamDTO> updateExam(@PathVariable Long examId, @RequestBody String content) {
+        try {
+            Exam exam = examService.updateExamContent(examId, content);
+            ExamDTO examDTO = new ExamDTO(exam);
+            return ApiResponse.success("考试更新成功", examDTO);
+        } catch (Exception e) {
+            return ApiResponse.error("更新考试失败：" + e.getMessage());
         }
     }
     

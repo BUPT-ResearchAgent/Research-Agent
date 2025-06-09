@@ -291,6 +291,9 @@ public class TeacherController {
             Integer hours = request.get("hours") != null ? Integer.valueOf(request.get("hours").toString()) : null;
             
             TeachingOutline outline = teacherService.generateOutlineWithMaterials(courseId, materialIds, requirements, hours);
+            System.out.println("控制器：教学大纲生成成功，返回数据 - ID: " + outline.getId() + 
+                ", 课程: " + (outline.getCourse() != null ? outline.getCourse().getName() : "null") +
+                ", 内容长度: " + (outline.getTeachingDesign() != null ? outline.getTeachingDesign().length() : 0));
             return ApiResponse.success("教学大纲生成成功", outline);
         } catch (Exception e) {
             e.printStackTrace();
@@ -299,18 +302,64 @@ public class TeacherController {
     }
     
     /**
+     * 重新生成教学大纲（更新现有大纲）
+     */
+    @PostMapping("/outline/regenerate")
+    public ApiResponse<TeachingOutline> regenerateTeachingOutline(@RequestBody Map<String, Object> request) {
+        try {
+            Long outlineId = Long.valueOf(request.get("outlineId").toString());
+            Long courseId = Long.valueOf(request.get("courseId").toString());
+            List<Integer> materialIds = (List<Integer>) request.get("materialIds");
+            String requirements = (String) request.get("requirements");
+            Integer hours = request.get("hours") != null ? Integer.valueOf(request.get("hours").toString()) : null;
+            
+            TeachingOutline outline = teacherService.regenerateOutlineWithMaterials(outlineId, courseId, materialIds, requirements, hours);
+            System.out.println("控制器：教学大纲重新生成成功，更新数据 - ID: " + outline.getId() + 
+                ", 课程: " + (outline.getCourse() != null ? outline.getCourse().getName() : "null") +
+                ", 内容长度: " + (outline.getTeachingDesign() != null ? outline.getTeachingDesign().length() : 0));
+            return ApiResponse.success("教学大纲重新生成成功", outline);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("重新生成教学大纲失败：" + e.getMessage());
+        }
+    }
+    
+    /**
      * 获取教学大纲历史记录
      */
     @GetMapping("/outlines")
-    public ApiResponse<List<TeachingOutline>> getOutlineHistory(@RequestParam(required = false) Long courseId) {
+    public ApiResponse<List<TeachingOutline>> getOutlineHistory(@RequestParam(required = false) Long courseId,
+                                                               jakarta.servlet.http.HttpSession session) {
         try {
-            System.out.println("获取教学大纲历史记录，courseId: " + courseId);
-            List<TeachingOutline> outlines = teacherService.getOutlineHistory(courseId);
+            // 从session获取用户ID
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 通过用户ID获取教师信息
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Teacher teacher = teacherOpt.get();
+            System.out.println("获取教学大纲历史记录，教师ID: " + teacher.getId() + ", courseId: " + courseId);
+            
+            // 获取该教师的教学大纲历史记录
+            List<TeachingOutline> outlines = teacherService.getTeacherOutlineHistory(teacher.getId(), courseId);
             System.out.println("找到教学大纲数量: " + outlines.size());
             
             for (TeachingOutline outline : outlines) {
                 System.out.println("大纲ID: " + outline.getId() + ", 课程: " + 
                     (outline.getCourse() != null ? outline.getCourse().getName() : "null") +
+                    ", 教师: " + (outline.getCourse() != null && outline.getCourse().getTeacher() != null ? 
+                        outline.getCourse().getTeacher().getRealName() : "null") +
                     ", 创建时间: " + outline.getCreatedAt());
             }
             
@@ -318,6 +367,92 @@ public class TeacherController {
         } catch (Exception e) {
             e.printStackTrace();
             return ApiResponse.error("获取教学大纲历史失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除教学大纲
+     */
+    @DeleteMapping("/outlines/{outlineId}")
+    public ApiResponse<Void> deleteOutline(@PathVariable Long outlineId,
+                                          jakarta.servlet.http.HttpSession session) {
+        try {
+            // 从session获取用户ID
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 通过用户ID获取教师信息
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Teacher teacher = teacherOpt.get();
+            System.out.println("删除教学大纲，教师ID: " + teacher.getId() + ", 大纲ID: " + outlineId);
+            
+            // 删除教学大纲（带权限验证）
+            teacherService.deleteTeachingOutline(teacher.getId(), outlineId);
+            
+            return ApiResponse.success("教学大纲删除成功", null);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("删除教学大纲失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 注销教师账户
+     */
+    @DeleteMapping("/delete-account")
+    public ApiResponse<Void> deleteAccount(@RequestBody Map<String, String> request,
+                                          jakarta.servlet.http.HttpSession session) {
+        try {
+            // 从session获取用户ID
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 通过用户ID获取教师信息
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Teacher teacher = teacherOpt.get();
+            String password = request.get("password");
+            
+            if (password == null || password.trim().isEmpty()) {
+                return ApiResponse.error("请输入密码");
+            }
+            
+            System.out.println("开始注销教师账户，教师ID: " + teacher.getId() + ", 用户名: " + teacher.getUser().getUsername());
+            
+            // 删除教师账户及所有相关数据
+            teacherService.deleteTeacherAccount(teacher.getId(), password);
+            
+            // 清除session
+            session.invalidate();
+            
+            System.out.println("教师账户注销成功");
+            return ApiResponse.success("账户注销成功", null);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("注销账户失败: " + e.getMessage());
+            return ApiResponse.error("注销账户失败：" + e.getMessage());
         }
     }
     
@@ -336,7 +471,7 @@ public class TeacherController {
             return ApiResponse.error("发布通知失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 根据课程代码获取课程信息
      */
@@ -352,7 +487,7 @@ public class TeacherController {
             return ApiResponse.error("获取课程信息失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 更新课程信息
      */
@@ -382,7 +517,7 @@ public class TeacherController {
             return ApiResponse.error("更新课程失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 删除课程
      */
@@ -399,7 +534,7 @@ public class TeacherController {
             return ApiResponse.error("删除课程失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 获取教师仪表板统计数据
      */

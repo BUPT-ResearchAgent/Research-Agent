@@ -140,6 +140,179 @@ public class DeepSeekService {
     }
     
     /**
+     * 根据用户详细设置生成考试题目
+     */
+    public String generateExamQuestionsWithSettings(String courseName, String chapter, 
+            Map<String, Object> questionTypes, Map<String, Object> difficulty, 
+            int totalScore, int duration, String materialContent, String specialRequirements) {
+        
+        // 构建题型要求字符串
+        StringBuilder typesRequirement = new StringBuilder();
+        int totalQuestions = 0;
+        
+        if (questionTypes != null) {
+            for (Map.Entry<String, Object> entry : questionTypes.entrySet()) {
+                String type = entry.getKey();
+                Object value = entry.getValue();
+                
+                if ("custom".equals(type) && value instanceof Map) {
+                    // 处理自定义题型
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> customType = (Map<String, Object>) value;
+                    
+                    // 安全地获取count，处理可能的类型转换问题
+                    Integer count = null;
+                    Object countObj = customType.get("count");
+                    if (countObj instanceof Number) {
+                        count = ((Number) countObj).intValue();
+                    }
+                    
+                    String requirement = (String) customType.get("requirement");
+                    
+                    if (count != null && count > 0 && requirement != null && !requirement.trim().isEmpty()) {
+                        typesRequirement.append(String.format("- %s：%d题\n", requirement, count));
+                        totalQuestions += count;
+                    }
+                } else {
+                    // 处理标准题型，安全地进行类型转换
+                    Integer count = null;
+                    if (value instanceof Number) {
+                        count = ((Number) value).intValue();
+                    }
+                    
+                    if (count != null && count > 0) {
+                        String typeNameCn = getQuestionTypeName(type);
+                        typesRequirement.append(String.format("- %s：%d题\n", typeNameCn, count));
+                        totalQuestions += count;
+                    }
+                }
+            }
+        }
+        
+        // 构建难度要求字符串
+        StringBuilder difficultyRequirement = new StringBuilder();
+        if (difficulty != null) {
+            // 安全地获取难度配置，处理可能的类型转换问题
+            Integer easy = null;
+            Object easyObj = difficulty.get("easy");
+            if (easyObj instanceof Number) {
+                easy = ((Number) easyObj).intValue();
+            }
+            
+            Integer medium = null;
+            Object mediumObj = difficulty.get("medium");
+            if (mediumObj instanceof Number) {
+                medium = ((Number) mediumObj).intValue();
+            }
+            
+            Integer hard = null;
+            Object hardObj = difficulty.get("hard");
+            if (hardObj instanceof Number) {
+                hard = ((Number) hardObj).intValue();
+            }
+            
+            if (easy != null) difficultyRequirement.append(String.format("- 简单题：%d%%\n", easy));
+            if (medium != null) difficultyRequirement.append(String.format("- 中等题：%d%%\n", medium));
+            if (hard != null) difficultyRequirement.append(String.format("- 困难题：%d%%\n", hard));
+        }
+        
+        // 计算每道题的平均分值
+        int averageScore = totalQuestions > 0 ? totalScore / totalQuestions : 10;
+        
+        String prompt = String.format(
+            "请根据以下课程资料为《%s》课程的《%s》章节生成考试题目。\n\n" +
+            "**严格按照以下要求生成：**\n\n" +
+            "## 题目数量和类型要求：\n" +
+            "%s" +
+            "总题目数：%d题\n\n" +
+            "## 难度分布要求：\n" +
+            "%s\n" +
+            "%s" +
+            "## 分值设置（重要）：\n" +
+            "- **试卷总分：%d分（必须严格遵守）**\n" +
+            "- 建议每题分值：%d分左右（可根据题型难度适当调整）\n" +
+            "- **所有题目分值之和必须精确等于%d分**\n" +
+            "- 考试时长：%d分钟\n" +
+            "- **分值分配原则：**\n" +
+            "  * 选择题通常：5-10分\n" +
+            "  * 填空题通常：8-12分\n" +
+            "  * 判断题通常：3-8分\n" +
+            "  * 解答题通常：15-25分（包含计算过程和文字表述）\n" +
+            "  * 困难题可以适当增加分值\n\n" +
+            "## 输出格式要求：\n" +
+            "请严格按照以下格式输出每道题目：\n\n" +
+            "### 题目X（题型类型）\n" +
+            "**题目内容**：[具体题目内容]\n" +
+            "**选项**：（如果是选择题）\n" +
+            "A. [选项A内容]\n" +
+            "B. [选项B内容]\n" +
+            "C. [选项C内容]\n" +
+            "D. [选项D内容]\n" +
+            "**正确答案**：[答案]\n" +
+            "**解析**：[详细解析]\n" +
+            "**分值建议**：[具体分值]分\n\n" +
+            "---\n\n" +
+            "## 题型说明：\n" +
+            "- multiple-choice：单项选择题（4个选项，选择1个正确答案）\n" +
+            "- fill-blank：填空题（在题目中用______表示空白处）\n" +
+            "- true-false：判断题（正确/错误）\n" +
+            "- answer：解答题（包含计算题和论述题，需要完整的解答过程和文字表述）\n" +
+            "- 自定义题型：按照题目列表中指定的要求生成相应类型的题目\n\n" +
+            "## 答案格式特别要求（重要）：\n" +
+            "1. **编程题答案**：必须提供完整的可运行代码，包含所有必要的函数、语句和注释\n" +
+            "2. **案例分析题答案**：必须提供完整的分析过程，包含所有问题点的详细回答\n" +
+            "3. **解答题答案**：必须提供完整的解答步骤和结论\n" +
+            "4. **所有题型的答案都必须完整**，不能只提供框架或部分内容\n" +
+            "5. **答案长度要求**：编程题答案不少于10行代码，案例分析题答案不少于200字\n\n" +
+            "## 课程资料内容：\n" +
+            "%s\n\n" +
+            "**重要提醒（必须严格遵守）：**\n" +
+            "1. 必须严格按照上述题目数量和类型要求生成\n" +
+            "2. 题目内容必须基于提供的课程资料\n" +
+            "3. 难度分布要符合设定的比例\n" +
+            "4. **所有题目的分值之和必须精确等于%d分**\n" +
+            "5. 题目要有一定的区分度和实用性\n" +
+            "6. **必须生成完整的%d道题目，不允许因篇幅限制而省略任何题目**\n" +
+            "7. **如果内容较长，请确保所有%d道题目都完整输出**\n" +
+            "8. **在最后请计算并验证：所有题目分值总和 = %d分**\n" +
+            "9. **如果分值总和不等于%d分，请调整部分题目的分值使其精确等于%d分**",
+            courseName, 
+            chapter,
+            typesRequirement.toString(),
+            totalQuestions,
+            difficultyRequirement.toString(),
+            (specialRequirements != null && !specialRequirements.trim().isEmpty()) ? 
+                ("## 特殊要求：\n" + specialRequirements + "\n\n") : "",
+            totalScore,
+            averageScore,
+            totalScore,
+            duration,
+            materialContent,
+            totalScore,
+            totalQuestions,
+            totalQuestions,
+            totalScore,
+            totalScore,
+            totalScore
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 获取题型中文名称
+     */
+    private String getQuestionTypeName(String type) {
+        switch (type) {
+            case "multiple-choice": return "单项选择题";
+            case "fill-blank": return "填空题";
+            case "true-false": return "判断题";
+            case "answer": return "解答题";
+            default: return type;
+        }
+    }
+    
+    /**
      * 调用DeepSeek API
      */
     private String callDeepSeekAPI(String prompt) {
@@ -154,7 +327,7 @@ public class DeepSeekService {
             requestBody.put("messages", List.of(
                 Map.of("role", "user", "content", prompt)
             ));
-            requestBody.put("max_tokens", 4000);
+            requestBody.put("max_tokens", 8000);
             requestBody.put("temperature", 0.7);
             
             System.out.println("请求体: " + objectMapper.writeValueAsString(requestBody));

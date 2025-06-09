@@ -15,12 +15,14 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
     /**
      * 根据课程ID查找考试
      */
-    List<Exam> findByCourseId(Long courseId);
+    @Query("SELECT e FROM Exam e WHERE e.course.id = :courseId")
+    List<Exam> findByCourseId(@Param("courseId") Long courseId);
     
     /**
      * 根据课程ID查找考试并按创建时间倒序排列
      */
-    List<Exam> findByCourseIdOrderByCreatedAtDesc(Long courseId);
+    @Query("SELECT e FROM Exam e WHERE e.course.id = :courseId ORDER BY e.createdAt DESC")
+    List<Exam> findByCourseIdOrderByCreatedAtDesc(@Param("courseId") Long courseId);
     
     /**
      * 根据课程查找考试并按创建时间倒序排列
@@ -40,12 +42,14 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
     /**
      * 根据课程ID和发布状态查找考试
      */
-    List<Exam> findByCourseIdAndIsPublished(Long courseId, Boolean isPublished);
+    @Query("SELECT e FROM Exam e WHERE e.course.id = :courseId AND e.isPublished = :isPublished")
+    List<Exam> findByCourseIdAndIsPublished(@Param("courseId") Long courseId, @Param("isPublished") Boolean isPublished);
     
     /**
      * 根据课程ID查找已发布的考试
      */
-    List<Exam> findByCourseIdAndIsPublishedTrue(Long courseId);
+    @Query("SELECT e FROM Exam e WHERE e.course.id = :courseId AND e.isPublished = true")
+    List<Exam> findByCourseIdAndIsPublishedTrue(@Param("courseId") Long courseId);
     
     /**
      * 根据课程查找已发布的考试
@@ -78,4 +82,10 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
      * 统计已发布的考试数量
      */
     long countByIsPublishedTrue();
+    
+    /**
+     * 根据课程ID删除考试
+     */
+    @Query("DELETE FROM Exam e WHERE e.course.id = :courseId")
+    void deleteByCourseId(@Param("courseId") Long courseId);
 } 

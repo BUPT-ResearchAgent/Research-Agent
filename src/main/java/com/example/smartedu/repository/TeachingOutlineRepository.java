@@ -18,4 +18,9 @@ public interface TeachingOutlineRepository extends JpaRepository<TeachingOutline
     
     @Query("SELECT t FROM TeachingOutline t JOIN FETCH t.course ORDER BY t.createdAt DESC")
     List<TeachingOutline> findAllByOrderByCreatedAtDesc();
+    
+    @Query("SELECT t FROM TeachingOutline t JOIN FETCH t.course WHERE t.course.teacher.id = :teacherId ORDER BY t.createdAt DESC")
+    List<TeachingOutline> findByTeacherIdOrderByCreatedAtDesc(@Param("teacherId") Long teacherId);
+    
+    void deleteByCourseId(Long courseId);
 } 

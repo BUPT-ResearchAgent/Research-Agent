@@ -4,6 +4,9 @@ import com.example.smartedu.dto.ExamGenerationRequest;
 import com.example.smartedu.entity.*;
 import com.example.smartedu.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,10 +38,15 @@ public class TeacherService {
     private TeacherRepository teacherRepository;
     
     @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
     private FileService fileService;
     
     @Autowired
     private DeepSeekService deepSeekService;
+    
+    private static final String SALT = "SmartEdu2024"; // 与UserService保持一致的盐值
     
     /**
      * 上传课程资料
@@ -240,6 +248,92 @@ public class TeacherService {
     }
     
     /**
+     * 获取教师的教学大纲历史记录
+     */
+    public List<TeachingOutline> getTeacherOutlineHistory(Long teacherId, Long courseId) {
+        if (courseId != null) {
+            // 验证课程是否属于该教师
+            Course course = courseRepository.findById(courseId)
+                    .orElseThrow(() -> new RuntimeException("课程不存在"));
+            if (!course.getTeacher().getId().equals(teacherId)) {
+                throw new RuntimeException("无权访问该课程的教学大纲");
+            }
+            return outlineRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+        } else {
+            // 获取该教师所有课程的教学大纲
+            return outlineRepository.findByTeacherIdOrderByCreatedAtDesc(teacherId);
+        }
+    }
+    
+    /**
+     * 删除教学大纲（带权限验证）
+     */
+    public void deleteTeachingOutline(Long teacherId, Long outlineId) {
+        TeachingOutline outline = outlineRepository.findById(outlineId)
+                .orElseThrow(() -> new RuntimeException("教学大纲不存在"));
+        
+        // 验证大纲所属课程是否属于该教师
+        if (!outline.getCourse().getTeacher().getId().equals(teacherId)) {
+            throw new RuntimeException("无权删除该教学大纲");
+        }
+        
+        outlineRepository.deleteById(outlineId);
+    }
+    
+    /**
+     * 删除教师账户及所有相关数据
+     */
+    @Transactional
+    public void deleteTeacherAccount(Long teacherId, String password) {
+        Teacher teacher = teacherRepository.findById(teacherId)
+                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        
+        User user = teacher.getUser();
+        if (user == null) {
+            throw new RuntimeException("用户信息不存在");
+        }
+        
+        // 验证密码
+        if (!verifyPassword(password, user.getPassword())) {
+            throw new RuntimeException("密码验证失败");
+        }
+        
+        // 获取教师的所有课程
+        List<Course> courses = courseRepository.findByTeacherOrderByUpdatedAtDesc(teacher);
+        
+        // 删除所有相关数据
+        for (Course course : courses) {
+            // 删除课程相关的教学大纲
+            outlineRepository.deleteByCourseId(course.getId());
+            
+            // 删除课程资料
+            materialRepository.deleteByCourseId(course.getId());
+            
+            // 删除课程通知
+            noticeRepository.deleteByCourseId(course.getId());
+            
+            // 删除课程考试及相关数据
+            List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(course.getId());
+            for (Exam exam : exams) {
+                // 这里可能需要删除考试结果等相关数据
+                // examResultRepository.deleteByExamId(exam.getId());
+            }
+            examRepository.deleteByCourseId(course.getId());
+        }
+        
+        // 删除所有课程
+        courseRepository.deleteByTeacher(teacher);
+        
+        // 删除教师信息
+        teacherRepository.delete(teacher);
+        
+        // 最后删除用户账户
+        userRepository.delete(user);
+        
+        System.out.println("已成功删除教师账户及所有相关数据: " + user.getUsername());
+    }
+    
+    /**
      * 根据ID获取课程
      */
     public Course getCourseById(Long courseId) {
@@ -320,22 +414,86 @@ public class TeacherService {
                 course.getName(), hours, requirements, contentBuilder.toString());
         
         // 调用DeepSeek生成教学大纲
-        String outlineContent = deepSeekService.generateTeachingOutline(course.getName(), prompt);
+        String outlineContent = deepSeekService.generateTeachingOutlineWithHours(course.getName(), contentBuilder.toString(), requirements, hours);
         
-        // 创建或更新教学大纲
+        // 总是创建新的教学大纲，不覆盖现有记录
         TeachingOutline outline = new TeachingOutline();
         outline.setCourse(course);
         outline.setTeachingDesign(outlineContent);
+        outline.setHours(hours); // 保存学时信息
         
-        // 检查是否已存在教学大纲
-        Optional<TeachingOutline> existingOutline = outlineRepository.findByCourseId(courseId);
-        if (existingOutline.isPresent()) {
-            TeachingOutline existing = existingOutline.get();
-            existing.setTeachingDesign(outlineContent);
-            existing.setUpdatedAt(LocalDateTime.now());
-            return outlineRepository.save(existing);
-        } else {
-            return outlineRepository.save(outline);
+        System.out.println("开始创建新的教学大纲，课程ID: " + courseId + ", 课程名: " + course.getName());
+        
+        TeachingOutline saved = outlineRepository.save(outline);
+        System.out.println("创建教学大纲成功，ID: " + saved.getId());
+        // 确保Course被正确加载以避免懒加载问题
+        saved.getCourse().getName(); // 触发加载
+        return saved;
+    }
+    
+    /**
+     * 重新生成教学大纲（更新当前显示的大纲）
+     */
+    public TeachingOutline regenerateOutlineWithMaterials(Long outlineId, Long courseId, List<Integer> materialIds, String requirements, Integer hours) {
+        // 验证大纲是否存在
+        TeachingOutline existingOutline = outlineRepository.findById(outlineId)
+                .orElseThrow(() -> new RuntimeException("教学大纲不存在"));
+        
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        
+        // 获取选定的课程资料
+        StringBuilder contentBuilder = new StringBuilder();
+        for (Integer materialId : materialIds) {
+            Optional<CourseMaterial> materialOpt = materialRepository.findById(materialId.longValue());
+            if (materialOpt.isPresent() && materialOpt.get().getContent() != null) {
+                contentBuilder.append(materialOpt.get().getContent()).append("\n\n");
+            }
         }
+        
+        if (contentBuilder.length() == 0) {
+            throw new RuntimeException("选定的资料中没有可用的内容");
+        }
+        
+        // 构建生成请求
+        String prompt = String.format("课程名称：%s\n学时：%d\n特殊要求：%s\n\n课程资料内容：\n%s", 
+                course.getName(), hours, requirements, contentBuilder.toString());
+        
+        // 调用DeepSeek重新生成教学大纲
+        String outlineContent = deepSeekService.generateTeachingOutlineWithHours(course.getName(), contentBuilder.toString(), requirements, hours);
+        
+        System.out.println("开始更新教学大纲，ID: " + outlineId + ", 课程: " + course.getName());
+        
+        // 更新现有大纲
+        existingOutline.setTeachingDesign(outlineContent);
+        existingOutline.setHours(hours); // 更新学时信息
+        existingOutline.setUpdatedAt(LocalDateTime.now());
+        
+        TeachingOutline saved = outlineRepository.save(existingOutline);
+        System.out.println("更新教学大纲成功，ID: " + saved.getId());
+        // 确保Course被正确加载以避免懒加载问题
+        saved.getCourse().getName(); // 触发加载
+        return saved;
+    }
+    
+    /**
+     * 密码加密（与UserService保持一致）
+     */
+    private String hashPassword(String password) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            String saltedPassword = password + SALT;
+            byte[] hashedBytes = md.digest(saltedPassword.getBytes());
+            return Base64.getEncoder().encodeToString(hashedBytes);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("密码加密失败", e);
+        }
+    }
+    
+    /**
+     * 密码验证（与UserService保持一致）
+     */
+    private boolean verifyPassword(String plainPassword, String hashedPassword) {
+        return hashPassword(plainPassword).equals(hashedPassword);
     }
 } 

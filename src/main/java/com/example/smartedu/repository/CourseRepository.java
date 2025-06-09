@@ -89,4 +89,9 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
      * 根据教师统计课程数量
      */
     long countByTeacher(Teacher teacher);
+    
+    /**
+     * 根据教师删除课程
+     */
+    void deleteByTeacher(Teacher teacher);
 } 

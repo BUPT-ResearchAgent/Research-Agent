@@ -227,7 +227,7 @@ public class AuthController {
             return ApiResponse.error("获取用户信息失败：" + e.getMessage());
         }
     }
-
+    
     /**
      * 修改密码
      */

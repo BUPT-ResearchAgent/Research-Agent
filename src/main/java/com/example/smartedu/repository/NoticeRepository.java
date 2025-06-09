@@ -10,4 +10,6 @@ import java.util.List;
 public interface NoticeRepository extends JpaRepository<Notice, Long> {
     List<Notice> findByCourseId(Long courseId);
     List<Notice> findByCourseIdOrderByCreatedAtDesc(Long courseId);
+    
+    void deleteByCourseId(Long courseId);
 } 
