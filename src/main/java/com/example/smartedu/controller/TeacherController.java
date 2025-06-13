@@ -6,6 +6,7 @@ import com.example.smartedu.repository.*;
 import com.example.smartedu.service.TeacherService;
 import com.example.smartedu.service.TeacherManagementService;
 import com.example.smartedu.service.CourseCodeService;
+import com.example.smartedu.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -41,11 +42,14 @@ public class TeacherController {
     @Autowired
     private ExamResultRepository examResultRepository;
     
+    @Autowired
+    private CourseService courseService;
+    
     /**
      * 获取教师课程列表
      */
     @GetMapping("/courses")
-    public ApiResponse<List<Course>> getTeacherCourses(jakarta.servlet.http.HttpSession session) {
+    public ApiResponse<List<Map<String, Object>>> getTeacherCourses(jakarta.servlet.http.HttpSession session) {
         try {
             // 从session获取用户ID
             Long userId = (Long) session.getAttribute("userId");
@@ -60,9 +64,34 @@ public class TeacherController {
             
             List<Course> courses = teacherService.getTeacherCoursesByUserId(userId);
             
+            // 为每个课程添加实时学生数量
+            List<Map<String, Object>> coursesWithStudentCount = courses.stream().map(course -> {
+                Map<String, Object> courseData = new HashMap<>();
+                courseData.put("id", course.getId());
+                courseData.put("name", course.getName());
+                courseData.put("courseCode", course.getCourseCode());
+                courseData.put("description", course.getDescription());
+                courseData.put("credit", course.getCredit());
+                courseData.put("hours", course.getHours());
+                courseData.put("semester", course.getSemester());
+                courseData.put("academicYear", course.getAcademicYear());
+                courseData.put("classTime", course.getClassTime());
+                courseData.put("classLocation", course.getClassLocation());
+                courseData.put("maxStudents", course.getMaxStudents());
+                courseData.put("status", course.getStatus());
+                courseData.put("createdAt", course.getCreatedAt());
+                courseData.put("updatedAt", course.getUpdatedAt());
+                
+                // 获取实时学生数量
+                long studentCount = courseService.getActiveCourseStudentCount(course.getId());
+                courseData.put("currentStudents", (int) studentCount);
+                
+                return courseData;
+            }).collect(Collectors.toList());
+            
             System.out.println("获取课程列表，用户ID: " + userId + ", 课程数量: " + courses.size());
             
-            return ApiResponse.success(courses);
+            return ApiResponse.success(coursesWithStudentCount);
         } catch (Exception e) {
             return ApiResponse.error("获取课程列表失败：" + e.getMessage());
         }
@@ -476,12 +505,45 @@ public class TeacherController {
      * 根据课程代码获取课程信息
      */
     @GetMapping("/courses/code/{courseCode}")
-    public ApiResponse<Course> getCourseByCode(@PathVariable String courseCode) {
+    public ApiResponse<Object> getCourseByCode(@PathVariable String courseCode) {
         try {
             Course course = courseRepository.findByCourseCode(courseCode);
             if (course == null) {
                 return ApiResponse.error("课程不存在");
             }
+            
+            // 手动设置教师信息，避免@JsonIgnore导致的数据丢失
+            if (course.getTeacher() != null) {
+                // 创建一个包含教师信息的响应对象
+                Map<String, Object> courseData = new HashMap<>();
+                courseData.put("id", course.getId());
+                courseData.put("name", course.getName());
+                courseData.put("courseCode", course.getCourseCode());
+                courseData.put("description", course.getDescription());
+                courseData.put("credit", course.getCredit());
+                courseData.put("hours", course.getHours());
+                courseData.put("semester", course.getSemester());
+                courseData.put("academicYear", course.getAcademicYear());
+                courseData.put("classTime", course.getClassTime());
+                courseData.put("classLocation", course.getClassLocation());
+                courseData.put("maxStudents", course.getMaxStudents());
+                courseData.put("currentStudents", course.getCurrentStudents());
+                courseData.put("status", course.getStatus());
+                courseData.put("createdAt", course.getCreatedAt());
+                courseData.put("updatedAt", course.getUpdatedAt());
+                
+                // 添加教师信息
+                Map<String, Object> teacherData = new HashMap<>();
+                teacherData.put("id", course.getTeacher().getId());
+                teacherData.put("realName", course.getTeacher().getRealName());
+                teacherData.put("teacherCode", course.getTeacher().getTeacherCode());
+                teacherData.put("department", course.getTeacher().getDepartment());
+                teacherData.put("title", course.getTeacher().getTitle());
+                courseData.put("teacher", teacherData);
+                
+                return ApiResponse.success("获取成功", courseData);
+            }
+            
             return ApiResponse.success("获取成功", course);
         } catch (Exception e) {
             return ApiResponse.error("获取课程信息失败：" + e.getMessage());
@@ -569,6 +631,10 @@ public class TeacherController {
             // 统计数据
             Map<String, Object> stats = new HashMap<>();
             stats.put("courseCount", courses.size());
+            
+            // 统计在线学生数量
+            int onlineStudentCount = teacherService.getTeacherOnlineStudentCountByUserId(userId);
+            stats.put("totalStudents", onlineStudentCount);
             
             // 统计资料数量
             int materialCount = 0;

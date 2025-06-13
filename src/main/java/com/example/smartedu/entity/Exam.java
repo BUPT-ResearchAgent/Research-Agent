@@ -43,6 +43,9 @@ public class Exam {
     @Column(name = "is_answer_published")
     private Boolean isAnswerPublished = false;
     
+    @Column(name = "published_at")
+    private LocalDateTime publishedAt; // 发布时间
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "course_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "exams"})
@@ -142,6 +145,14 @@ public class Exam {
     
     public void setIsAnswerPublished(Boolean isAnswerPublished) {
         this.isAnswerPublished = isAnswerPublished;
+    }
+    
+    public LocalDateTime getPublishedAt() {
+        return publishedAt;
+    }
+    
+    public void setPublishedAt(LocalDateTime publishedAt) {
+        this.publishedAt = publishedAt;
     }
     
     public Course getCourse() {

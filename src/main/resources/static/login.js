@@ -136,7 +136,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (result.success) {
                     showMessage('登录成功！正在跳转...', 'success');
                     
-                    // 登录成功后，session已在服务器端建立，不需要在前端保存用户信息
+                    // 不再使用localStorage，完全依赖服务器端session验证
+                    // 登录成功后服务器已经设置了session cookie
                     
                     // 根据角色跳转到对应页面
                     setTimeout(() => {

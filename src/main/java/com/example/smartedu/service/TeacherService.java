@@ -46,6 +46,12 @@ public class TeacherService {
     @Autowired
     private DeepSeekService deepSeekService;
     
+    @Autowired
+    private OnlineUserService onlineUserService;
+    
+    @Autowired
+    private StudentCourseRepository studentCourseRepository;
+    
     private static final String SALT = "SmartEdu2024"; // 与UserService保持一致的盐值
     
     /**
@@ -166,6 +172,43 @@ public class TeacherService {
         Teacher teacher = teacherRepository.findByUserId(userId)
                 .orElseThrow(() -> new RuntimeException("教师不存在"));
         return courseRepository.findByTeacherOrderByUpdatedAtDesc(teacher);
+    }
+    
+    /**
+     * 获取教师所有课程的在线学生数量
+     */
+    public int getTeacherOnlineStudentCount(Long teacherId) {
+        // 获取教师的所有课程
+        List<Course> courses = getTeacherCourses(teacherId);
+        
+        // 获取所有在线用户ID
+        java.util.Set<Long> onlineUserIds = onlineUserService.getOnlineUserIds();
+        
+        // 统计选了这些课程且在线的学生数量
+        java.util.Set<Long> onlineStudentUserIds = new java.util.HashSet<>();
+        
+        for (Course course : courses) {
+            // 获取选了这门课程的学生的用户ID
+            List<StudentCourse> studentCourses = studentCourseRepository.findByCourseIdAndStatus(course.getId(), "active");
+            
+            for (StudentCourse sc : studentCourses) {
+                Long studentUserId = sc.getStudent().getUser().getId();
+                if (onlineUserIds.contains(studentUserId)) {
+                    onlineStudentUserIds.add(studentUserId);
+                }
+            }
+        }
+        
+        return onlineStudentUserIds.size();
+    }
+    
+    /**
+     * 获取教师所有课程的在线学生数量 - 通过用户ID
+     */
+    public int getTeacherOnlineStudentCountByUserId(Long userId) {
+        Teacher teacher = teacherRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        return getTeacherOnlineStudentCount(teacher.getId());
     }
     
     /**

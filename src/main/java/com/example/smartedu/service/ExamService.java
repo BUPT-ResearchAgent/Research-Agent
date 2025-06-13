@@ -1,6 +1,7 @@
 package com.example.smartedu.service;
 
 import com.example.smartedu.dto.ExamGenerationRequest;
+import com.example.smartedu.dto.ExamListDTO;
 import com.example.smartedu.entity.*;
 import com.example.smartedu.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -33,6 +35,9 @@ public class ExamService {
     
     @Autowired
     private ObjectMapper objectMapper;
+    
+    @Autowired
+    private ExamResultRepository examResultRepository;
     
     /**
      * 生成考试
@@ -162,6 +167,7 @@ public class ExamService {
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
         
         exam.setIsPublished(true);
+        exam.setPublishedAt(java.time.LocalDateTime.now()); // 设置发布时间
         examRepository.save(exam);
     }
     
@@ -1294,5 +1300,85 @@ public class ExamService {
         }
         
         return result.toString();
+    }
+    
+    /**
+     * 获取教师的试卷列表
+     */
+    public List<ExamListDTO> getExamListByTeacher(Long teacherId, String status, String search) {
+        try {
+            // 根据教师ID查找考试
+            List<Exam> exams = examRepository.findByTeacherId(teacherId);
+            
+            // 按创建时间倒序排列
+            exams = exams.stream()
+                    .sorted((e1, e2) -> e2.getCreatedAt().compareTo(e1.getCreatedAt()))
+                    .collect(Collectors.toList());
+            
+            // 转换为DTO并设置参与人数
+            List<ExamListDTO> examListDTOs = exams.stream()
+                    .map(exam -> {
+                        ExamListDTO dto = new ExamListDTO(exam);
+                        
+                        // 设置参与人数
+                        long participantCount = examResultRepository.countByExam(exam);
+                        dto.setParticipantCount(participantCount);
+                        
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+            
+            // 应用状态筛选
+            if (status != null && !status.trim().isEmpty()) {
+                examListDTOs = examListDTOs.stream()
+                        .filter(exam -> status.equals(exam.getStatus()))
+                        .collect(Collectors.toList());
+            }
+            
+            // 应用搜索筛选
+            if (search != null && !search.trim().isEmpty()) {
+                String searchLower = search.toLowerCase();
+                examListDTOs = examListDTOs.stream()
+                        .filter(exam -> 
+                            (exam.getTitle() != null && exam.getTitle().toLowerCase().contains(searchLower)) ||
+                            (exam.getCourseName() != null && exam.getCourseName().toLowerCase().contains(searchLower)) ||
+                            (exam.getExamType() != null && exam.getExamType().toLowerCase().contains(searchLower))
+                        )
+                        .collect(Collectors.toList());
+            }
+            
+            return examListDTOs;
+            
+        } catch (Exception e) {
+            throw new RuntimeException("获取试卷列表失败：" + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 删除试卷
+     */
+    public void deleteExam(Long examId) {
+        try {
+            Exam exam = examRepository.findById(examId)
+                    .orElseThrow(() -> new RuntimeException("试卷不存在"));
+            
+            // 检查是否有学生已经参与考试
+            long participantCount = examResultRepository.countByExam(exam);
+            if (participantCount > 0) {
+                throw new RuntimeException("该试卷已有学生参与，无法删除");
+            }
+            
+            // 删除相关的题目
+            List<Question> questions = questionRepository.findByExamId(examId);
+            if (!questions.isEmpty()) {
+                questionRepository.deleteAll(questions);
+            }
+            
+            // 删除试卷
+            examRepository.delete(exam);
+            
+        } catch (Exception e) {
+            throw new RuntimeException("删除试卷失败：" + e.getMessage(), e);
+        }
     }
 } 

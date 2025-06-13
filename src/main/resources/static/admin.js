@@ -90,15 +90,33 @@ function showNotification(message, type = 'info') {
     }, type === 'error' ? 5000 : 3000);
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    // 检查登录状�?
-    const currentUser = JSON.parse(localStorage.getItem('smartedu_current_user') || 'null');
+document.addEventListener('DOMContentLoaded', async function() {
+    // 完全不使用localStorage，直接从服务器验证登录状态
+    let currentUser = null;
+    
+    try {
+        const response = await fetch('/api/auth/check', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            currentUser = result.data;
+        }
+    } catch (error) {
+        console.error('检查登录状态失败:', error);
+        window.location.href = 'login.html';
+        return;
+    }
+    
+    // 如果没有用户信息或角色不是管理员，则跳转到登录页面
     if (!currentUser || currentUser.role !== 'admin') {
         window.location.href = 'login.html';
         return;
     }
 
-    // 设置用户�?
+    // 设置用户名
     document.querySelector('.user-name').textContent = currentUser.username;
 
     // 菜单点击切换功能

@@ -94,4 +94,10 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
      * 根据教师删除课程
      */
     void deleteByTeacher(Teacher teacher);
+    
+    /**
+     * 获取指定状态的所有不同学期
+     */
+    @Query("SELECT DISTINCT c.semester FROM Course c WHERE c.status = :status AND c.semester IS NOT NULL")
+    List<String> findDistinctSemestersByStatus(@Param("status") String status);
 } 

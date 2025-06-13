@@ -194,11 +194,20 @@ async function handleCreateCourse(e) {
             return;
         }
         
+        const semesterElement = document.getElementById('course-semester');
+        
+        if (!semesterElement) {
+            console.error('找不到学期选择元素');
+            showNotification('表单初始化失败，请刷新页面重试', 'error');
+            return;
+        }
+        
         const courseData = {
             name: nameElement.value.trim(),
             description: descElement.value.trim(),
             credit: parseInt(creditElement.value),
-            hours: parseInt(hoursElement.value)
+            hours: parseInt(hoursElement.value),
+            semester: semesterElement.value
         };
         
         if (!courseData.name) {
@@ -213,6 +222,11 @@ async function handleCreateCourse(e) {
         
         if (!courseData.hours || courseData.hours < 16 || courseData.hours > 200) {
             showNotification('学时必须在16-200之间', 'warning');
+            return;
+        }
+        
+        if (!courseData.semester) {
+            showNotification('请选择开课学期', 'warning');
             return;
         }
         
@@ -417,9 +431,9 @@ function updateRecentCoursesTable() {
         const iconColors = ['var(--primary-color)', 'var(--accent-color)', 'var(--success-color)', 'var(--warning-color)', 'var(--danger-color)'];
         const iconColor = iconColors[index % iconColors.length];
         
-        // 学生数量和完成率：初始为空，需要实际数据
-        const studentCount = 0;
-        const completionRate = 0;
+        // 学生数量：使用实际数据
+        const studentCount = course.currentStudents || 0;
+        const completionRate = 0; // 完成率暂时保持为0，可以后续添加
         const progressClass = 'progress-low';
         
         row.innerHTML = `
@@ -453,6 +467,17 @@ function updateRecentCoursesTable() {
         `;
         tbody.appendChild(row);
     });
+}
+
+// 刷新控制面板数据
+async function refreshDashboardData() {
+    try {
+        await loadDashboardData();
+        showNotification('数据已刷新', 'success');
+    } catch (error) {
+        console.error('刷新数据失败:', error);
+        showNotification('刷新数据失败', 'error');
+    }
 }
 
 // 编辑课程
@@ -1356,10 +1381,6 @@ function extractOriginalOutlineTitle(content) {
     return 'AI生成的教学大纲';
 }
 
-
-
-
-
 // 下载教学大纲
 function downloadOutline() {
     const outlineContentDiv = document.querySelector('.outline-content');
@@ -1933,14 +1954,19 @@ async function loadNoticesData() {
 
 async function loadExamManageData() {
     try {
-        const response = await TeacherAPI.getExams();
-        currentExams = response.data || [];
-        updateExamsTable();
+        // 加载试卷列表
+        await loadExamList();
         
-        const statsResponse = await TeacherAPI.getExamStats();
-        updateExamStats(statsResponse.data);
+        // 加载考试统计数据
+        const statsResponse = await TeacherAPI.getDashboardStats();
+        const stats = statsResponse.data || {};
+        
+        // 更新考试统计卡片
+        updateExamStatsCards(stats);
+        
     } catch (error) {
         console.error('加载考试管理数据失败:', error);
+        showNotification('加载试卷管理数据失败', 'error');
     }
 }
 
@@ -4075,6 +4101,272 @@ async function exportExam() {
     }
 }
 
+// 加载试卷列表
+async function loadExamList() {
+    try {
+        // 检查TeacherAPI是否可用
+        if (typeof TeacherAPI === 'undefined' || typeof TeacherAPI.getExamList !== 'function') {
+            console.error('TeacherAPI未正确加载，稍后重试...');
+            setTimeout(loadExamList, 1000);
+            return;
+        }
+        
+        showLoading('正在加载试卷列表...');
+        
+        // 获取当前教师ID (从登录状态获取)
+        const teacherId = await getUserId(); // 从session获取当前教师ID
+        
+        if (!teacherId) {
+            throw new Error('未获取到教师ID，请重新登录');
+        }
+        
+        // 获取筛选参数
+        const status = document.getElementById('exam-status-filter')?.value;
+        const search = document.getElementById('exam-search-input')?.value?.trim();
+        
+        const response = await TeacherAPI.getExamList(teacherId, status, search);
+        
+        hideLoading();
+        
+        if (response.success) {
+            displayExamList(response.data);
+        } else {
+            showNotification(response.message || '加载试卷列表失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('加载试卷列表失败:', error);
+        showNotification('加载试卷列表失败，请重试', 'error');
+    }
+}
+
+// 显示试卷列表
+function displayExamList(examList) {
+    const tbody = document.querySelector('#exams-table tbody');
+    if (!tbody) {
+        console.error('试卷表格不存在');
+        return;
+    }
+    
+    // 清空现有内容
+    tbody.innerHTML = '';
+    
+    if (!examList || examList.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 40px; color: #666;">
+                    <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;"></i>
+                    <div>暂无试卷数据</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    examList.forEach(exam => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>
+                <div class="exam-title">
+                    <strong>${exam.title || '未命名试卷'}</strong>
+                    <div class="exam-subtitle">${exam.courseName || '未知课程'}</div>
+                </div>
+            </td>
+            <td>${exam.questionCount || 0}</td>
+            <td>${exam.duration || 0}分钟</td>
+            <td>
+                <span class="status-badge status-${exam.status?.toLowerCase() || 'draft'}">
+                    ${getStatusText(exam.status)}
+                </span>
+            </td>
+            <td>${exam.participantCount || 0}</td>
+            <td>${exam.publishTime || '未发布'}</td>
+            <td>${exam.totalScore || 0}分</td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn btn-sm btn-accent" onclick="previewExam(${exam.id})" title="预览">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="editExam(${exam.id})" title="编辑">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-success" onclick="publishExam(${exam.id})" 
+                            title="发布" ${exam.status === 'PUBLISHED' ? 'disabled' : ''}>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteExam(${exam.id})" 
+                            title="删除" ${exam.participantCount > 0 ? 'disabled' : ''}>
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// 获取状态文本
+function getStatusText(status) {
+    const statusMap = {
+        'DRAFT': '草稿',
+        'PUBLISHED': '已发布',
+        'ONGOING': '进行中',
+        'FINISHED': '已结束'
+    };
+    return statusMap[status] || '未知';
+}
+
+// 预览试卷
+async function previewExam(examId) {
+    try {
+        showLoading('正在加载试卷详情...');
+        
+        const response = await TeacherAPI.getExamDetail(examId);
+        
+        hideLoading();
+        
+        if (response.success) {
+            displayExamPreview(response.data);
+            // 切换到试卷预览页面
+            showSection('exam-preview');
+        } else {
+            showNotification(response.message || '加载试卷详情失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('预览试卷失败:', error);
+        showNotification('预览试卷失败，请重试', 'error');
+    }
+}
+
+// 编辑试卷
+function editExam(examId) {
+    previewExam(examId); // 使用预览功能，然后用户可以点击编辑按钮
+}
+
+// 发布试卷
+async function publishExam(examId) {
+    try {
+        // 先获取试卷信息
+        const response = await TeacherAPI.getExamDetail(examId);
+        
+        if (response.success && response.data) {
+            const exam = response.data;
+            // 填充试卷信息到模态框
+            document.getElementById('exam-title-display').textContent = exam.title || '-';
+            
+            // 显示课程信息：课程名（课程号）
+            const courseDisplay = exam.courseName && exam.courseCode ? 
+                `${exam.courseName}（${exam.courseCode}）` : 
+                (exam.courseName || '-');
+            document.getElementById('exam-course-display').textContent = courseDisplay;
+            
+            // 存储examId供后续使用
+            document.getElementById('publish-exam-modal').setAttribute('data-exam-id', examId);
+            
+            // 显示模态框
+            showPublishExamModal();
+        } else {
+            showNotification('获取试卷信息失败', 'error');
+        }
+        
+    } catch (error) {
+        console.error('获取试卷信息失败:', error);
+        showNotification('获取试卷信息失败', 'error');
+    }
+}
+
+// 删除试卷
+async function deleteExam(examId) {
+    try {
+        const confirmed = confirm('确定要删除这份试卷吗？删除后将无法恢复。');
+        if (!confirmed) return;
+        
+        showLoading('正在删除试卷...');
+        
+        const response = await TeacherAPI.deleteExam(examId);
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('试卷删除成功！', 'success');
+            // 重新加载试卷列表
+            loadExamList();
+        } else {
+            showNotification(response.message || '删除试卷失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('删除试卷失败:', error);
+        showNotification('删除试卷失败，请重试', 'error');
+    }
+}
+
+// 搜索试卷
+function searchExams() {
+    loadExamList(); // 重新加载列表，会自动应用搜索参数
+}
+
+// 筛选试卷状态
+function filterExamsByStatus() {
+    loadExamList(); // 重新加载列表，会自动应用筛选参数
+}
+
+// 获取当前教师ID的辅助函数
+async function getUserId() {
+    try {
+        const response = await fetch('http://localhost:8080/api/auth/current-user', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const userData = result.data;
+            if (userData.role === 'teacher') {
+                // 如果有直接的teacherId就使用，否则使用userId
+                return userData.teacherId || userData.userId;
+            }
+        }
+        throw new Error('未获取到有效的教师ID');
+    } catch (error) {
+        console.error('获取用户ID失败:', error);
+        // 不再使用localStorage，完全依赖服务器端session
+        return null;
+    }
+}
+
+// 更新考试统计卡片
+function updateExamStatsCards(stats) {
+    // 更新待发布试卷数
+    const draftElement = document.getElementById('stat-draft-exams');
+    if (draftElement) {
+        draftElement.textContent = stats.draftExamCount || '0';
+    }
+    
+    // 更新进行中考试数
+    const ongoingElement = document.getElementById('stat-ongoing-exams');
+    if (ongoingElement) {
+        ongoingElement.textContent = stats.ongoingExamCount || '0';
+    }
+    
+    // 更新待批改答卷数
+    const pendingElement = document.getElementById('stat-pending-grades');
+    if (pendingElement) {
+        pendingElement.textContent = stats.pendingGradeCount || '0';
+    }
+    
+    // 更新本月考试数
+    const monthlyElement = document.getElementById('stat-monthly-exams');
+    if (monthlyElement) {
+        monthlyElement.textContent = stats.monthlyExamCount || '0';
+    }
+}
+
 // 生成试卷Markdown内容
 function generateExamMarkdown(examData) {
     const questionsMarkdown = examData.questions ? examData.questions.map((question, index) => {
@@ -4277,5 +4569,211 @@ function parseQuestionBlock(block, questionIndex) {
         return `<div class="question-item" style="color: #e74c3c; padding: 16px;">
             <p>题目${questionIndex}解析失败，请检查格式</p>
         </div>`;
+    }
+}
+
+// 显示发布试卷模态框
+function showPublishExamModal() {
+    const modal = document.getElementById('publish-exam-modal');
+    if (modal) {
+        modal.classList.add('show');
+        modal.style.display = 'flex';
+        
+        // 重置表单状态
+        resetPublishExamForm();
+        
+        // 绑定事件监听器
+        setupPublishExamModalEvents();
+    }
+}
+
+// 隐藏发布试卷模态框
+function hidePublishExamModal() {
+    const modal = document.getElementById('publish-exam-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+        
+        // 移除事件监听器
+        cleanupPublishExamModalEvents();
+    }
+}
+
+// 重置发布表单状态
+function resetPublishExamForm() {
+    // 默认选中立即发布
+    document.getElementById('publish-immediately').checked = true;
+    document.getElementById('schedule-publish').checked = false;
+    
+    // 重置发布时间为明天
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+    document.getElementById('publish-time').value = tomorrow.toISOString().slice(0, 16);
+    
+    // 更新UI状态
+    updatePublishOptionStates();
+}
+
+// 设置发布模态框事件监听器
+function setupPublishExamModalEvents() {
+    // 关闭按钮
+    const closeBtn = document.getElementById('close-publish-modal');
+    const cancelBtn = document.getElementById('cancel-publish');
+    const confirmBtn = document.getElementById('confirm-publish');
+    
+    if (closeBtn) closeBtn.addEventListener('click', hidePublishExamModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', hidePublishExamModal);
+    if (confirmBtn) confirmBtn.addEventListener('click', handleConfirmPublish);
+    
+    // 选项切换
+    const immediatelyChk = document.getElementById('publish-immediately');
+    const scheduleChk = document.getElementById('schedule-publish');
+    
+    if (immediatelyChk) {
+        immediatelyChk.addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('schedule-publish').checked = false;
+                updatePublishOptionStates();
+            }
+        });
+    }
+    
+    if (scheduleChk) {
+        scheduleChk.addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('publish-immediately').checked = false;
+                updatePublishOptionStates();
+            }
+        });
+    }
+    
+    // 点击选项区域切换选择
+    const options = document.querySelectorAll('.publish-option');
+    options.forEach(option => {
+        option.addEventListener('click', function(e) {
+            if (e.target.type !== 'checkbox') {
+                const checkbox = option.querySelector('input[type="checkbox"]');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            }
+        });
+    });
+    
+    // ESC键关闭
+    document.addEventListener('keydown', handlePublishModalEscape);
+    
+    // 点击背景关闭
+    const modal = document.getElementById('publish-exam-modal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                hidePublishExamModal();
+            }
+        });
+    }
+}
+
+// 清理事件监听器
+function cleanupPublishExamModalEvents() {
+    document.removeEventListener('keydown', handlePublishModalEscape);
+}
+
+// 处理ESC键
+function handlePublishModalEscape(e) {
+    if (e.key === 'Escape') {
+        hidePublishExamModal();
+    }
+}
+
+// 更新发布选项状态
+function updatePublishOptionStates() {
+    const immediately = document.getElementById('publish-immediately').checked;
+    const schedule = document.getElementById('schedule-publish').checked;
+    const scheduleSettings = document.getElementById('schedule-settings');
+    const publishTimeInput = document.getElementById('publish-time');
+    
+    // 更新选项的视觉状态
+    const immediatelyOption = document.getElementById('publish-immediately').closest('.publish-option');
+    const scheduleOption = document.getElementById('schedule-publish').closest('.publish-option');
+    
+    if (immediately) {
+        immediatelyOption.classList.add('selected');
+        scheduleOption.classList.remove('selected');
+        // 禁用时间选择
+        publishTimeInput.disabled = true;
+        scheduleSettings.classList.add('disabled');
+    } else if (schedule) {
+        immediatelyOption.classList.remove('selected');
+        scheduleOption.classList.add('selected');
+        // 启用时间选择
+        publishTimeInput.disabled = false;
+        scheduleSettings.classList.remove('disabled');
+    } else {
+        immediatelyOption.classList.remove('selected');
+        scheduleOption.classList.remove('selected');
+        // 禁用时间选择
+        publishTimeInput.disabled = true;
+        scheduleSettings.classList.add('disabled');
+    }
+}
+
+// 处理确认发布
+async function handleConfirmPublish() {
+    try {
+        const modal = document.getElementById('publish-exam-modal');
+        const examId = modal.getAttribute('data-exam-id');
+        
+        if (!examId) {
+            showNotification('试卷ID不存在', 'error');
+            return;
+        }
+        
+        const immediately = document.getElementById('publish-immediately').checked;
+        const schedule = document.getElementById('schedule-publish').checked;
+        
+        if (!immediately && !schedule) {
+            showNotification('请选择发布方式', 'warning');
+            return;
+        }
+        
+        const publishData = {};
+        
+        if (immediately) {
+            publishData.publishType = 'IMMEDIATE';
+        } else if (schedule) {
+            const publishTime = document.getElementById('publish-time').value;
+            
+            if (!publishTime) {
+                showNotification('请选择发布时间', 'warning');
+                return;
+            }
+            
+            publishData.publishType = 'SCHEDULED';
+            publishData.publishTime = publishTime;
+        }
+        
+        showLoading('正在发布试卷...');
+        
+        const response = await TeacherAPI.publishExam(examId, publishData);
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('试卷发布成功！', 'success');
+            hidePublishExamModal();
+            // 重新加载试卷列表
+            loadExamList();
+            updateExamStatsCards();
+        } else {
+            showNotification(response.message || '发布试卷失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('发布试卷失败:', error);
+        showNotification('发布试卷失败，请重试', 'error');
     }
 }

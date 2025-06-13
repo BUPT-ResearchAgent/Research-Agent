@@ -6,6 +6,7 @@ import com.example.smartedu.entity.Student;
 import com.example.smartedu.service.UserService;
 import com.example.smartedu.service.TeacherManagementService;
 import com.example.smartedu.service.StudentManagementService;
+import com.example.smartedu.service.OnlineUserService;
 import com.example.smartedu.dto.ApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -31,6 +32,9 @@ public class AuthController {
     
     @Autowired
     private StudentManagementService studentManagementService;
+    
+    @Autowired
+    private OnlineUserService onlineUserService;
     
     /**
      * 用户注册 - 基础注册（仅创建用户账号）
@@ -158,6 +162,22 @@ public class AuthController {
             session.setAttribute("username", user.getUsername());
             session.setAttribute("role", user.getRole());
             
+            // 用户上线
+            onlineUserService.userOnline(user.getId());
+            
+            // 根据角色设置相应的ID
+            if ("teacher".equals(role)) {
+                Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(user.getId());
+                if (teacherOpt.isPresent()) {
+                    session.setAttribute("teacherId", teacherOpt.get().getId());
+                }
+            } else if ("student".equals(role)) {
+                Optional<Student> studentOpt = studentManagementService.getStudentByUserId(user.getId());
+                if (studentOpt.isPresent()) {
+                    session.setAttribute("studentId", studentOpt.get().getId());
+                }
+            }
+            
             // 构建返回数据
             Map<String, Object> result = new HashMap<>();
             result.put("userId", user.getId());
@@ -175,6 +195,12 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public ApiResponse<Void> logout(HttpSession session) {
+        // 获取用户ID并设置下线状态
+        Long userId = (Long) session.getAttribute("userId");
+        if (userId != null) {
+            onlineUserService.userOffline(userId);
+        }
+        
         session.invalidate();
         return ApiResponse.success("登出成功", null);
     }

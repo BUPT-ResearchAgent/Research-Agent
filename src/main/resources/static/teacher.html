@@ -160,7 +160,7 @@
             <div class="content-header">
                 <h1 class="page-title">教学控制面板</h1>
                 <div class="header-actions">
-                    <button class="btn btn-primary" onclick="loadDashboardData()">
+                    <button class="btn btn-primary" onclick="refreshDashboardData()">
                         <i class="fas fa-sync-alt"></i> 刷新数据
                     </button>
                     <button class="btn btn-accent" onclick="showCreateCourseModal()">
@@ -748,14 +748,8 @@
                     <div class="card-header">
                         <i class="fas fa-file-alt"></i> 试卷预览
                         <div class="card-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="returnToExamGeneration()" title="返回试卷生成页面">
-                                <i class="fas fa-arrow-left"></i> 返回
-                            </button>
                             <button class="btn btn-sm btn-accent" onclick="editExam()">
                                 <i class="fas fa-edit"></i> 编辑
-                            </button>
-                            <button class="btn btn-sm btn-primary" onclick="publishExam()">
-                                <i class="fas fa-paper-plane"></i> 发布
                             </button>
                             <button class="btn btn-sm btn-secondary" onclick="exportExam()">
                                 <i class="fas fa-download"></i> 导出
@@ -782,47 +776,7 @@
                 </div>
             </div>
             
-            <div class="main-content">
-                <div class="content-card">
-                    <div class="card-header">
-                        <i class="fas fa-list"></i> 试卷列表
-                        <div class="card-actions">
-                            <select id="exam-status-filter" class="form-select" onchange="filterExams()">
-                                <option value="">所有状态</option>
-                                <option value="DRAFT">草稿</option>
-                                <option value="PUBLISHED">已发布</option>
-                                <option value="ONGOING">进行中</option>
-                                <option value="FINISHED">已结束</option>
-                            </select>
-                            <input type="text" id="exam-search" class="form-input" placeholder="搜索试卷..." style="width: 200px;">
-                        </div>
-                    </div>
-                    <div class="table-container">
-                        <table id="exams-table">
-                            <thead>
-                                <tr>
-                                    <th>试卷名称</th>
-                                    <th>课程</th>
-                                    <th>题目数量</th>
-                                    <th>考试时长</th>
-                                    <th>状态</th>
-                                    <th>参考人数</th>
-                                    <th>发布时间</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- 动态加载内容 -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <div class="content-card">
-                    <div class="card-header">
-                        <i class="fas fa-chart-bar"></i> 考试统计
-                    </div>
-                    <div style="padding: 24px;">
+            <!-- 考试统计模块 - 参考控制面板样式 -->
                         <div class="stats-container">
                             <div class="stat-card">
                                 <div class="stat-header">
@@ -864,7 +818,45 @@
                                 <div class="stat-value" id="stat-monthly-exams">0</div>
                             </div>
                         </div>
+            
+            <!-- 试卷列表模块 - 独立成行 -->
+            <div class="content-card" style="margin-top: 24px;">
+                <div class="card-header">
+                    <i class="fas fa-list"></i> 试卷列表
+                    <div class="card-actions">
+                        <select id="exam-status-filter" class="form-select" onchange="filterExamsByStatus()">
+                            <option value="">所有状态</option>
+                            <option value="DRAFT">草稿</option>
+                            <option value="PUBLISHED">已发布</option>
+                            <option value="ONGOING">进行中</option>
+                            <option value="FINISHED">已结束</option>
+                        </select>
+                        <input type="text" id="exam-search-input" class="form-input" placeholder="输入试卷名称、课程名称或类型..." 
+                               onkeypress="if(event.key==='Enter') searchExams()" style="width: 250px;">
+                        <button class="btn btn-accent" onclick="searchExams()">
+                            <i class="fas fa-search"></i>
+                        </button>
                     </div>
+                </div>
+                
+                <div class="table-container">
+                    <table id="exams-table">
+                        <thead>
+                            <tr>
+                                <th>试卷名称</th>
+                                <th>题目数量</th>
+                                <th>考试时长</th>
+                                <th>状态</th>
+                                <th>参与人数</th>
+                                <th>发布时间</th>
+                                <th>总分</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 动态加载内容 -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>
@@ -1348,7 +1340,21 @@
                             <input type="text" id="course-name" class="course-form-input" placeholder="请输入课程名称" required>
                         </div>
                         
-
+                        <div class="course-form-group">
+                            <label class="course-form-label">
+                                <i class="fas fa-calendar-alt"></i>
+                                开课学期 <span class="required">*</span>
+                            </label>
+                            <select id="course-semester" class="course-form-input" required>
+                                <option value="">请选择学期</option>
+                                <option value="2024春">2024春</option>
+                                <option value="2024秋">2024秋</option>
+                                <option value="2025春" selected>2025春</option>
+                                <option value="2025秋">2025秋</option>
+                                <option value="2026春">2026春</option>
+                                <option value="2026秋">2026秋</option>
+                            </select>
+                        </div>
                         
                         <div class="course-form-group" id="course-code-display" style="display: none;">
                             <label class="course-form-label">
@@ -1401,9 +1407,6 @@
         </div>
     </div>
 
-    <script src="teacher-api.js"></script>
-    <script src="teacher.js"></script>
-    
     <!-- 临时解决方案：直接在HTML中定义函数 -->
     <script>
         function showUploadModal() {
@@ -2020,6 +2023,86 @@
                 </button>
                 <button id="confirm-ok-btn" class="btn btn-warning">
                     <i class="fas fa-check"></i> 确定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 发布试卷模态框 -->
+    <div id="publish-exam-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 500px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(46, 204, 113, 0.1);">
+                        <i class="fas fa-paper-plane" style="color: #2ecc71;"></i>
+                    </div>
+                    <h3>发布试卷</h3>
+                </div>
+                <button id="close-publish-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <form id="publish-exam-form">
+                    <div class="publish-option">
+                        <label class="publish-checkbox">
+                            <input type="checkbox" id="publish-immediately" checked>
+                            <span class="checkmark"></span>
+                            <div class="option-content">
+                                <div class="option-title">
+                                    <i class="fas fa-bolt"></i>
+                                    立即发布
+                                </div>
+                                <div class="option-description">试卷将立即对学生可见，学生可以开始考试</div>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <div class="publish-divider">
+                        <span>或</span>
+                    </div>
+                    
+                    <div class="publish-option">
+                        <label class="publish-checkbox">
+                            <input type="checkbox" id="schedule-publish">
+                            <span class="checkmark"></span>
+                            <div class="option-content">
+                                <div class="option-title">
+                                    <i class="fas fa-clock"></i>
+                                    定时发布
+                                </div>
+                                <div class="option-description">选择一个时间点自动发布试卷</div>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <div id="schedule-settings" class="schedule-settings">
+                        <div class="form-group">
+                            <label class="course-form-label">发布时间：</label>
+                            <input type="datetime-local" id="publish-time" class="course-form-input" style="width: 100%;" disabled>
+                        </div>
+                    </div>
+                    
+                    <div class="exam-info-card">
+                        <div class="exam-info-item">
+                            <span class="exam-info-label">课程：</span>
+                            <span id="exam-course-display">-</span>
+                        </div>
+                        <div class="exam-info-item">
+                            <span class="exam-info-label">试卷名称：</span>
+                            <span id="exam-title-display">-</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="course-modal-footer">
+                <button type="button" id="cancel-publish" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button type="button" id="confirm-publish" class="btn btn-success">
+                    <i class="fas fa-paper-plane"></i> 确认发布
                 </button>
             </div>
         </div>

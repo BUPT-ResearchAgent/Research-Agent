@@ -261,4 +261,9 @@ public class Course {
     public String getTeacherName() {
         return teacher != null ? teacher.getRealName() : null;
     }
+    
+    // 用于JSON序列化的教师信息
+    public Teacher getTeacherInfo() {
+        return teacher;
+    }
 } 

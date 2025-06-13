@@ -297,10 +297,19 @@ class TeacherAPI {
     static async getExamStats() {
         return this.request('/api/exam/stats');
     }
-}
 
-// 创建全局API实例
-const teacherAPI = new TeacherAPI();
+    // 获取试卷列表
+    static async getExamList(teacherId, status = '', search = '') {
+        let url = `/api/exam/list?teacherId=${teacherId}`;
+        if (status) {
+            url += `&status=${encodeURIComponent(status)}`;
+        }
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        return this.request(url);
+    }
+}
 
 // 显示消息提示
 function showMessage(message, type = 'info') {
@@ -330,7 +339,7 @@ function showMessage(message, type = 'info') {
 // 测试API连接
 async function testAPI() {
     try {
-        const response = await teacherAPI.getTeacherCourses();
+        const response = await TeacherAPI.getCourses();
         console.log('API测试成功:', response);
         showMessage('API连接成功', 'success');
     } catch (error) {

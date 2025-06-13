@@ -3,6 +3,7 @@ package com.example.smartedu.controller;
 import com.example.smartedu.dto.ApiResponse;
 import com.example.smartedu.dto.ExamDTO;
 import com.example.smartedu.dto.ExamGenerationRequest;
+import com.example.smartedu.dto.ExamListDTO;
 import com.example.smartedu.entity.Exam;
 import com.example.smartedu.entity.Question;
 import com.example.smartedu.service.ExamService;
@@ -97,6 +98,34 @@ public class ExamController {
             return ApiResponse.success("答案发布成功");
         } catch (Exception e) {
             return ApiResponse.error("发布答案失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取教师的试卷列表
+     */
+    @GetMapping("/list")
+    public ApiResponse<List<ExamListDTO>> getExamList(@RequestParam Long teacherId,
+                                                      @RequestParam(required = false) String status,
+                                                      @RequestParam(required = false) String search) {
+        try {
+            List<ExamListDTO> examList = examService.getExamListByTeacher(teacherId, status, search);
+            return ApiResponse.success("获取试卷列表成功", examList);
+        } catch (Exception e) {
+            return ApiResponse.error("获取试卷列表失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除试卷
+     */
+    @DeleteMapping("/{examId}")
+    public ApiResponse<String> deleteExam(@PathVariable Long examId) {
+        try {
+            examService.deleteExam(examId);
+            return ApiResponse.success("试卷删除成功");
+        } catch (Exception e) {
+            return ApiResponse.error("删除试卷失败：" + e.getMessage());
         }
     }
 } 
