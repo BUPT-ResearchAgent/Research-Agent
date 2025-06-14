@@ -578,16 +578,80 @@
         </section>
         
         <section id="student-helper" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">在线学习助手</h1></div>
-            <div style="padding:2em;">
-                <div class="content-card">
+            <div class="content-header">
+                <h1 class="page-title">在线学习助手</h1>
+                <div class="header-actions">
+                    <button class="btn btn-accent" onclick="clearChatHistory()">
+                        <i class="fas fa-trash"></i> 清空对话
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <!-- AI学习助手卡片 -->
+                <div class="content-card ai-helper-card">
                     <div class="card-header">
-                        <i class="fas fa-robot"></i> 在线学习助手
+                        <i class="fas fa-robot"></i> AI学习助手
+                        <div class="card-actions">
+                            <span id="helper-status" class="status-badge status-ready">准备就绪</span>
+                        </div>
                     </div>
-                    <div style="padding: 24px; text-align: center; color: #7f8c8d;">
-                        <i class="fas fa-graduation-cap" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                        <p>在线学习助手功能正在开发中...</p>
-                        <p>即将为您提供智能学习指导</p>
+                    
+                    <!-- 课程和资料选择区域 -->
+                    <div class="helper-config-area">
+                        <div class="form-row" style="align-items: center; gap: 16px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <label class="form-label" style="margin: 0; white-space: nowrap;">
+                                    <i class="fas fa-book"></i>
+                                    选择课程 <span class="required">*</span>
+                                </label>
+                                <select id="helper-course-select" class="form-select" onchange="onCourseChange()" style="min-width: 200px;">
+                                    <option value="">请选择课程</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <label class="form-label" style="margin: 0; white-space: nowrap;">
+                                    <i class="fas fa-file-alt"></i>
+                                    选择资料 <span style="color: #7f8c8d;">(可选)</span>
+                                </label>
+                                <select id="helper-material-select" class="form-select" disabled style="min-width: 200px;">
+                                    <option value="">请先选择课程</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 对话历史 -->
+                    <div id="chat-history" class="chat-history">
+                        <div class="welcome-message">
+                            <div class="ai-avatar">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="message-content">
+                                <h4>👋 欢迎使用AI学习助手！</h4>
+                                <p>我是您的专属学习伙伴，可以帮助您：</p>
+                                <ul>
+                                    <li>📚 解答课程相关问题</li>
+                                    <li>📖 分析学习资料内容</li>
+                                    <li>💡 提供学习建议和指导</li>
+                                    <li>🔍 深入解释复杂概念</li>
+                                </ul>
+                                <p>请先选择课程，然后开始提问吧！</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 输入区域 -->
+                    <div class="chat-input-area">
+                        <div class="input-container">
+                            <textarea id="chat-input" placeholder="请输入您的问题..." rows="1" disabled style="resize: none; height: 48px; line-height: 1.4;"></textarea>
+                            <button id="send-button" class="send-btn" onclick="sendMessage()" disabled>
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                        <div class="input-tips">
+                            <span class="tip-item">💡 提示：您可以询问课程内容、学习方法、概念解释等问题</span>
+                        </div>
                     </div>
                 </div>
             </div>

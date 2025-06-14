@@ -2451,3 +2451,420 @@ function updateRecentCoursesTable(courses) {
         `).join('');
     }
 }
+
+// ==================== 在线学习助手功能 ====================
+
+let helperCourses = [];
+let helperMaterials = [];
+let chatHistory = [];
+let isAIResponding = false;
+
+// 初始化学习助手
+function initializeHelper() {
+    loadHelperCourses();
+    setupChatInput();
+}
+
+// 加载学生课程列表
+async function loadHelperCourses() {
+    try {
+        const response = await fetch('http://localhost:8080/api/ai-helper/courses', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            helperCourses = result.data || [];
+            updateCourseSelect();
+        } else {
+            console.error('加载课程列表失败:', result.message);
+            showNotification('加载课程列表失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('加载课程列表失败:', error);
+        showNotification('加载课程列表失败，请检查网络连接', 'error');
+    }
+}
+
+// 更新课程选择下拉框
+function updateCourseSelect() {
+    const courseSelect = document.getElementById('helper-course-select');
+    if (!courseSelect) return;
+    
+    courseSelect.innerHTML = '<option value="">请选择课程</option>';
+    
+    helperCourses.forEach(course => {
+        const option = document.createElement('option');
+        option.value = course.id;
+        option.textContent = `${course.name} (${course.code})`;
+        courseSelect.appendChild(option);
+    });
+}
+
+// 课程选择变化事件
+async function onCourseChange() {
+    const courseSelect = document.getElementById('helper-course-select');
+    const materialSelect = document.getElementById('helper-material-select');
+    const chatInput = document.getElementById('chat-input');
+    const sendButton = document.getElementById('send-button');
+    
+    const courseId = courseSelect.value;
+    
+    if (courseId) {
+        // 启用资料选择和聊天功能
+        materialSelect.disabled = false;
+        chatInput.disabled = false;
+        sendButton.disabled = false;
+        
+        // 加载课程资料
+        await loadCourseMaterials(courseId);
+        
+        // 更新状态
+        updateHelperStatus('ready', '准备就绪');
+        
+        // 添加课程选择消息到聊天历史
+        const selectedCourse = helperCourses.find(c => c.id == courseId);
+        if (selectedCourse) {
+            addSystemMessage(`已选择课程：${selectedCourse.name} (${selectedCourse.code})`);
+        }
+    } else {
+        // 禁用相关功能
+        materialSelect.disabled = true;
+        materialSelect.innerHTML = '<option value="">请先选择课程</option>';
+        chatInput.disabled = true;
+        sendButton.disabled = true;
+        
+        updateHelperStatus('ready', '请选择课程');
+    }
+}
+
+// 加载课程资料
+async function loadCourseMaterials(courseId) {
+    try {
+        const response = await fetch(`http://localhost:8080/api/ai-helper/materials/${courseId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            helperMaterials = result.data || [];
+            updateMaterialSelect();
+        } else {
+            console.error('加载课程资料失败:', result.message);
+            helperMaterials = [];
+            updateMaterialSelect();
+        }
+    } catch (error) {
+        console.error('加载课程资料失败:', error);
+        helperMaterials = [];
+        updateMaterialSelect();
+    }
+}
+
+// 更新资料选择下拉框
+function updateMaterialSelect() {
+    const materialSelect = document.getElementById('helper-material-select');
+    if (!materialSelect) return;
+    
+    materialSelect.innerHTML = '<option value="">选择资料（可选）</option>';
+    
+    helperMaterials.forEach(material => {
+        const option = document.createElement('option');
+        option.value = material.id;
+        option.textContent = material.name;
+        
+        // 如果是"全部资料"选项，默认选中
+        if (material.id === 0) {
+            option.selected = true;
+        }
+        
+        materialSelect.appendChild(option);
+    });
+}
+
+// 设置聊天输入框
+function setupChatInput() {
+    const chatInput = document.getElementById('chat-input');
+    if (!chatInput) return;
+    
+    // 回车发送消息
+    chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    // 自动调整高度
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+}
+
+// 发送消息
+async function sendMessage() {
+    const chatInput = document.getElementById('chat-input');
+    const courseSelect = document.getElementById('helper-course-select');
+    const materialSelect = document.getElementById('helper-material-select');
+    
+    const message = chatInput.value.trim();
+    const courseId = courseSelect.value;
+    const materialId = materialSelect.value || null;
+    
+    if (!message) {
+        showNotification('请输入您的问题', 'warning');
+        return;
+    }
+    
+    if (!courseId) {
+        showNotification('请先选择课程', 'warning');
+        return;
+    }
+    
+    if (isAIResponding) {
+        showNotification('AI正在思考中，请稍候...', 'info');
+        return;
+    }
+    
+    // 添加用户消息到聊天历史
+    addUserMessage(message);
+    
+    // 清空输入框
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    
+    // 显示AI正在思考
+    showTypingIndicator();
+    updateHelperStatus('thinking', 'AI正在思考...');
+    isAIResponding = true;
+    
+    try {
+        const response = await fetch('http://localhost:8080/api/ai-helper/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                message: message,
+                courseId: courseId,
+                materialId: materialId
+            })
+        });
+        
+        const result = await response.json();
+        
+        // 隐藏打字指示器
+        hideTypingIndicator();
+        
+        if (result.success) {
+            addAIMessage(result.data.message);
+            updateHelperStatus('ready', '准备就绪');
+        } else {
+            addAIMessage('抱歉，我暂时无法回答您的问题。错误信息：' + result.message);
+            updateHelperStatus('error', '响应失败');
+        }
+    } catch (error) {
+        console.error('发送消息失败:', error);
+        hideTypingIndicator();
+        addAIMessage('抱歉，网络连接出现问题，请稍后再试。');
+        updateHelperStatus('error', '网络错误');
+    } finally {
+        isAIResponding = false;
+    }
+}
+
+// 添加用户消息
+function addUserMessage(message) {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message user-message';
+    messageDiv.innerHTML = `
+        <div class="user-avatar">
+            <i class="fas fa-user"></i>
+        </div>
+        <div class="message-content">
+            <p>${escapeHtml(message)}</p>
+            <div class="message-time">${formatTime(new Date())}</div>
+        </div>
+    `;
+    
+    chatHistory.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+// 添加AI消息
+function addAIMessage(message) {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message';
+    messageDiv.innerHTML = `
+        <div class="ai-avatar">
+            <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content">
+            ${formatAIMessage(message)}
+            <div class="message-time">${formatTime(new Date())}</div>
+        </div>
+    `;
+    
+    chatHistory.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+// 添加系统消息
+function addSystemMessage(message) {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message';
+    messageDiv.innerHTML = `
+        <div class="ai-avatar">
+            <i class="fas fa-info-circle"></i>
+        </div>
+        <div class="message-content">
+            <p style="color: #7f8c8d; font-style: italic;">${escapeHtml(message)}</p>
+            <div class="message-time">${formatTime(new Date())}</div>
+        </div>
+    `;
+    
+    chatHistory.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+// 显示打字指示器
+function showTypingIndicator() {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+    
+    const typingDiv = document.createElement('div');
+    typingDiv.id = 'typing-indicator';
+    typingDiv.className = 'typing-indicator';
+    typingDiv.innerHTML = `
+        <div class="ai-avatar">
+            <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content">
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+    `;
+    
+    chatHistory.appendChild(typingDiv);
+    scrollToBottom();
+}
+
+// 隐藏打字指示器
+function hideTypingIndicator() {
+    const typingIndicator = document.getElementById('typing-indicator');
+    if (typingIndicator) {
+        typingIndicator.remove();
+    }
+}
+
+// 更新助手状态
+function updateHelperStatus(status, text) {
+    const statusElement = document.getElementById('helper-status');
+    if (!statusElement) return;
+    
+    statusElement.className = `status-badge status-${status}`;
+    statusElement.textContent = text;
+}
+
+// 格式化AI消息（支持简单的Markdown）
+function formatAIMessage(message) {
+    // 转义HTML
+    let formatted = escapeHtml(message);
+    
+    // 处理换行
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // 处理粗体 **text**
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // 处理列表项 • 或 -
+    formatted = formatted.replace(/^[•\-]\s+(.+)$/gm, '<li>$1</li>');
+    
+    // 包装连续的列表项
+    formatted = formatted.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    
+    // 处理数字列表
+    formatted = formatted.replace(/^(\d+)\.\s+(.+)$/gm, '<li>$2</li>');
+    
+    return `<div>${formatted}</div>`;
+}
+
+// 清空对话历史
+function clearChatHistory() {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+    
+    if (confirm('确定要清空所有对话记录吗？')) {
+        // 保留欢迎消息
+        chatHistory.innerHTML = `
+            <div class="welcome-message">
+                <div class="ai-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="message-content">
+                    <h4>👋 欢迎使用AI学习助手！</h4>
+                    <p>我是您的专属学习伙伴，可以帮助您：</p>
+                    <ul>
+                        <li>📚 解答课程相关问题</li>
+                        <li>📖 分析学习资料内容</li>
+                        <li>💡 提供学习建议和指导</li>
+                        <li>🔍 深入解释复杂概念</li>
+                    </ul>
+                    <p>请先选择课程，然后开始提问吧！</p>
+                </div>
+            </div>
+        `;
+        
+        showNotification('对话记录已清空', 'success');
+    }
+}
+
+// 滚动到底部
+function scrollToBottom() {
+    const chatHistory = document.getElementById('chat-history');
+    if (chatHistory) {
+        setTimeout(() => {
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }, 100);
+    }
+}
+
+// 格式化时间
+function formatTime(date) {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+}
+
+// HTML转义
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// 页面加载时初始化学习助手
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否在学习助手页面
+    if (document.getElementById('helper-course-select')) {
+        initializeHelper();
+    }
+});
