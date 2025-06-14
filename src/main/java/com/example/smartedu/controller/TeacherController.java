@@ -1,6 +1,7 @@
 package com.example.smartedu.controller;
 
 import com.example.smartedu.dto.ApiResponse;
+import com.example.smartedu.dto.PublishNoticeRequest;
 import com.example.smartedu.entity.*;
 import com.example.smartedu.repository.*;
 import com.example.smartedu.service.TeacherService;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -44,6 +46,12 @@ public class TeacherController {
     
     @Autowired
     private CourseService courseService;
+    
+    @Autowired
+    private TeacherRepository teacherRepository;
+    
+    @Autowired
+    private NoticeRepository noticeRepository;
     
     /**
      * 获取教师课程列表
@@ -489,15 +497,157 @@ public class TeacherController {
      * 发布通知
      */
     @PostMapping("/notices")
-    public ApiResponse<Notice> publishNotice(
-            @RequestParam Long courseId,
-            @RequestParam String title,
-            @RequestParam String content) {
+    public ApiResponse<Notice> publishNotice(@RequestBody PublishNoticeRequest request, jakarta.servlet.http.HttpSession session) {
         try {
-            Notice notice = teacherService.publishNotice(courseId, title, content);
+            // 获取当前登录的教师ID
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Teacher teacher = teacherRepository.findByUserId(userId)
+                    .orElseThrow(() -> new RuntimeException("教师信息不存在"));
+            
+            Notice notice = teacherService.publishNotice(
+                teacher.getId(),
+                request.getTitle(),
+                request.getContent(),
+                request.getTargetType(),
+                request.getCourseId(),
+                request.getPriority(),
+                request.getPushTime(),
+                request.getScheduledTime()
+            );
+            
             return ApiResponse.success("通知发布成功", notice);
         } catch (Exception e) {
             return ApiResponse.error("发布通知失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取教师发布的通知列表
+     */
+    @GetMapping("/notices")
+    public ApiResponse<List<Notice>> getTeacherNotices(jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Teacher teacher = teacherRepository.findByUserId(userId)
+                    .orElseThrow(() -> new RuntimeException("教师信息不存在"));
+            
+            List<Notice> notices = teacherService.getTeacherNotices(teacher.getId());
+            return ApiResponse.success("获取通知列表成功", notices);
+        } catch (Exception e) {
+            return ApiResponse.error("获取通知列表失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取所有教师发送的通知（用于教师端首页显示）
+     */
+    @GetMapping("/notices/all")
+    public ApiResponse<List<Notice>> getAllTeacherNotices(jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            // 获取所有教师发送的通知，按创建时间倒序排列
+            List<Notice> allNotices = noticeRepository.findByTargetTypeOrderByCreatedAtDesc("COURSE");
+            return ApiResponse.success("获取所有通知成功", allNotices);
+        } catch (Exception e) {
+            return ApiResponse.error("获取所有通知失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 更新通知
+     */
+    @PutMapping("/notices/{noticeId}")
+    public ApiResponse<Notice> updateNotice(@PathVariable Long noticeId, @RequestBody PublishNoticeRequest request, jakarta.servlet.http.HttpSession session) {
+        try {
+            // 获取当前登录的教师ID
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Teacher teacher = teacherRepository.findByUserId(userId)
+                    .orElseThrow(() -> new RuntimeException("教师信息不存在"));
+            
+            Notice notice = teacherService.updateNotice(
+                teacher.getId(),
+                noticeId,
+                request.getTitle(),
+                request.getContent(),
+                request.getTargetType(),
+                request.getCourseId(),
+                request.getPushTime(),
+                request.getScheduledTime()
+            );
+            
+            return ApiResponse.success("通知更新成功", notice);
+        } catch (Exception e) {
+            return ApiResponse.error("更新通知失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除通知
+     */
+    @DeleteMapping("/notices/{noticeId}")
+    public ApiResponse<Void> deleteNotice(@PathVariable Long noticeId, jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Teacher teacher = teacherRepository.findByUserId(userId)
+                    .orElseThrow(() -> new RuntimeException("教师信息不存在"));
+            
+            // 验证通知是否存在且属于当前教师
+            Notice notice = noticeRepository.findById(noticeId)
+                    .orElseThrow(() -> new RuntimeException("通知不存在"));
+            
+            if (!notice.getTeacherId().equals(teacher.getId())) {
+                return ApiResponse.error("您没有权限删除此通知");
+            }
+            
+            noticeRepository.deleteById(noticeId);
+            return ApiResponse.<Void>success("通知删除成功", null);
+        } catch (Exception e) {
+            return ApiResponse.error("删除通知失败：" + e.getMessage());
         }
     }
 

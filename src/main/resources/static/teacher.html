@@ -72,6 +72,124 @@
             border-width: 0 3px 3px 0;
             transform: rotate(45deg);
         }
+        
+        /* 通知表格样式 */
+        .notice-title-only {
+            font-weight: 500;
+            color: #2c3e50;
+            line-height: 1.4;
+        }
+        
+        .course-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .course-name {
+            font-weight: 500;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        
+        .course-code {
+            font-size: 12px;
+            color: #7f8c8d;
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            width: fit-content;
+        }
+        
+        .priority-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            white-space: nowrap;
+            display: inline-block;
+        }
+        
+        .priority-normal {
+            background-color: #ecf0f1;
+            color: #7f8c8d;
+        }
+        
+        .priority-important {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .priority-urgent {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        
+        .status-sent {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-pending {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .action-buttons .btn {
+            padding: 4px 8px;
+            min-width: auto;
+        }
+        
+        /* 通知表格列宽调整 */
+        #notices-table th:nth-child(1) { width: 30%; } /* 标题 */
+        #notices-table th:nth-child(2) { width: 20%; } /* 发布时间 */
+        #notices-table th:nth-child(3) { width: 25%; } /* 课程 */
+        #notices-table th:nth-child(4) { width: 10%; } /* 状态 */
+        #notices-table th:nth-child(5) { width: 15%; } /* 操作 */
+        
+        /* 通知详情样式 */
+        .detail-row {
+            display: flex;
+            margin-bottom: 12px;
+            align-items: flex-start;
+        }
+        
+        .detail-row label {
+            min-width: 80px;
+            font-weight: 500;
+            color: #2c3e50;
+            margin-right: 12px;
+        }
+        
+        .detail-row span {
+            flex: 1;
+            color: #34495e;
+        }
+        
+        .notice-content {
+            flex: 1;
+            color: #34495e;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
     </style>
 </head>
 <body>
@@ -293,18 +411,20 @@
                         <div class="card-header">
                             <i class="fas fa-bell"></i> 最新通知
                             <div class="card-actions">
-                                <button class="btn btn-sm btn-accent">
-                                    <i class="fas fa-plus"></i> 新建
+                                <button class="btn btn-sm btn-accent" onclick="showAllTeacherNotices()" id="view-all-notices-btn" style="display: none;">
+                                    <i class="fas fa-list"></i> 查看全部
                                 </button>
                             </div>
                         </div>
-                        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
-                            <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                            <p>暂无最新通知</p>
-                            <p>发布通知后会在这里显示</p>
-                                </div>
-                                </div>
-                                </div>
+                        <div id="recent-notices-container">
+                            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                                <p>暂无最新通知</p>
+                                <p>发布通知后会在这里显示</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="content-column">
                     <div class="content-card">
@@ -467,7 +587,7 @@
             <div class="content-header">
                 <h1 class="page-title">发布通知</h1>
                 <div class="header-actions">
-                    <button class="btn btn-accent" onclick="loadNoticeHistory()">
+                    <button class="btn btn-accent" onclick="openNoticeHistory()">
                         <i class="fas fa-history"></i> 历史通知
                     </button>
                 </div>
@@ -490,26 +610,10 @@
                         </div>
                         
                         <div class="form-group">
-                            <label>发送对象：</label>
-                            <select id="notice-target-type" class="form-select" onchange="updateTargetOptions()">
-                                <option value="ALL">全体学生</option>
-                                <option value="COURSE">指定课程</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group" id="notice-target-detail" style="display: none;">
-                            <label>选择课程：</label>
+                            <label>选择课程：<span style="color: #e74c3c;">*</span></label>
                             <select id="notice-target-select" class="form-select">
+                                <option value="">请选择课程</option>
                                 <!-- 动态加载课程选项 -->
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>优先级：</label>
-                            <select id="notice-priority" class="form-select">
-                                <option value="NORMAL">普通</option>
-                                <option value="IMPORTANT">重要</option>
-                                <option value="URGENT">紧急</option>
                             </select>
                         </div>
                         
@@ -521,7 +625,7 @@
                             </select>
                         </div>
                         
-                        <div class="form-group" id="notice-schedule-detail" style="display: none;">
+                        <div class="form-group">
                             <label>选择推送时间：</label>
                             <input type="datetime-local" id="notice-schedule-time" class="form-input">
                         </div>
@@ -550,8 +654,7 @@
                                 <tr>
                                     <th>标题</th>
                                     <th>发布时间</th>
-                                    <th>发送对象</th>
-                                    <th>优先级</th>
+                                    <th>课程</th>
                                     <th>状态</th>
                                     <th>操作</th>
                                 </tr>
@@ -2111,5 +2214,26 @@
     <!-- JavaScript 文件引入 -->
     <script src="teacher-api.js"></script>
     <script src="teacher.js"></script>
+    
+    <script>
+    // 临时的历史通知函数
+    function openNoticeHistory() {
+        console.log('openNoticeHistory 被调用');
+        
+        // 检查是否有loadNoticeHistory函数
+        if (typeof loadNoticeHistory === 'function') {
+            console.log('调用loadNoticeHistory函数');
+            loadNoticeHistory();
+        } else {
+            console.log('loadNoticeHistory函数不存在，直接显示模态框');
+            // 直接调用显示模态框的函数
+            if (typeof showNoticeHistoryModal === 'function') {
+                showNoticeHistoryModal();
+            } else {
+                alert('历史通知功能暂时不可用，请刷新页面重试');
+            }
+        }
+    }
+    </script>
 </body>
 </html> 

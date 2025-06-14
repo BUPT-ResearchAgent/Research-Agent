@@ -250,13 +250,76 @@ public class StudentController {
     }
     
     /**
+     * 获取学生的所有通知
+     */
+    @GetMapping("/notices")
+    public ApiResponse<List<Notice>> getStudentNotices(@RequestParam Long userId) {
+        try {
+            // 获取学生信息
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            
+            // 获取学生加入的所有课程
+            List<Course> studentCourses = courseService.getStudentCourses(studentOpt.get().getId());
+            List<Long> courseIds = studentCourses.stream()
+                .map(Course::getId)
+                .collect(java.util.stream.Collectors.toList());
+            
+            // 获取所有相关通知
+            List<Notice> allNotices = new java.util.ArrayList<>();
+            if (!courseIds.isEmpty()) {
+                for (Long courseId : courseIds) {
+                    List<Notice> courseNotices = noticeRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+                    allNotices.addAll(courseNotices);
+                }
+            }
+            
+            // 按创建时间倒序排序
+            allNotices.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+            
+            // 过滤掉未到推送时间的通知
+            java.time.LocalDateTime currentTime = java.time.LocalDateTime.now();
+            List<Notice> visibleNotices = allNotices.stream()
+                .filter(notice -> {
+                    // 如果是定时推送且有推送时间，检查是否已到推送时间
+                    if ("scheduled".equals(notice.getPushTime()) && notice.getScheduledTime() != null) {
+                        return notice.getScheduledTime().isBefore(currentTime) || notice.getScheduledTime().isEqual(currentTime);
+                    }
+                    // 立即推送的通知直接显示
+                    return true;
+                })
+                .collect(java.util.stream.Collectors.toList());
+            
+            return ApiResponse.success("获取学生通知成功", visibleNotices);
+        } catch (Exception e) {
+            return ApiResponse.error("获取学生通知失败：" + e.getMessage());
+        }
+    }
+
+    /**
      * 获取课程公告
      */
     @GetMapping("/courses/{courseId}/notices")
     public ApiResponse<List<Notice>> getCourseNotices(@PathVariable Long courseId) {
         try {
-            List<Notice> notices = noticeRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
-            return ApiResponse.success("获取课程公告成功", notices);
+            List<Notice> allNotices = noticeRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+            
+            // 过滤掉未到推送时间的通知
+            java.time.LocalDateTime currentTime = java.time.LocalDateTime.now();
+            List<Notice> visibleNotices = allNotices.stream()
+                .filter(notice -> {
+                    // 如果是定时推送且有推送时间，检查是否已到推送时间
+                    if ("scheduled".equals(notice.getPushTime()) && notice.getScheduledTime() != null) {
+                        return notice.getScheduledTime().isBefore(currentTime) || notice.getScheduledTime().isEqual(currentTime);
+                    }
+                    // 立即推送的通知直接显示
+                    return true;
+                })
+                .collect(java.util.stream.Collectors.toList());
+            
+            return ApiResponse.success("获取课程公告成功", visibleNotices);
         } catch (Exception e) {
             return ApiResponse.error("获取课程公告失败：" + e.getMessage());
         }

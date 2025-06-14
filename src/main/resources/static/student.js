@@ -108,6 +108,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 设置用户下拉菜单
     setupUserDropdown();
 
+    // 设置全部通知弹窗
+    setupAllNoticesModal();
+
     // 初始化控制面板数据
     updateDashboardStats();
 
@@ -1739,7 +1742,19 @@ function displayCourseNotices(notices) {
     const container = document.getElementById('notices-list');
     if (!container) return;
     
-    if (notices.length === 0) {
+    // 过滤掉未到推送时间的通知
+    const currentTime = new Date();
+    const visibleNotices = notices.filter(notice => {
+        // 如果是定时推送且有推送时间，检查是否已到推送时间
+        if (notice.pushTime === 'scheduled' && notice.scheduledTime) {
+            const scheduledTime = new Date(notice.scheduledTime);
+            return scheduledTime <= currentTime;
+        }
+        // 立即推送的通知直接显示
+        return true;
+    });
+    
+    if (visibleNotices.length === 0) {
         container.innerHTML = `
             <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
                 <i class="fas fa-bell" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
@@ -1750,15 +1765,22 @@ function displayCourseNotices(notices) {
         return;
     }
     
-    container.innerHTML = notices.map(notice => `
-        <div class="notice-item">
-            <div class="notice-header">
-                <h4 class="notice-title">${notice.title}</h4>
-                <span class="notice-date">${formatDate(notice.publishTime)}</span>
+    container.innerHTML = visibleNotices.map(notice => {
+        // 计算推送时间：如果是定时推送且有推送时间，使用推送时间；否则使用创建时间
+        const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
+            ? notice.scheduledTime 
+            : notice.createdAt;
+        
+        return `
+            <div class="notice-item">
+                <div class="notice-header">
+                    <h4 class="notice-title">${notice.title}</h4>
+                    <span class="notice-date">${formatPushTime(pushTime)}</span>
+                </div>
+                <div class="notice-content">${notice.content}</div>
             </div>
-            <div class="notice-content">${notice.content}</div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // 加载课程测评
@@ -1853,6 +1875,205 @@ async function refreshCourseDetail() {
     }
 }
 
+// 加载学生的所有通知
+async function loadStudentNotices() {
+    try {
+        if (!currentUser || !currentUser.userId) {
+            console.log('用户未登录，无法加载通知');
+            return [];
+        }
+
+        const response = await fetch(`/api/student/notices?userId=${currentUser.userId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            return result.data || [];
+        } else {
+            console.error('获取学生通知失败:', result.message);
+            return [];
+        }
+        
+    } catch (error) {
+        console.error('加载学生通知失败:', error);
+        return [];
+    }
+}
+
+// 更新控制面板最新通知显示
+async function updateDashboardRecentNotices() {
+    const container = document.getElementById('recent-notices-container');
+    if (!container) return;
+    
+    try {
+        const allNotices = await loadStudentNotices();
+        
+        if (!allNotices || allNotices.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                    <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                    <p>暂无新通知</p>
+                    <p>我们会在这里显示课程相关的最新通知</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // 取最新的2条通知
+        const recentNotices = allNotices.slice(0, 2);
+        
+        const noticesHtml = recentNotices.map(notice => {
+            const courseName = notice.courseName || '未知课程';
+            const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
+                ? notice.scheduledTime 
+                : notice.createdAt;
+            const truncatedContent = notice.content.length > 80 ? notice.content.substring(0, 80) + '...' : notice.content;
+            
+            return `
+                <div class="recent-notice-card">
+                    <div class="recent-notice-header">
+                        <div class="recent-notice-title">${notice.title}</div>
+                        <div class="recent-notice-time">${formatPushTime(pushTime)}</div>
+                    </div>
+                    <div class="recent-notice-content">${truncatedContent}</div>
+                    <div class="recent-notice-footer">
+                        <div class="recent-notice-course">${courseName}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        container.innerHTML = `
+            <div class="recent-notices-list">
+                ${noticesHtml}
+            </div>
+        `;
+        
+        // 更新查看全部按钮的显示状态
+        const viewAllBtn = document.getElementById('view-all-notices-btn');
+        if (viewAllBtn) {
+            if (allNotices.length > 2) {
+                viewAllBtn.style.display = 'block';
+                viewAllBtn.innerHTML = `<i class="fas fa-eye"></i> 查看全部 (${allNotices.length})`;
+            } else {
+                viewAllBtn.style.display = 'none';
+            }
+        }
+        
+    } catch (error) {
+        console.error('更新最新通知失败:', error);
+        container.innerHTML = `
+            <div style="text-align: center; padding: 48px 0; color: #e74c3c;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i>
+                <p>加载通知失败</p>
+                <p>请刷新页面重试</p>
+            </div>
+        `;
+    }
+}
+
+// 显示全部通知弹窗
+async function showAllNotices() {
+    try {
+        const modal = document.getElementById('all-notices-modal');
+        const container = document.getElementById('all-notices-container');
+        
+        // 显示加载状态
+        container.innerHTML = `
+            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                <p>正在加载通知...</p>
+            </div>
+        `;
+        
+        // 显示弹窗
+        modal.style.display = 'flex';
+        
+        // 加载所有通知
+        const allNotices = await loadStudentNotices();
+        
+        if (!allNotices || allNotices.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                    <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                    <p>暂无通知</p>
+                    <p>教师发布通知后会在这里显示</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // 显示所有通知
+        const noticesHtml = allNotices.map(notice => {
+            const courseName = notice.courseName || '未知课程';
+            const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
+                ? notice.scheduledTime 
+                : notice.createdAt;
+            
+            return `
+                <div class="notice-item" style="margin-bottom: 16px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: #fff;">
+                    <div class="notice-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                        <h4 class="notice-title" style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 600;">${notice.title}</h4>
+                        <span class="notice-date" style="color: #7f8c8d; font-size: 12px; white-space: nowrap; margin-left: 16px;">${formatPushTime(pushTime)}</span>
+                    </div>
+                    <div class="notice-content" style="color: #34495e; line-height: 1.6; margin-bottom: 12px;">${notice.content}</div>
+                    <div class="notice-footer" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #7f8c8d;">
+                        <span class="notice-course" style="color: #5a67d8; font-weight: 500;">课程：${courseName}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        container.innerHTML = noticesHtml;
+        
+    } catch (error) {
+        console.error('显示全部通知失败:', error);
+        const container = document.getElementById('all-notices-container');
+        container.innerHTML = `
+            <div style="text-align: center; padding: 48px 0; color: #e74c3c;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px;"></i>
+                <p>加载通知失败</p>
+                <p>请重试</p>
+            </div>
+        `;
+    }
+}
+
+// 关闭全部通知弹窗
+function closeAllNoticesModal() {
+    const modal = document.getElementById('all-notices-modal');
+    modal.style.display = 'none';
+}
+
+// 设置全部通知弹窗事件监听器
+function setupAllNoticesModal() {
+    const modal = document.getElementById('all-notices-modal');
+    const closeBtn = document.getElementById('close-all-notices-modal');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeAllNoticesModal);
+    }
+    
+    if (modal) {
+        // 点击背景关闭弹窗
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeAllNoticesModal();
+            }
+        });
+        
+        // ESC键关闭弹窗
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modal.style.display === 'flex') {
+                closeAllNoticesModal();
+            }
+        });
+    }
+}
+
 // 工具函数
 function getFileExtension(fileName) {
     return fileName.split('.').pop().toLowerCase();
@@ -1900,6 +2121,17 @@ function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleString('zh-CN');
+}
+
+function formatPushTime(dateString) {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
 function getExamStatusClass(status) {
@@ -2156,6 +2388,9 @@ async function updateDashboardStats() {
             
             // 更新最近学习表格
             updateRecentCoursesTable(myCourses);
+            
+            // 更新最新通知显示
+            await updateDashboardRecentNotices();
             
         } else {
             console.error('获取课程数据失败:', result.message);

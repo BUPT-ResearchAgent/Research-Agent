@@ -1,6 +1,7 @@
 package com.example.smartedu.service;
 
 import com.example.smartedu.dto.ExamGenerationRequest;
+import com.example.smartedu.dto.PublishNoticeRequest;
 import com.example.smartedu.entity.*;
 import com.example.smartedu.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -148,12 +149,101 @@ public class TeacherService {
     /**
      * 发布通知
      */
-    public Notice publishNotice(Long courseId, String title, String content) {
+    public Notice publishNotice(Long teacherId, String title, String content, String targetType, 
+                               Long courseId, String priority, String pushTime, LocalDateTime scheduledTime) {
+        Teacher teacher = teacherRepository.findById(teacherId)
+                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        
+        // 验证必须选择课程
+        if (courseId == null) {
+            throw new RuntimeException("必须选择课程");
+        }
+        
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("课程不存在"));
         
-        Notice notice = new Notice(title, content, course);
+        // 验证教师是否有权限发布该课程的通知
+        if (!course.getTeacher().getId().equals(teacherId)) {
+            throw new RuntimeException("您没有权限向该课程发布通知");
+        }
+        
+        Notice notice = new Notice(title, content, course, teacher, "COURSE");
+        
+        notice.setPriority(priority != null ? priority : "NORMAL");
+        notice.setPushTime(pushTime != null ? pushTime : "now");
+        
+        if ("scheduled".equals(pushTime)) {
+            if (scheduledTime == null) {
+                throw new RuntimeException("定时推送时必须设置推送时间");
+            }
+            if (scheduledTime.isBefore(LocalDateTime.now())) {
+                throw new RuntimeException("推送时间不能早于当前时间");
+            }
+            notice.setScheduledTime(scheduledTime);
+        }
+        
         return noticeRepository.save(notice);
+    }
+    
+    /**
+     * 更新通知
+     */
+    public Notice updateNotice(Long teacherId, Long noticeId, String title, String content, 
+                              String targetType, Long courseId, String pushTime, LocalDateTime scheduledTime) {
+        // 查找通知并验证权限
+        Notice notice = noticeRepository.findById(noticeId)
+                .orElseThrow(() -> new RuntimeException("通知不存在"));
+        
+        if (!notice.getTeacherId().equals(teacherId)) {
+            throw new RuntimeException("您没有权限修改此通知");
+        }
+        
+        // 检查通知状态，只允许修改未推送的通知
+        boolean isScheduled = "scheduled".equals(notice.getPushTime()) && notice.getScheduledTime() != null;
+        boolean isPending = isScheduled && notice.getScheduledTime().isAfter(LocalDateTime.now());
+        
+        if (!isPending && !"scheduled".equals(notice.getPushTime())) {
+            throw new RuntimeException("只能修改待推送的通知");
+        }
+        
+        // 验证课程是否存在且属于该教师
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        
+        if (!course.getTeacher().getId().equals(teacherId)) {
+            throw new RuntimeException("您没有权限向此课程发送通知");
+        }
+        
+        // 更新通知信息
+        notice.setTitle(title);
+        notice.setContent(content);
+        notice.setTargetType(targetType);
+        notice.setCourse(course);
+        notice.setCourseId(courseId);
+        notice.setPushTime(pushTime);
+        notice.setUpdatedAt(LocalDateTime.now());
+        
+        // 处理定时推送
+        if ("scheduled".equals(pushTime)) {
+            if (scheduledTime == null) {
+                throw new RuntimeException("定时推送必须指定推送时间");
+            }
+            if (scheduledTime.isBefore(LocalDateTime.now())) {
+                throw new RuntimeException("推送时间不能早于当前时间");
+            }
+            notice.setScheduledTime(scheduledTime);
+        } else {
+            notice.setScheduledTime(null);
+        }
+        
+        return noticeRepository.save(notice);
+    }
+    
+    /**
+     * 获取教师发布的通知列表
+     */
+    public List<Notice> getTeacherNotices(Long teacherId) {
+        return noticeRepository.findByTeacherIdOrderByCreatedAtDesc(teacherId);
     }
     
     /**

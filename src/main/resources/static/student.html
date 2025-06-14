@@ -362,16 +362,18 @@
                         <div class="card-header">
                             <i class="fas fa-bell"></i> 最新通知
                             <div class="card-actions">
-                                <button class="btn btn-sm btn-accent">
+                                <button class="btn btn-sm btn-accent" id="view-all-notices-btn" onclick="showAllNotices()">
                                     <i class="fas fa-eye"></i> 查看全部
                                 </button>
                             </div>
                         </div>
-                        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
-                            <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                            <p>暂无新通知</p>
-                            <p>我们会在这里显示课程相关的最新通知</p>
-                                </div>
+                        <div id="recent-notices-container">
+                            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                                <p>暂无新通知</p>
+                                <p>我们会在这里显示课程相关的最新通知</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -823,6 +825,33 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全部通知弹窗 -->
+    <div id="all-notices-modal" class="course-modal-overlay" style="display: none;">
+        <div class="course-modal-container" style="max-width: 900px; max-height: 80vh;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-bell"></i>
+                    </div>
+                    <h3>全部通知</h3>
+                </div>
+                <button id="close-all-notices-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div id="all-notices-container">
+                    <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                        <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                        <p>暂无通知</p>
+                        <p>教师发布通知后会在这里显示</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -3,6 +3,11 @@ let currentCourses = [];
 let currentExams = [];
 let currentMaterials = [];
 let currentNotices = [];
+let allNotices = []; // 存储所有通知
+let filteredNotices = []; // 存储筛选后的通知
+let currentPage = 1;
+let pageSize = 10;
+let totalPages = 1;
 
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -344,6 +349,9 @@ async function loadDashboardData() {
         
         // 更新知识点掌握情况的课程选择器
         updateKnowledgeCourseSelect();
+        
+        // 加载通知数据以更新首页最新通知显示
+        await loadNoticesData();
         
         console.log('控制面板数据加载完成');
     } catch (error) {
@@ -1506,11 +1514,9 @@ function editOutline() {
 // 发布通知
 async function publishNotice() {
     try {
-        const title = document.getElementById('notice-title').value;
-        const content = document.getElementById('notice-content').value;
-        const targetType = document.getElementById('notice-target-type').value;
-        const targetSelect = document.getElementById('notice-target-select').value;
-        const priority = document.getElementById('notice-priority').value;
+        const title = document.getElementById('notice-title').value.trim();
+        const content = document.getElementById('notice-content').value.trim();
+        const courseId = document.getElementById('notice-target-select').value;
         const pushTime = document.getElementById('notice-push-time').value;
         const scheduleTime = document.getElementById('notice-schedule-time').value;
         
@@ -1519,8 +1525,8 @@ async function publishNotice() {
             return;
         }
         
-        // 验证发送对象
-        if (targetType === 'COURSE' && !targetSelect) {
+        // 验证课程选择
+        if (!courseId) {
             showNotification('请选择要发送的课程', 'warning');
             return;
         }
@@ -1541,28 +1547,41 @@ async function publishNotice() {
         }
         
         const noticeData = {
-            title,
-            content,
-            targetType,
-            targetId: targetType === 'ALL' ? null : targetSelect,
-            priority,
-            pushNow: pushTime === 'now',
-            scheduleTime: pushTime === 'scheduled' ? scheduleTime : null
+            title: title,
+            content: content,
+            targetType: 'COURSE',
+            courseId: parseInt(courseId),
+            pushTime: pushTime
         };
+        
+        // 如果是定时推送，添加推送时间
+        if (pushTime === 'scheduled' && scheduleTime) {
+            noticeData.scheduledTime = scheduleTime;
+        }
         
         showLoading('正在发布通知...');
         
-        const response = await TeacherAPI.publishNotice(noticeData);
+        // 直接调用API而不是通过TeacherAPI
+        const response = await fetch('http://localhost:8080/api/teacher/notices', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(noticeData)
+        });
+        
+        const result = await response.json();
         
         hideLoading();
         
-        if (response.success) {
+        if (result.success) {
             const message = pushTime === 'now' ? '通知发布成功！' : '通知已设置定时推送！';
             showNotification(message, 'success');
             clearNoticeForm();
             await loadNoticesData();
         } else {
-            showNotification(response.message || '发布失败', 'error');
+            showNotification(result.message || '发布失败', 'error');
         }
         
     } catch (error) {
@@ -1944,11 +1963,35 @@ async function loadMaterialsData() {
 
 async function loadNoticesData() {
     try {
-        const response = await TeacherAPI.getNotices();
-        currentNotices = response.data || [];
+        // 获取所有教师发送的通知（用于首页显示）
+        const response = await fetch('http://localhost:8080/api/teacher/notices/all', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            currentNotices = result.data || [];
+            allNotices = currentNotices; // 存储所有通知
+            filteredNotices = currentNotices; // 存储筛选后的通知
         updateNoticesTable();
+            updateDashboardRecentNotices(); // 更新首页最新通知
+        } else {
+            console.error('加载通知数据失败:', result.message);
+            currentNotices = [];
+            allNotices = [];
+            filteredNotices = [];
+            updateNoticesTable();
+            updateDashboardRecentNotices();
+        }
     } catch (error) {
         console.error('加载通知数据失败:', error);
+        currentNotices = [];
+        allNotices = [];
+        filteredNotices = [];
+        updateNoticesTable();
+        updateDashboardRecentNotices();
     }
 }
 
@@ -2467,18 +2510,1329 @@ async function deleteMaterial(materialId) {
         showNotification('删除资料失败：' + error.message, 'error');
     }
 }
-function updateNoticesTable() { /* 实现更新通知表格 */ }
-
-// 更新发送对象选项
-function updateTargetOptions() {
-    const targetType = document.getElementById('notice-target-type').value;
-    const detailDiv = document.getElementById('notice-target-detail');
-    const targetSelect = document.getElementById('notice-target-select');
+function updateNoticesTable() {
+    const tableBody = document.querySelector('#notices-table tbody');
+    if (!tableBody) return;
     
-    if (targetType === 'COURSE') {
-        // 显示课程选择
-        detailDiv.style.display = 'block';
+    if (!currentNotices || currentNotices.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; color: #7f8c8d; padding: 40px;">
+                    <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                    暂无通知记录
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // 只显示最新的3条通知
+    const recentNotices = [...currentNotices]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 3);
+    
+    tableBody.innerHTML = recentNotices.map(notice => {
+        const courseName = notice.courseName || '未知课程';
+        const courseCode = notice.courseCode || '未知代码';
         
+        const statusText = notice.pushTime === 'scheduled' && notice.scheduledTime ? 
+                          (new Date(notice.scheduledTime) > new Date() ? '待推送' : '已推送') : '已推送';
+        
+        const statusClass = statusText === '待推送' ? 'status-pending' : 'status-sent';
+        
+        return `
+            <tr>
+                <td>
+                    <div class="notice-title-only">${notice.title}</div>
+                </td>
+                <td>${formatDate(notice.createdAt)}</td>
+                <td>
+                    <div class="course-info">
+                        <div class="course-name">${courseName}</div>
+                        <div class="course-code">${courseCode}</div>
+                    </div>
+                </td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn btn-sm btn-secondary" onclick="viewNoticeDetail(${notice.id})" title="查看详情">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="editNotice(${notice.id})" title="编辑">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteNotice(${notice.id})" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    // 如果通知总数超过3条，显示查看全部通知的提示
+    if (currentNotices.length > 3) {
+        const viewAllRow = document.createElement('tr');
+        viewAllRow.innerHTML = `
+            <td colspan="5" style="text-align: center; padding: 16px; border-top: 2px solid #f1f2f6;">
+                <a href="#" onclick="loadNoticeHistory()" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                    <i class="fas fa-list"></i> 查看全部通知 (${currentNotices.length} 条)
+                </a>
+            </td>
+        `;
+        tableBody.appendChild(viewAllRow);
+    }
+}
+
+// 更新首页最新通知显示（只显示最新2条）
+function updateDashboardRecentNotices() {
+    const container = document.getElementById('recent-notices-container');
+    const viewAllBtn = document.getElementById('view-all-notices-btn');
+    if (!container) return;
+    
+    if (!allNotices || allNotices.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                <p>暂无最新通知</p>
+                <p>管理端发布通知后会在这里显示</p>
+            </div>
+        `;
+        if (viewAllBtn) viewAllBtn.style.display = 'none';
+        return;
+    }
+    
+    // 取最新的2条通知
+    const recentNotices = [...allNotices]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 2);
+    
+    const noticesHtml = recentNotices.map(notice => {
+        const courseName = notice.courseName || '未知课程';
+        const courseCode = notice.courseCode || '未知代码';
+        const teacherName = notice.teacherName || '未知教师';
+        const statusText = notice.pushTime === 'scheduled' && notice.scheduledTime ? 
+                          (new Date(notice.scheduledTime) > new Date() ? '待推送' : '已推送') : '已推送';
+        const statusClass = statusText === '待推送' ? 'status-pending' : 'status-sent';
+        const truncatedContent = notice.content.length > 60 ? notice.content.substring(0, 60) + '...' : notice.content;
+        
+        // 计算推送时间：如果是定时推送且有推送时间，使用推送时间；否则使用创建时间
+        const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
+            ? notice.scheduledTime 
+            : notice.createdAt;
+        
+        return `
+            <div class="recent-notice-card" onclick="viewTeacherNoticeDetail(${notice.id})">
+                <div class="recent-notice-header">
+                    <div class="recent-notice-title">${notice.title}</div>
+                    <div class="recent-notice-time">${formatPushTime(pushTime)}</div>
+                </div>
+                <div class="recent-notice-content">${truncatedContent}</div>
+                <div class="recent-notice-footer">
+                    <div class="recent-notice-course">${courseName}(${courseCode})</div>
+                    <div class="recent-notice-course">发布者：${teacherName}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = `
+        <div class="recent-notices-list">
+            ${noticesHtml}
+        </div>
+    `;
+    
+    // 显示或隐藏"查看全部"按钮
+    if (viewAllBtn) {
+        if (allNotices.length > 2) {
+            viewAllBtn.style.display = 'inline-flex';
+            viewAllBtn.innerHTML = `<i class="fas fa-list"></i> 查看全部 (${allNotices.length})`;
+        } else {
+            viewAllBtn.style.display = 'none';
+        }
+    }
+}
+
+// 格式化短日期
+function formatShortDate(date) {
+    if (!date) return '';
+    const d = new Date(date);
+    const now = new Date();
+    const diffTime = now - d;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+        return d.toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'});
+    } else if (diffDays === 1) {
+        return '昨天';
+    } else if (diffDays < 7) {
+        return `${diffDays}天前`;
+    } else {
+        return d.toLocaleDateString('zh-CN', {month: 'short', day: 'numeric'});
+    }
+}
+
+// 查看教师通知详情（用于首页显示的通知）
+function viewTeacherNoticeDetail(noticeId) {
+    const notice = currentNotices.find(n => n.id === noticeId);
+    if (!notice) return;
+    
+    const targetText = notice.courseName ? `${notice.courseName}(${notice.courseCode})` : '指定课程';
+    const teacherName = notice.teacherName || '未知教师';
+    const pushTimeText = notice.pushTime === 'scheduled' ? '定时推送' : '立即推送';
+    
+    // 计算推送时间：如果是定时推送且有推送时间，使用推送时间；否则使用创建时间
+    const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
+        ? notice.scheduledTime 
+        : notice.createdAt;
+    
+    const modalHtml = `
+        <div id="teacher-notice-detail-modal" class="course-modal-overlay" style="display: flex;">
+            <div class="course-modal-container" style="max-width: 600px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <div class="modal-icon" style="background: var(--primary-color);">
+                            <i class="fas fa-bullhorn"></i>
+                        </div>
+                        <h3>通知详情</h3>
+                    </div>
+                    <button id="close-teacher-notice-detail" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="course-modal-body">
+                    <div class="notice-detail">
+                        <div class="detail-row">
+                            <label>标题：</label>
+                            <span>${notice.title}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>内容：</label>
+                            <div class="notice-content">${notice.content}</div>
+                        </div>
+                        <div class="detail-row">
+                            <label>课程：</label>
+                            <span>${targetText}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>发布者：</label>
+                            <span>${teacherName}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>推送方式：</label>
+                            <span>${pushTimeText}${notice.pushTime === 'scheduled' && notice.scheduledTime ? 
+                                ` (${formatDateTime(notice.scheduledTime)})` : ''}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>推送时间：</label>
+                            <span>${formatPushTime(pushTime)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 绑定关闭事件
+    document.getElementById('close-teacher-notice-detail').addEventListener('click', function() {
+        document.getElementById('teacher-notice-detail-modal').remove();
+    });
+    
+    // 点击背景关闭
+    document.getElementById('teacher-notice-detail-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    });
+}
+
+// 查看通知详情（原有的函数，用于通知管理页面）
+function viewNoticeDetail(noticeId) {
+    const notice = currentNotices.find(n => n.id === noticeId);
+    if (!notice) return;
+    
+    const targetText = notice.courseName ? `${notice.courseName}(${notice.courseCode})` : '指定课程';
+    
+    const pushTimeText = notice.pushTime === 'scheduled' ? '定时推送' : '立即推送';
+    
+    const modalHtml = `
+        <div id="notice-detail-modal" class="course-modal-overlay" style="display: flex;">
+            <div class="course-modal-container" style="max-width: 600px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <div class="modal-icon" style="background: var(--primary-color);">
+                            <i class="fas fa-bullhorn"></i>
+                        </div>
+                        <h3>通知详情</h3>
+                    </div>
+                    <button id="close-notice-detail" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="course-modal-body">
+                    <div class="notice-detail">
+                        <div class="detail-row">
+                            <label>标题：</label>
+                            <span>${notice.title}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>内容：</label>
+                            <div class="notice-content">${notice.content}</div>
+                        </div>
+                        <div class="detail-row">
+                            <label>课程：</label>
+                            <span>${targetText}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>推送方式：</label>
+                            <span>${pushTimeText}</span>
+                        </div>
+                        ${notice.scheduledTime ? `
+                        <div class="detail-row">
+                            <label>推送时间：</label>
+                            <span>${formatDate(notice.scheduledTime)}</span>
+                        </div>
+                        ` : ''}
+                        <div class="detail-row">
+                            <label>发布时间：</label>
+                            <span>${formatDate(notice.createdAt)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    const modal = document.getElementById('notice-detail-modal');
+    const closeBtn = document.getElementById('close-notice-detail');
+    
+    closeBtn.addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+}
+
+// 编辑通知
+function editNotice(noticeId) {
+    const notice = currentNotices.find(n => n.id === noticeId);
+    if (!notice) return;
+    
+    // 检查通知状态，只允许编辑待推送的定时通知
+    const isScheduled = notice.pushTime === 'scheduled' && notice.scheduledTime;
+    const isPending = isScheduled && new Date(notice.scheduledTime) > new Date();
+    
+    if (!isPending) {
+        showNotification('只能编辑待推送的定时通知', 'warning');
+        return;
+    }
+    
+    showEditNoticeModal(notice);
+}
+
+// 显示编辑通知模态框
+function showEditNoticeModal(notice) {
+    const modalHtml = `
+        <div id="edit-notice-modal" class="course-modal-overlay" style="display: flex;">
+            <div class="course-modal-container" style="max-width: 700px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <div class="modal-icon" style="background: var(--primary-color);">
+                            <i class="fas fa-edit"></i>
+                        </div>
+                        <h3>编辑通知</h3>
+                    </div>
+                    <button id="close-edit-notice" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="course-modal-body">
+                    <form id="edit-notice-form">
+                        <div class="form-group">
+                            <label for="edit-notice-title">标题：<span style="color: #e74c3c;">*</span></label>
+                            <input type="text" id="edit-notice-title" class="form-input" value="${notice.title}" required style="width: 100%;">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-notice-content">内容：<span style="color: #e74c3c;">*</span></label>
+                            <textarea id="edit-notice-content" class="form-input" rows="6" required style="resize: none; width: 100%;">${notice.content}</textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-notice-course">选择课程：<span style="color: #e74c3c;">*</span></label>
+                            <select id="edit-notice-course" class="form-select" required style="width: 100%;">
+                                <option value="">请选择课程</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-notice-push-time">推送时间：</label>
+                            <select id="edit-notice-push-time" class="form-select" onchange="handleEditPushTimeChange()" style="width: 100%;">
+                                <option value="now">立即推送</option>
+                                <option value="scheduled">定时推送</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="edit-notice-schedule-time">选择推送时间：</label>
+                            <input type="datetime-local" id="edit-notice-schedule-time" class="form-input" style="width: 100%;">
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-primary" onclick="updateNotice(${notice.id})">
+                                <i class="fas fa-save"></i> 保存修改
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="closeEditNoticeModal()">
+                                <i class="fas fa-times"></i> 取消
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 加载课程选项并设置当前值
+    loadCoursesForEditNotice(notice.courseId);
+    
+    // 设置推送时间
+    const pushTimeSelect = document.getElementById('edit-notice-push-time');
+    pushTimeSelect.value = notice.pushTime || 'now';
+    
+    // 设置定时推送时间
+    if (notice.scheduledTime) {
+        const scheduleTimeInput = document.getElementById('edit-notice-schedule-time');
+        const localTime = new Date(notice.scheduledTime);
+        const localTimeString = new Date(localTime.getTime() - localTime.getTimezoneOffset() * 60000)
+            .toISOString().slice(0, 16);
+        scheduleTimeInput.value = localTimeString;
+    }
+    
+    // 初始化推送时间状态
+    handleEditPushTimeChange();
+    
+    // 设置事件监听器
+    const modal = document.getElementById('edit-notice-modal');
+    const closeBtn = document.getElementById('close-edit-notice');
+    
+    closeBtn.addEventListener('click', closeEditNoticeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeEditNoticeModal();
+    });
+}
+
+// 加载课程选项用于编辑通知
+async function loadCoursesForEditNotice(selectedCourseId) {
+    try {
+        const response = await TeacherAPI.getCourses();
+        if (response && response.success && response.data) {
+            const courseSelect = document.getElementById('edit-notice-course');
+            courseSelect.innerHTML = '<option value="">请选择课程</option>';
+            
+            response.data.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = `${course.name}（${course.courseCode || 'SE-0000'}）`;
+                if (course.id === selectedCourseId) {
+                    option.selected = true;
+                }
+                courseSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('加载课程数据失败:', error);
+    }
+}
+
+// 处理编辑模态框中的推送时间选择
+function handleEditPushTimeChange() {
+    const pushTime = document.getElementById('edit-notice-push-time').value;
+    const scheduleTimeInput = document.getElementById('edit-notice-schedule-time');
+    
+    if (pushTime === 'scheduled') {
+        scheduleTimeInput.disabled = false;
+        scheduleTimeInput.required = true;
+        // 设置最小时间为当前时间
+        const now = new Date();
+        const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+        scheduleTimeInput.min = localTime.toISOString().slice(0, 16);
+    } else {
+        scheduleTimeInput.disabled = true;
+        scheduleTimeInput.required = false;
+        scheduleTimeInput.value = '';
+    }
+}
+
+// 更新通知
+async function updateNotice(noticeId) {
+    try {
+        const title = document.getElementById('edit-notice-title').value.trim();
+        const content = document.getElementById('edit-notice-content').value.trim();
+        const courseId = document.getElementById('edit-notice-course').value;
+        const pushTime = document.getElementById('edit-notice-push-time').value;
+        const scheduleTime = document.getElementById('edit-notice-schedule-time').value;
+        
+        if (!title || !content) {
+            showNotification('请填写标题和内容', 'warning');
+            return;
+        }
+        
+        if (!courseId) {
+            showNotification('请选择要发送的课程', 'warning');
+            return;
+        }
+        
+        // 验证定时推送时间
+        if (pushTime === 'scheduled') {
+            if (!scheduleTime) {
+                showNotification('请选择推送时间', 'warning');
+                return;
+            }
+            
+            const selectedTime = new Date(scheduleTime);
+            const now = new Date();
+            if (selectedTime <= now) {
+                showNotification('推送时间不能早于当前时间', 'warning');
+                return;
+            }
+        }
+        
+        const noticeData = {
+            title: title,
+            content: content,
+            targetType: 'COURSE',
+            courseId: parseInt(courseId),
+            pushTime: pushTime
+        };
+        
+        // 如果是定时推送，添加推送时间
+        if (pushTime === 'scheduled' && scheduleTime) {
+            noticeData.scheduledTime = scheduleTime;
+        }
+        
+        showLoading('正在更新通知...');
+        
+        const response = await fetch(`http://localhost:8080/api/teacher/notices/${noticeId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(noticeData)
+        });
+        
+        const result = await response.json();
+        
+        hideLoading();
+        
+        if (result.success) {
+            showNotification('通知更新成功！', 'success');
+            closeEditNoticeModal();
+            await loadNoticesData();
+        } else {
+            showNotification(result.message || '更新失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('更新通知失败:', error);
+        showNotification('更新失败，请重试', 'error');
+    }
+}
+
+// 关闭编辑通知模态框
+function closeEditNoticeModal() {
+    const modal = document.getElementById('edit-notice-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// 删除通知
+async function deleteNotice(noticeId) {
+    const notice = currentNotices.find(n => n.id === noticeId);
+    if (!notice) return;
+    
+    const confirmed = await showConfirmDialog(
+        '删除通知',
+        `确定要删除通知"${notice.title}"吗？删除后不可恢复。`,
+        '删除'
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+        showLoading('正在删除通知...');
+        
+        const response = await fetch(`http://localhost:8080/api/teacher/notices/${noticeId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        hideLoading();
+        
+        if (result.success) {
+            showNotification('通知删除成功', 'success');
+            await loadNoticesData();
+        } else {
+            showNotification(result.message || '删除失败', 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('删除通知失败:', error);
+        showNotification('删除失败，请重试', 'error');
+    }
+}
+
+// 预览通知
+function previewNotice() {
+    const title = document.getElementById('notice-title').value.trim();
+    const content = document.getElementById('notice-content').value.trim();
+    const targetSelect = document.getElementById('notice-target-select');
+    const pushTime = document.getElementById('notice-push-time').value;
+    const scheduleTime = document.getElementById('notice-schedule-time').value;
+    
+    if (!title || !content) {
+        showNotification('请先填写标题和内容', 'warning');
+        return;
+    }
+    
+    const targetText = targetSelect.selectedOptions[0] ? targetSelect.selectedOptions[0].text : '请选择课程';
+    
+    const pushTimeText = pushTime === 'scheduled' ? '定时推送' : '立即推送';
+    
+    const modalHtml = `
+        <div id="notice-preview-modal" class="course-modal-overlay" style="display: flex;">
+            <div class="course-modal-container" style="max-width: 600px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <div class="modal-icon" style="background: var(--accent-color);">
+                            <i class="fas fa-eye"></i>
+                        </div>
+                        <h3>通知预览</h3>
+                    </div>
+                    <button id="close-notice-preview" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="course-modal-body">
+                    <div class="notice-preview-content">
+                        <div class="detail-row">
+                            <label>标题：</label>
+                            <span>${title}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>内容：</label>
+                            <div class="notice-content">${content}</div>
+                        </div>
+                        <div class="detail-row">
+                            <label>课程：</label>
+                            <span>${targetText}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>推送方式：</label>
+                            <span>${pushTimeText}</span>
+                        </div>
+                        ${scheduleTime ? `
+                        <div class="detail-row">
+                            <label>推送时间：</label>
+                            <span>${formatDate(scheduleTime)}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    const modal = document.getElementById('notice-preview-modal');
+    const closeBtn = document.getElementById('close-notice-preview');
+    
+    closeBtn.addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+}
+
+// 显示所有教师通知
+function showAllTeacherNotices() {
+    console.log('showAllTeacherNotices 函数被调用');
+    
+    // 确保通知数据已加载
+    if (!allNotices || allNotices.length === 0) {
+        loadNoticesData().then(() => {
+            showAllTeacherNoticesModal();
+        });
+    } else {
+        showAllTeacherNoticesModal();
+    }
+}
+
+// 显示所有教师通知的模态框
+function showAllTeacherNoticesModal() {
+    console.log('显示所有教师通知模态框，通知数量:', allNotices ? allNotices.length : 0);
+    
+    const modalHtml = `
+        <div id="all-teacher-notices-modal" class="notice-history-modal show">
+            <div class="notice-history-container">
+                <div class="notice-history-header">
+                    <div class="notice-history-title-section">
+                        <div class="notice-history-icon">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                        <h3>所有通知</h3>
+                    </div>
+                    <button class="notice-history-close" onclick="hideAllTeacherNoticesModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="notice-history-body">
+                    <div class="notice-filters">
+                        <div class="filter-group">
+                            <label><i class="fas fa-search"></i>标题搜索</label>
+                            <input type="text" id="teacher-notice-search-title" class="filter-input" 
+                                   placeholder="输入通知标题..." onkeyup="filterTeacherNotices()">
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-book"></i>课程筛选</label>
+                            <select id="teacher-notice-filter-course" class="filter-select" onchange="filterTeacherNotices()">
+                                <option value="">全部课程</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-user"></i>发布者筛选</label>
+                            <select id="teacher-notice-filter-teacher" class="filter-select" onchange="filterTeacherNotices()">
+                                <option value="">全部教师</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-sort"></i>时间排序</label>
+                            <select id="teacher-notice-sort-time" class="filter-select" onchange="filterTeacherNotices()">
+                                <option value="desc">最新优先</option>
+                                <option value="asc">最旧优先</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="notice-history-table-container">
+                        <table class="notice-history-table">
+                            <thead>
+                                <tr>
+                                    <th>标题</th>
+                                    <th>课程</th>
+                                    <th>发布者</th>
+                                    <th>推送时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teacher-notice-history-tbody">
+                                <!-- 动态加载内容 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="notice-history-pagination" id="teacher-notice-pagination">
+                        <!-- 动态生成分页控件 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 初始化筛选选项
+    initTeacherNoticeFilters();
+    
+    // 初始化分页变量
+    window.teacherNoticeCurrentPage = 1;
+    window.teacherNoticePageSize = 10;
+    window.teacherFilteredNotices = [...allNotices];
+    
+    // 显示通知列表
+    filterTeacherNotices();
+    
+    // 绑定ESC键关闭
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideAllTeacherNoticesModal();
+        }
+    });
+}
+
+// 隐藏所有教师通知模态框
+function hideAllTeacherNoticesModal() {
+    const modal = document.getElementById('all-teacher-notices-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// 初始化教师通知筛选选项
+function initTeacherNoticeFilters() {
+    const courseSelect = document.getElementById('teacher-notice-filter-course');
+    const teacherSelect = document.getElementById('teacher-notice-filter-teacher');
+    
+    if (!courseSelect || !teacherSelect || !allNotices) return;
+    
+    // 获取所有课程
+    const courses = [...new Set(allNotices.map(notice => 
+        notice.courseName ? `${notice.courseName}(${notice.courseCode})` : null
+    ).filter(Boolean))];
+    
+    courses.forEach(course => {
+        const option = document.createElement('option');
+        option.value = course;
+        option.textContent = course;
+        courseSelect.appendChild(option);
+    });
+    
+    // 获取所有教师
+    const teachers = [...new Set(allNotices.map(notice => 
+        notice.teacherName || '未知教师'
+    ))];
+    
+    teachers.forEach(teacher => {
+        const option = document.createElement('option');
+        option.value = teacher;
+        option.textContent = teacher;
+        teacherSelect.appendChild(option);
+    });
+}
+
+// 筛选教师通知
+function filterTeacherNotices() {
+    if (!allNotices) return;
+    
+    const titleFilter = document.getElementById('teacher-notice-search-title')?.value.toLowerCase() || '';
+    const courseFilter = document.getElementById('teacher-notice-filter-course')?.value || '';
+    const teacherFilter = document.getElementById('teacher-notice-filter-teacher')?.value || '';
+    const sortOrder = document.getElementById('teacher-notice-sort-time')?.value || 'desc';
+    
+    // 筛选通知
+    window.teacherFilteredNotices = allNotices.filter(notice => {
+        const titleMatch = !titleFilter || notice.title.toLowerCase().includes(titleFilter);
+        const courseMatch = !courseFilter || 
+            (notice.courseName && `${notice.courseName}(${notice.courseCode})` === courseFilter);
+        const teacherMatch = !teacherFilter || 
+            (notice.teacherName || '未知教师') === teacherFilter;
+        
+        return titleMatch && courseMatch && teacherMatch;
+    });
+    
+    // 排序
+    window.teacherFilteredNotices.sort((a, b) => {
+        const timeA = new Date(a.createdAt);
+        const timeB = new Date(b.createdAt);
+        return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+    });
+    
+    // 重置到第一页
+    window.teacherNoticeCurrentPage = 1;
+    
+    // 更新显示
+    updateTeacherNoticeTable();
+    updateTeacherNoticePagination();
+}
+
+// 更新教师通知表格
+function updateTeacherNoticeTable() {
+    const tbody = document.getElementById('teacher-notice-history-tbody');
+    if (!tbody || !window.teacherFilteredNotices) return;
+    
+    const startIndex = (window.teacherNoticeCurrentPage - 1) * window.teacherNoticePageSize;
+    const endIndex = startIndex + window.teacherNoticePageSize;
+    const pageNotices = window.teacherFilteredNotices.slice(startIndex, endIndex);
+    
+    if (pageNotices.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                    暂无符合条件的通知
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = pageNotices.map(notice => {
+        const courseName = notice.courseName || '未知课程';
+        const courseCode = notice.courseCode || '未知代码';
+        const teacherName = notice.teacherName || '未知教师';
+        
+        // 计算推送时间
+        const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
+            ? notice.scheduledTime 
+            : notice.createdAt;
+        
+        return `
+            <tr>
+                <td>
+                    <div class="notice-title-cell">
+                        <div class="notice-title-text">${notice.title}</div>
+                    </div>
+                </td>
+                <td>${courseName}(${courseCode})</td>
+                <td>${teacherName}</td>
+                <td>${formatPushTime(pushTime)}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="viewTeacherNoticeDetail(${notice.id})">
+                        <i class="fas fa-eye"></i> 查看
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// 更新教师通知分页
+function updateTeacherNoticePagination() {
+    const container = document.getElementById('teacher-notice-pagination');
+    if (!container || !window.teacherFilteredNotices) return;
+    
+    const totalPages = Math.ceil(window.teacherFilteredNotices.length / window.teacherNoticePageSize);
+    const currentPage = window.teacherNoticeCurrentPage;
+    
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    let paginationHtml = '';
+    
+    // 上一页按钮
+    paginationHtml += `
+        <button class="pagination-btn ${currentPage === 1 ? 'disabled' : ''}" 
+                onclick="changeTeacherNoticePage(${currentPage - 1})" 
+                ${currentPage === 1 ? 'disabled' : ''}>
+            <i class="fas fa-chevron-left"></i> 上一页
+        </button>
+    `;
+    
+    // 页码按钮
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            paginationHtml += `
+                <button class="pagination-btn ${i === currentPage ? 'active' : ''}" 
+                        onclick="changeTeacherNoticePage(${i})">
+                    ${i}
+                </button>
+            `;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            paginationHtml += '<span class="pagination-ellipsis">...</span>';
+        }
+    }
+    
+    // 下一页按钮
+    paginationHtml += `
+        <button class="pagination-btn ${currentPage === totalPages ? 'disabled' : ''}" 
+                onclick="changeTeacherNoticePage(${currentPage + 1})" 
+                ${currentPage === totalPages ? 'disabled' : ''}>
+            下一页 <i class="fas fa-chevron-right"></i>
+        </button>
+    `;
+    
+    // 分页信息
+    const startIndex = (currentPage - 1) * window.teacherNoticePageSize + 1;
+    const endIndex = Math.min(currentPage * window.teacherNoticePageSize, window.teacherFilteredNotices.length);
+    
+    container.innerHTML = `
+        <div class="pagination-info">
+            显示第 ${startIndex} - ${endIndex} 条，共 ${window.teacherFilteredNotices.length} 条记录
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            ${paginationHtml}
+        </div>
+    `;
+}
+
+// 切换教师通知页面
+function changeTeacherNoticePage(page) {
+    if (!window.teacherFilteredNotices) return;
+    
+    const totalPages = Math.ceil(window.teacherFilteredNotices.length / window.teacherNoticePageSize);
+    if (page < 1 || page > totalPages) return;
+    
+    window.teacherNoticeCurrentPage = page;
+    updateTeacherNoticeTable();
+    updateTeacherNoticePagination();
+}
+
+// 格式化推送时间（精确到分钟）
+function formatPushTime(dateString) {
+    if (!dateString) return '未知时间';
+    
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '无效时间';
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+// 历史通知功能（保留原有功能，用于通知管理页面）
+function loadNoticeHistory() {
+    console.log('loadNoticeHistory 函数被调用');
+    
+    // 确保通知数据已加载
+    if (!allNotices || allNotices.length === 0) {
+        loadNoticesData().then(() => {
+            showNoticeHistoryModal();
+        });
+    } else {
+        showNoticeHistoryModal();
+    }
+}
+
+function showNoticeHistoryModal() {
+    console.log('显示历史通知模态框，通知数量:', allNotices ? allNotices.length : 0);
+    
+    const modalHtml = `
+        <div id="notice-history-modal" class="notice-history-modal show">
+            <div class="notice-history-container">
+                <div class="notice-history-header">
+                    <div class="notice-history-title-section">
+                        <div class="notice-history-icon">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <h3>历史通知</h3>
+                    </div>
+                    <button class="notice-history-close" onclick="hideNoticeHistoryModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="notice-history-body">
+                    <div class="notice-filters">
+                        <div class="filter-group">
+                            <label><i class="fas fa-search"></i>标题搜索</label>
+                            <input type="text" id="notice-search-title" class="filter-input" 
+                                   placeholder="输入通知标题..." onkeyup="filterNotices()">
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-book"></i>课程筛选</label>
+                            <select id="notice-filter-course" class="filter-select" onchange="filterNotices()">
+                                <option value="">全部课程</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-filter"></i>状态筛选</label>
+                            <select id="notice-filter-status" class="filter-select" onchange="filterNotices()">
+                                <option value="">全部状态</option>
+                                <option value="sent">已推送</option>
+                                <option value="pending">待推送</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label><i class="fas fa-sort"></i>时间排序</label>
+                            <select id="notice-sort-time" class="filter-select" onchange="filterNotices()">
+                                <option value="desc">最新优先</option>
+                                <option value="asc">最旧优先</option>
+                            </select>
+                        </div>
+
+                    </div>
+                    
+                    <div class="notice-history-table-container">
+                        <table class="notice-history-table">
+                            <thead>
+                                <tr>
+                                    <th>标题</th>
+                                    <th>课程</th>
+                                    <th>发布时间</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notice-history-tbody">
+                                <!-- 动态加载内容 -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="notice-history-pagination" id="notice-pagination">
+                        <!-- 动态生成分页控件 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 确保模态框显示并居中
+    const modal = document.getElementById('notice-history-modal');
+    if (modal) {
+        // 移除内联样式，让CSS类控制显示
+        modal.style.display = '';
+        // 确保show类已添加（HTML中已包含）
+        modal.classList.add('show');
+        console.log('模态框已添加到DOM并设置为显示');
+    }
+    
+    // 加载课程下拉选项
+    loadHistoryCoursesFilter();
+    
+    // 初始化通知列表
+    initializeNoticeHistory();
+    
+    // 绑定模态框事件
+    setupNoticeHistoryEvents();
+}
+
+function hideNoticeHistoryModal() {
+    const modal = document.getElementById('notice-history-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function setupNoticeHistoryEvents() {
+    const modal = document.getElementById('notice-history-modal');
+    
+    // 点击外部关闭
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            hideNoticeHistoryModal();
+        }
+    });
+    
+    // ESC键关闭
+    const escHandler = (e) => {
+        if (e.key === 'Escape') {
+            hideNoticeHistoryModal();
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
+}
+
+async function loadHistoryCoursesFilter() {
+    try {
+        const response = await fetch('http://localhost:8080/api/teacher/courses', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            const courseSelect = document.getElementById('notice-filter-course');
+            if (courseSelect) {
+                courseSelect.innerHTML = '<option value="">全部课程</option>' + 
+                    result.data.map(course => 
+                        `<option value="${course.id}">${course.courseName}(${course.courseCode})</option>`
+                    ).join('');
+            }
+        }
+    } catch (error) {
+        console.error('加载课程列表失败:', error);
+    }
+}
+
+function initializeNoticeHistory() {
+    // 重置筛选条件
+    filteredNotices = allNotices ? [...allNotices] : [];
+    currentPage = 1;
+    filterNotices();
+}
+
+function filterNotices() {
+    const titleSearch = document.getElementById('notice-search-title')?.value.toLowerCase() || '';
+    const courseFilter = document.getElementById('notice-filter-course')?.value || '';
+    const statusFilter = document.getElementById('notice-filter-status')?.value || '';
+    const sortOrder = document.getElementById('notice-sort-time')?.value || 'desc';
+    
+    // 应用筛选条件
+    filteredNotices = (allNotices || []).filter(notice => {
+        // 标题筛选
+        if (titleSearch && !notice.title.toLowerCase().includes(titleSearch)) {
+            return false;
+        }
+        
+        // 课程筛选
+        if (courseFilter && notice.courseId != courseFilter) {
+            return false;
+        }
+        
+        // 状态筛选
+        if (statusFilter) {
+            const isScheduled = notice.pushTime === 'scheduled' && notice.scheduledTime;
+            const isPending = isScheduled && new Date(notice.scheduledTime) > new Date();
+            const currentStatus = isPending ? 'pending' : 'sent';
+            
+            if (statusFilter !== currentStatus) {
+                return false;
+            }
+        }
+        
+        return true;
+    });
+    
+    // 排序
+    filteredNotices.sort((a, b) => {
+        const dateA = new Date(a.createdAt);
+        const dateB = new Date(b.createdAt);
+        return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+    });
+    
+    // 计算分页
+    totalPages = Math.ceil(filteredNotices.length / pageSize);
+    if (currentPage > totalPages) {
+        currentPage = 1;
+    }
+    
+    // 更新显示
+    updateNoticeHistoryTable();
+    updateNoticeHistoryPagination();
+}
+
+function updateNoticeHistoryTable() {
+    const tbody = document.getElementById('notice-history-tbody');
+    if (!tbody) return;
+    
+    if (filteredNotices.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; color: #7f8c8d; padding: 40px;">
+                    <i class="fas fa-search" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                    暂无符合条件的通知
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // 计算当前页的数据
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, filteredNotices.length);
+    const currentPageNotices = filteredNotices.slice(startIndex, endIndex);
+    
+    tbody.innerHTML = currentPageNotices.map(notice => {
+        const courseName = notice.courseName || '未知课程';
+        const courseCode = notice.courseCode || '未知代码';
+        const statusText = notice.pushTime === 'scheduled' && notice.scheduledTime ? 
+                          (new Date(notice.scheduledTime) > new Date() ? '待推送' : '已推送') : '已推送';
+        const statusClass = statusText === '待推送' ? 'status-pending' : 'status-sent';
+        
+        return `
+            <tr>
+                <td class="notice-title-cell">
+                    <div class="notice-title-text">${notice.title}</div>
+                </td>
+                <td>
+                    <div style="font-weight: 500;">${courseName}</div>
+                    <div style="font-size: 12px; color: #7f8c8d;">${courseCode}</div>
+                </td>
+                <td>${formatDate(notice.createdAt)}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn btn-sm btn-secondary" onclick="viewNoticeDetail(${notice.id})" title="查看详情">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="editNotice(${notice.id})" title="编辑">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteNotice(${notice.id})" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function updateNoticeHistoryPagination() {
+    const paginationContainer = document.getElementById('notice-pagination');
+    if (!paginationContainer) return;
+    
+    if (totalPages <= 1) {
+        paginationContainer.innerHTML = '';
+        return;
+    }
+    
+    const prevDisabled = currentPage === 1;
+    const nextDisabled = currentPage === totalPages;
+    
+    // 计算显示的页码范围
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    let paginationHtml = `
+        <button class="pagination-btn" ${prevDisabled ? 'disabled' : ''} onclick="goToNoticePage(${currentPage - 1})">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+    `;
+    
+    // 生成页码按钮
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHtml += `
+            <button class="pagination-btn ${i === currentPage ? 'active' : ''}" onclick="goToNoticePage(${i})">
+                ${i}
+            </button>
+        `;
+    }
+    
+    paginationHtml += `
+        <button class="pagination-btn" ${nextDisabled ? 'disabled' : ''} onclick="goToNoticePage(${currentPage + 1})">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+        <div class="pagination-info">
+            第 ${currentPage} 页，共 ${totalPages} 页，${filteredNotices.length} 条记录
+        </div>
+    `;
+    
+    paginationContainer.innerHTML = paginationHtml;
+}
+
+function goToNoticePage(page) {
+    if (page < 1 || page > totalPages) return;
+    currentPage = page;
+    updateNoticeHistoryTable();
+    updateNoticeHistoryPagination();
+}
+
+function clearNoticeFilters() {
+    document.getElementById('notice-search-title').value = '';
+    document.getElementById('notice-filter-course').value = '';
+    document.getElementById('notice-filter-status').value = '';
+    document.getElementById('notice-sort-time').value = 'desc';
+    filterNotices();
+}
+
+// 初始化课程选择
+function initializeCourseSelect() {
+    const targetSelect = document.getElementById('notice-target-select');
+    if (!targetSelect) return;
+    
+    // 课程选择始终启用且必填
+    targetSelect.disabled = false;
+    targetSelect.required = true;
+    
+    // 加载课程数据（如果还没有加载的话）
+    if (targetSelect.options.length <= 1) {
         // 清空并加载课程选项
         targetSelect.innerHTML = '<option value="">请选择课程</option>';
         
@@ -2494,9 +3848,6 @@ function updateTargetOptions() {
             // 如果没有课程数据，从API加载
             loadCoursesForNotice();
         }
-    } else {
-        // 隐藏详细选择
-        detailDiv.style.display = 'none';
     }
 }
 
@@ -2506,6 +3857,8 @@ async function loadCoursesForNotice() {
         const response = await TeacherAPI.getCourses();
         if (response && response.success && response.data) {
             const targetSelect = document.getElementById('notice-target-select');
+            // 保留现有的选项，只有在需要时才重新加载
+            if (targetSelect.options.length <= 1) {
             targetSelect.innerHTML = '<option value="">请选择课程</option>';
             
             response.data.forEach(course => {
@@ -2514,6 +3867,10 @@ async function loadCoursesForNotice() {
                 option.textContent = `${course.name}（${course.courseCode || 'SE-0000'}）`;
                 targetSelect.appendChild(option);
             });
+            }
+            
+            // 存储课程数据供其他函数使用
+            window.coursesData = response.data;
         }
     } catch (error) {
         console.error('加载课程数据失败:', error);
@@ -2523,16 +3880,22 @@ async function loadCoursesForNotice() {
 // 处理推送时间选择
 function handlePushTimeChange() {
     const pushTime = document.getElementById('notice-push-time').value;
-    const scheduleDetail = document.getElementById('notice-schedule-detail');
+    const scheduleTimeInput = document.getElementById('notice-schedule-time');
     
+    // 推送时间输入框始终可见
     if (pushTime === 'scheduled') {
-        scheduleDetail.style.display = 'block';
+        // 定时推送时，时间选择是必需的
+        scheduleTimeInput.disabled = false;
+        scheduleTimeInput.required = true;
         // 设置最小时间为当前时间
         const now = new Date();
         const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-        document.getElementById('notice-schedule-time').min = localTime.toISOString().slice(0, 16);
+        scheduleTimeInput.min = localTime.toISOString().slice(0, 16);
     } else {
-        scheduleDetail.style.display = 'none';
+        // 立即推送时，时间选择不是必需的，但仍然可见
+        scheduleTimeInput.disabled = true;
+        scheduleTimeInput.required = false;
+        scheduleTimeInput.value = '';
     }
 }
 
@@ -2543,6 +3906,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (pushTimeSelect) {
         pushTimeSelect.addEventListener('change', handlePushTimeChange);
     }
+    
+    // 初始化通知表单状态
+    if (document.getElementById('notice-target-select')) {
+        // 加载课程数据用于通知发送
+        loadCoursesForNotice();
+        // 初始化表单状态
+        initializeCourseSelect();
+        handlePushTimeChange();
+    }
 });
 function updateExamsTable() { /* 实现更新试卷表格 */ }
 function updateExamStats(stats) { /* 实现更新考试统计 */ }
@@ -2550,14 +3922,13 @@ function clearNoticeForm() {
     // 清空表单字段
     document.getElementById('notice-title').value = '';
     document.getElementById('notice-content').value = '';
-    document.getElementById('notice-target-type').value = 'ALL';
-    document.getElementById('notice-priority').value = 'NORMAL';
+    document.getElementById('notice-target-select').value = '';
     document.getElementById('notice-push-time').value = 'now';
     document.getElementById('notice-schedule-time').value = '';
     
-    // 隐藏条件显示的元素
-    document.getElementById('notice-target-detail').style.display = 'none';
-    document.getElementById('notice-schedule-detail').style.display = 'none';
+    // 重置表单状态
+    initializeCourseSelect(); // 重置课程选择状态
+    handlePushTimeChange(); // 重置推送时间状态
 }
 function clearExamForm() {
     // 重置题目类型选择
