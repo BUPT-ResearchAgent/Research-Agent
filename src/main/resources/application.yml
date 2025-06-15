@@ -1,0 +1,57 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: SmartEdu
+  
+  datasource:
+    url: jdbc:h2:file:./smartedu
+    driverClassName: org.h2.Driver
+    username: sa
+    password: password
+  
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# Milvus配置
+milvus:
+  host: 127.0.0.1
+  port: 19530
+
+# BGE模型配置
+embedding:
+  model:
+    path: models/bge-small-zh-v1.5
+    download-url: https://huggingface.co/Xenova/bge-small-zh-v1.5/resolve/main/onnx/model.onnx
+  
+# 知识库配置
+knowledge:
+  processing:
+    chunk-size: 500
+    chunk-overlap: 50
+    batch-size: 10
+
+# 日志配置
+logging:
+  level:
+    com.example.smartedu: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type: TRACE 

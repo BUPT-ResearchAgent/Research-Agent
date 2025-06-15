@@ -4,6 +4,10 @@ import com.example.smartedu.dto.ApiResponse;
 import com.example.smartedu.entity.*;
 import com.example.smartedu.service.StudentManagementService;
 import com.example.smartedu.repository.*;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import com.example.smartedu.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Optional;
+import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/api/student")
@@ -33,9 +38,12 @@ public class StudentController {
     @Autowired
     private NoticeRepository noticeRepository;
     
-    @Autowired
+        @Autowired
     private CourseMaterialRepository materialRepository;
     
+    @Autowired
+    private KnowledgeDocumentRepository knowledgeDocumentRepository;
+
     @Autowired
     private CourseService courseService;
     
@@ -590,6 +598,165 @@ public class StudentController {
         } catch (Exception e) {
             e.printStackTrace();
             return org.springframework.http.ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * 获取课程的知识库文档列表
+     */
+    @GetMapping("/courses/{courseId}/knowledge-documents")
+    public ApiResponse<List<Map<String, Object>>> getCourseKnowledgeDocuments(
+            @PathVariable Long courseId,
+            @RequestParam Long userId) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+
+            // 检查学生是否已加入该课程
+            boolean isEnrolled = courseService.isStudentEnrolled(studentOpt.get().getId(), courseId);
+            if (!isEnrolled) {
+                return ApiResponse.error("您未加入此课程，无法查看知识库文档");
+            }
+
+            // 获取知识库文档列表
+            List<KnowledgeDocument> documents = knowledgeDocumentRepository.findByCourseIdOrderByUploadTimeDesc(courseId);
+            
+            List<Map<String, Object>> documentList = documents.stream().map(doc -> {
+                Map<String, Object> docInfo = new HashMap<>();
+                docInfo.put("id", doc.getId());
+                docInfo.put("originalName", doc.getOriginalName());
+                docInfo.put("fileType", doc.getFileType());
+                docInfo.put("fileSize", doc.getFileSize());
+                docInfo.put("description", doc.getDescription());
+                docInfo.put("chunksCount", doc.getChunksCount());
+                docInfo.put("uploadTime", doc.getUploadTime());
+                docInfo.put("processed", doc.getProcessed());
+                return docInfo;
+            }).collect(java.util.stream.Collectors.toList());
+
+            return ApiResponse.success("获取知识库文档列表成功", documentList);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("获取知识库文档列表失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 下载知识库文档
+     */
+    @GetMapping("/knowledge-document/{documentId}/download")
+    public ResponseEntity<FileSystemResource> downloadKnowledgeDocument(
+            @PathVariable Long documentId,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 检查用户是否已登录
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ResponseEntity.status(401).build();
+            }
+
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ResponseEntity.status(403).build();
+            }
+
+            // 获取知识库文档信息
+            Optional<KnowledgeDocument> docOpt = knowledgeDocumentRepository.findById(documentId);
+            if (!docOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            KnowledgeDocument document = docOpt.get();
+
+            // 检查学生是否已加入该课程
+            boolean isEnrolled = courseService.isStudentEnrolled(studentOpt.get().getId(), document.getCourseId());
+            if (!isEnrolled) {
+                return ResponseEntity.status(403).build();
+            }
+
+            // 检查文件是否存在
+            java.io.File file = new java.io.File(document.getFilePath());
+            if (!file.exists()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // 对文件名进行编码，支持中文文件名
+            String filename = document.getOriginalName();
+            String encodedFilename = java.net.URLEncoder.encode(filename, "UTF-8")
+                    .replaceAll("\\+", "%20");
+
+            // 设置响应头并返回文件
+            HttpHeaders headers = new HttpHeaders();
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedFilename);
+            headers.add(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_OCTET_STREAM_VALUE);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(new FileSystemResource(file));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * 获取学生所有课程的知识库文档
+     */
+    @GetMapping("/my-knowledge-documents")
+    public ApiResponse<List<Map<String, Object>>> getMyKnowledgeDocuments(@RequestParam Long userId) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+
+            // 获取学生的所有课程
+            List<Course> courses = courseService.getStudentCourses(studentOpt.get().getId());
+            List<Long> courseIds = courses.stream()
+                    .map(Course::getId)
+                    .collect(java.util.stream.Collectors.toList());
+
+            if (courseIds.isEmpty()) {
+                return ApiResponse.success("获取知识库文档成功", new ArrayList<>());
+            }
+
+            // 获取所有课程的知识库文档
+            List<KnowledgeDocument> documents = knowledgeDocumentRepository.findByCourseIdInOrderByUploadTimeDesc(courseIds);
+            
+            List<Map<String, Object>> documentList = documents.stream().map(doc -> {
+                Map<String, Object> docInfo = new HashMap<>();
+                docInfo.put("id", doc.getId());
+                docInfo.put("originalName", doc.getOriginalName());
+                docInfo.put("fileType", doc.getFileType());
+                docInfo.put("fileSize", doc.getFileSize());
+                docInfo.put("description", doc.getDescription());
+                docInfo.put("chunksCount", doc.getChunksCount());
+                docInfo.put("uploadTime", doc.getUploadTime());
+                docInfo.put("processed", doc.getProcessed());
+                docInfo.put("courseId", doc.getCourseId());
+                
+                // 添加课程信息
+                courses.stream()
+                    .filter(course -> course.getId().equals(doc.getCourseId()))
+                    .findFirst()
+                    .ifPresent(course -> {
+                        docInfo.put("courseName", course.getName());
+                        docInfo.put("courseCode", course.getCourseCode());
+                    });
+                
+                return docInfo;
+            }).collect(java.util.stream.Collectors.toList());
+
+            return ApiResponse.success("获取知识库文档成功", documentList);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("获取知识库文档失败：" + e.getMessage());
         }
     }
 } 

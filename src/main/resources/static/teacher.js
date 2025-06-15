@@ -9,6 +9,16 @@ let currentPage = 1;
 let pageSize = 10;
 let totalPages = 1;
 
+// 知识库相关变量
+let knowledgeCurrentCourses = [];
+let knowledgeStats = {
+    totalFiles: 0,
+    totalChunks: 0,
+    processedChunks: 0,
+    processingProgress: 0
+};
+let isProcessingFiles = false;
+
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function() {
     initializeTeacherPage();
@@ -21,6 +31,10 @@ async function initializeTeacherPage() {
         // 加载基础数据
         await loadCurrentUser();
         
+        // 提前加载课程列表，这样知识库模块就可以使用了
+        console.log('初始化时加载课程列表...');
+        await loadCourseList();
+        
         // 设置默认显示的页面，这会自动加载控制面板数据
         showSection('dashboard');
         
@@ -30,7 +44,7 @@ async function initializeTeacherPage() {
             updateActiveMenu(defaultMenuItem);
         }
         
-        console.log('教师端页面初始化完成');
+        console.log('教师端页面初始化完成，课程数据:', currentCourses);
     } catch (error) {
         console.error('页面初始化失败:', error);
         showNotification('页面加载失败，请刷新重试', 'error');
@@ -117,6 +131,75 @@ function setupEventListeners() {
     
     // 上传资料模态框事件
     setupUploadModal();
+    
+    // 知识库上传模态框事件（只设置一次）
+    setupKnowledgeUploadModal();
+    
+    // 知识块查看模态框事件
+    setupKnowledgeChunksModal();
+    
+    // 知识块详情模态框事件
+    setupChunkDetailModal();
+    
+    // 知识块编辑模态框事件
+    setupEditChunkModal();
+}
+
+// 设置知识块模态框事件监听器
+function setupKnowledgeChunksModal() {
+    const closeBtn = document.getElementById('close-chunks-modal');
+    if (closeBtn) {
+        closeBtn.removeEventListener('click', hideKnowledgeChunksModal);
+        closeBtn.addEventListener('click', hideKnowledgeChunksModal);
+    }
+    
+    // ESC键关闭
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('knowledge-chunks-modal');
+            if (modal && modal.style.display === 'flex') {
+                hideKnowledgeChunksModal();
+            }
+        }
+    });
+}
+
+// 设置知识块详情模态框事件监听器
+function setupChunkDetailModal() {
+    const closeBtn = document.getElementById('close-chunk-detail-modal');
+    if (closeBtn) {
+        closeBtn.removeEventListener('click', hideChunkDetailModal);
+        closeBtn.addEventListener('click', hideChunkDetailModal);
+    }
+    
+    // ESC键关闭
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('chunk-detail-modal');
+            if (modal && modal.style.display === 'flex') {
+                hideChunkDetailModal();
+            }
+        }
+    });
+}
+
+// 设置知识块编辑模态框事件监听器
+function setupEditChunkModal() {
+    const closeBtn = document.getElementById('close-edit-chunk-modal');
+    if (closeBtn) {
+        closeBtn.removeEventListener('click', hideEditChunkModal);
+        closeBtn.addEventListener('click', hideEditChunkModal);
+    }
+    
+    // ESC键关闭
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('edit-chunk-modal');
+            if (modal && modal.style.display === 'flex') {
+                hideEditChunkModal();
+            }
+        }
+    });
 }
 
 // 设置新建课程模态框事件
@@ -285,7 +368,7 @@ async function loadSectionData(sectionId) {
                 await loadDashboardData();
                 break;
             case 'upload-material':
-                await loadMaterialsData();
+                await loadKnowledgeData();
                 break;
             case 'outline':
                 await loadOutlineData();
@@ -310,6 +393,9 @@ async function loadSectionData(sectionId) {
                 break;
             case 'improve-suggest':
                 await loadImprovementData();
+                break;
+            case 'knowledge':
+                await loadKnowledgeData();
                 break;
         }
     } catch (error) {
@@ -391,7 +477,7 @@ function updateStatsCards(stats) {
 
 // 更新知识点掌握情况的课程选择器
 function updateKnowledgeCourseSelect() {
-    const courseSelect = document.getElementById('knowledge-course-select');
+    const courseSelect = document.getElementById('dashboard-course-select');
     if (!courseSelect) return;
     
     // 清空现有选项，保留默认选项
@@ -649,8 +735,12 @@ function resetCreateCourseModal() {
 // 加载课程列表
 async function loadCourseList() {
     try {
+        console.log('开始加载课程列表...');
         const response = await TeacherAPI.getCourses();
+        console.log('API响应:', response);
+        
         let courses = response.data || [];
+        console.log('课程数据:', courses);
         
         // 根据课程ID去重
         const uniqueCourses = [];
@@ -663,12 +753,19 @@ async function loadCourseList() {
         }
         
         currentCourses = uniqueCourses;
+        console.log('处理后的课程数据:', currentCourses);
         
         // 更新各种课程选择框
         updateCourseSelects();
         
+        // 通知知识库模块课程数据已更新
+        if (typeof updateKnowledgeUploadCourseSelects === 'function') {
+            updateKnowledgeUploadCourseSelects();
+        }
+        
     } catch (error) {
         console.error('加载课程列表失败:', error);
+        showNotification('加载课程列表失败，请检查网络连接', 'error');
     }
 }
 
@@ -6146,5 +6243,1800 @@ async function handleConfirmPublish() {
         hideLoading();
         console.error('发布试卷失败:', error);
         showNotification('发布试卷失败，请重试', 'error');
+    }
+}
+
+// ============= 知识库管理功能 =============
+
+// 知识库页面数据加载
+async function loadKnowledgeData() {
+    try {
+        showLoading('加载知识库数据中...');
+        
+        // 直接调用知识库专用的课程API来获取包含统计数据的课程信息
+        const response = await fetch('/api/teacher/knowledge/courses', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+                knowledgeCurrentCourses = result.data;
+                console.log('知识库模块获取到的课程数据:', knowledgeCurrentCourses);
+            } else {
+                console.error('获取知识库课程数据失败:', result.message);
+                showNotification('获取知识库课程数据失败: ' + result.message, 'error');
+                // fallback到通用课程数据
+                if (currentCourses.length === 0) {
+                    await loadCourseList();
+                }
+                knowledgeCurrentCourses = currentCourses.slice();
+            }
+        } else {
+            console.error('调用知识库课程API失败:', response.statusText);
+            // fallback到通用课程数据
+            if (currentCourses.length === 0) {
+                await loadCourseList();
+            }
+            knowledgeCurrentCourses = currentCourses.slice();
+        }
+        
+        // 加载知识库健康状态
+        try {
+            const healthResponse = await fetch('/api/teacher/knowledge/health', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            if (healthResponse.ok) {
+                const healthResult = await healthResponse.json();
+                console.log('知识库健康状态:', healthResult);
+            }
+        } catch (error) {
+            console.warn('获取知识库健康状态失败:', error);
+        }
+        
+        await updateKnowledgeUI();
+
+        hideLoading();
+        
+    } catch (error) {
+        hideLoading();
+        console.error('加载知识库数据失败:', error);
+        showNotification('加载知识库数据失败，请重试', 'error');
+    }
+}
+
+// 更新知识库UI
+async function updateKnowledgeUI() {
+    updateKnowledgeStatsCards();
+    updateKnowledgeCourseFilter();
+    updateKnowledgeList();
+    await updateRecentDocumentsTable();
+}
+
+// 更新知识库统计卡片
+function updateKnowledgeStatsCards() {
+    let knowledgeBaseCount = 0; // 有知识库数据的课程数量
+    let totalFiles = 0;         // 总文档数量
+    let totalChunks = 0;        // 总知识块数量
+    let totalSize = 0;          // 总文件大小
+    
+    knowledgeCurrentCourses.forEach(course => {
+        if (course.knowledgeStats) {
+            // 如果课程有知识库数据（文档数量大于0），则计入知识库数量
+            if (course.knowledgeStats.fileCount > 0) {
+                knowledgeBaseCount++;
+            }
+            
+            // 累计统计数据
+            totalFiles += course.knowledgeStats.fileCount || 0;
+            totalChunks += course.knowledgeStats.totalChunks || 0;
+            totalSize += course.knowledgeStats.totalSize || 0;
+        }
+    });
+
+    // 更新统计卡片
+    document.getElementById('knowledge-base-count').textContent = knowledgeBaseCount;
+    document.getElementById('total-chunks').textContent = totalChunks;
+    document.getElementById('total-files').textContent = totalFiles;
+    document.getElementById('total-size').textContent = formatFileSize(totalSize);
+}
+
+// 更新课程过滤器
+function updateKnowledgeCourseFilter() {
+    const filterSelect = document.getElementById('knowledge-course-filter');
+    if (!filterSelect) return;
+
+    // 清空现有选项
+    filterSelect.innerHTML = '<option value="">全部课程</option>';
+    
+    // 使用当前教师的课程数据，如果知识库课程数据为空，则使用全局课程数据
+    const coursesToUse = knowledgeCurrentCourses.length > 0 ? knowledgeCurrentCourses : currentCourses;
+    
+    // 添加课程选项
+    coursesToUse.forEach(course => {
+        const option = document.createElement('option');
+        option.value = course.id;
+        option.textContent = `${course.name} (${course.courseCode || course.code || ''})`;
+        filterSelect.appendChild(option);
+    });
+}
+
+// 知识库轮播相关变量
+let knowledgeCarouselIndex = 0;
+let knowledgeCarouselInitialized = false;
+
+// 更新知识库列表
+function updateKnowledgeList() {
+    const container = document.getElementById('knowledge-list-container');
+    if (!container) return;
+
+    if (knowledgeCurrentCourses.length === 0) {
+        container.innerHTML = `
+            <div class="knowledge-carousel-wrapper">
+                <div class="knowledge-carousel-track">
+                    <div class="knowledge-empty-state">
+                        <i class="fas fa-database" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                        <p>暂无知识库数据</p>
+                        <p>上传文档后这里会显示知识库信息</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // 构建轮播HTML
+    let trackHtml = '';
+    let indicatorsHtml = '';
+    
+    knowledgeCurrentCourses.forEach((course, index) => {
+        const stats = course.knowledgeStats || {};
+        trackHtml += `
+            <div class="knowledge-course-item">
+                <div class="course-header">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 style="margin: 0; color: #2c3e50;">${course.name}</h4>
+                            <p style="margin: 4px 0 0 0; color: #7f8c8d; font-size: 14px;">课程号: ${course.courseCode}</p>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-sm btn-info" onclick="testKnowledgeSearch(${course.id}, '${course.name}')">
+                                <i class="fas fa-search"></i> 测试搜索
+                            </button>
+                            <button class="btn btn-sm btn-primary" onclick="viewKnowledgeChunks(${course.id}, '${course.name}')">
+                                <i class="fas fa-list"></i> 查看知识块
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteKnowledgeBase(${course.id}, '${course.name}')">
+                                <i class="fas fa-trash"></i> 清空知识库
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="course-stats">
+                    <div class="stat-item">
+                        <div style="font-size: 24px; font-weight: bold; color: #3498db;">${stats.fileCount || 0}</div>
+                        <div style="font-size: 12px; color: #7f8c8d;">文档数量</div>
+                    </div>
+                    <div class="stat-item">
+                        <div style="font-size: 24px; font-weight: bold; color: #27ae60;">${stats.totalChunks || 0}</div>
+                        <div style="font-size: 12px; color: #7f8c8d;">知识块</div>
+                    </div>
+                    <div class="stat-item">
+                        <div style="font-size: 24px; font-weight: bold; color: #8e44ad;">${stats.processedChunks || 0}</div>
+                        <div style="font-size: 12px; color: #7f8c8d;">已向量化</div>
+                    </div>
+                    <div class="stat-item">
+                        <div style="font-size: 24px; font-weight: bold; color: #e74c3c;">${formatFileSize(stats.totalSize || 0)}</div>
+                        <div style="font-size: 12px; color: #7f8c8d;">总大小</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    // 生成指示器（在循环外处理）
+    if (knowledgeCurrentCourses.length === 1) {
+        // 单个课程时显示不可点击的蓝点
+        indicatorsHtml = `
+            <div class="carousel-indicator active single-course" aria-label="当前课程"></div>
+        `;
+    } else {
+        // 多个课程时显示可点击的指示器
+        knowledgeCurrentCourses.forEach((course, index) => {
+            indicatorsHtml += `
+                <button class="carousel-indicator ${index === knowledgeCarouselIndex ? 'active' : ''}" 
+                        onclick="goToKnowledgeSlide(${index})" 
+                        aria-label="课程 ${index + 1}"></button>
+            `;
+        });
+    }
+
+    // 构建完整的轮播HTML
+    const carouselHtml = `
+        <div class="knowledge-carousel-wrapper">
+            <div class="knowledge-carousel-track" id="knowledge-carousel-track">
+                ${trackHtml}
+            </div>
+            ${knowledgeCurrentCourses.length > 1 ? `
+                <button class="carousel-nav prev" onclick="prevKnowledgeSlide()" aria-label="上一个课程">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="carousel-nav next" onclick="nextKnowledgeSlide()" aria-label="下一个课程">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            ` : ''}
+        </div>
+        <div class="knowledge-carousel-indicators" id="knowledge-carousel-indicators">
+            ${indicatorsHtml}
+        </div>
+    `;
+
+    container.innerHTML = carouselHtml;
+    
+    // 初始化轮播
+    initKnowledgeCarousel();
+}
+
+// 初始化知识库轮播
+function initKnowledgeCarousel() {
+    const container = document.getElementById('knowledge-list-container');
+    if (!container) return;
+    
+    // 重置轮播索引
+    knowledgeCarouselIndex = 0;
+    updateKnowledgeCarouselPosition();
+    
+    // 只有多个课程时才添加滚轮事件监听
+    if (knowledgeCurrentCourses.length > 1) {
+        if (!knowledgeCarouselInitialized) {
+            container.addEventListener('wheel', handleKnowledgeCarouselWheel, { passive: false });
+            knowledgeCarouselInitialized = true;
+        }
+    } else {
+        // 单个课程时移除滚轮事件监听
+        if (knowledgeCarouselInitialized) {
+            container.removeEventListener('wheel', handleKnowledgeCarouselWheel);
+            knowledgeCarouselInitialized = false;
+        }
+    }
+}
+
+// 处理滚轮事件
+function handleKnowledgeCarouselWheel(event) {
+    if (knowledgeCurrentCourses.length <= 1) return;
+    
+    event.preventDefault();
+    
+    // 防抖处理
+    if (window.knowledgeWheelTimeout) {
+        clearTimeout(window.knowledgeWheelTimeout);
+    }
+    
+    window.knowledgeWheelTimeout = setTimeout(() => {
+        if (event.deltaY > 0) {
+            // 向下滚动，显示下一个课程
+            nextKnowledgeSlide();
+        } else {
+            // 向上滚动，显示上一个课程
+            prevKnowledgeSlide();
+        }
+    }, 50);
+}
+
+// 下一个课程
+function nextKnowledgeSlide() {
+    if (knowledgeCurrentCourses.length <= 1) return;
+    
+    knowledgeCarouselIndex = (knowledgeCarouselIndex + 1) % knowledgeCurrentCourses.length;
+    updateKnowledgeCarouselPosition();
+    updateKnowledgeCarouselIndicators();
+}
+
+// 上一个课程
+function prevKnowledgeSlide() {
+    if (knowledgeCurrentCourses.length <= 1) return;
+    
+    knowledgeCarouselIndex = (knowledgeCarouselIndex - 1 + knowledgeCurrentCourses.length) % knowledgeCurrentCourses.length;
+    updateKnowledgeCarouselPosition();
+    updateKnowledgeCarouselIndicators();
+}
+
+// 跳转到指定课程
+function goToKnowledgeSlide(index) {
+    if (knowledgeCurrentCourses.length <= 1 || index < 0 || index >= knowledgeCurrentCourses.length) return;
+    
+    knowledgeCarouselIndex = index;
+    updateKnowledgeCarouselPosition();
+    updateKnowledgeCarouselIndicators();
+}
+
+// 更新轮播位置
+function updateKnowledgeCarouselPosition() {
+    const track = document.getElementById('knowledge-carousel-track');
+    if (!track) return;
+    
+    const translateX = -knowledgeCarouselIndex * 100;
+    track.style.transform = `translateX(${translateX}%)`;
+}
+
+// 更新指示器状态
+function updateKnowledgeCarouselIndicators() {
+    const indicators = document.querySelectorAll('.carousel-indicator');
+    indicators.forEach((indicator, index) => {
+        if (index === knowledgeCarouselIndex) {
+            indicator.classList.add('active');
+        } else {
+            indicator.classList.remove('active');
+        }
+    });
+}
+
+// 更新最近文档表格
+async function updateRecentDocumentsTable() {
+    const tbody = document.querySelector('#recent-documents-table tbody');
+    if (!tbody) return;
+
+    try {
+        // 获取最近上传的文档
+        const response = await fetch('/api/teacher/knowledge/recent-documents', {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data && result.data.length > 0) {
+                let html = '';
+                result.data.forEach(doc => {
+                    // 格式化时间到分钟
+                    const uploadTime = new Date(doc.uploadTime).toLocaleString('zh-CN', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    // 处理状态显示
+                    const statusText = doc.processed ? '已完成' : '处理中';
+                    const statusClass = doc.processed ? 'badge-success' : 'badge-warning';
+                    
+                    html += `
+                        <tr>
+                            <td title="${doc.originalName}">${doc.originalName}</td>
+                            <td title="${doc.courseDisplay || doc.courseName + ' (' + doc.courseCode + ')'}">${doc.courseDisplay || doc.courseName + ' (' + doc.courseCode + ')'}</td>
+                            <td title="${uploadTime}">${uploadTime}</td>
+                            <td title="${doc.chunksCount || 0} 个">${doc.chunksCount || 0} 个</td>
+                            <td title="${statusText}"><span class="badge ${statusClass}">${statusText}</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" onclick="downloadDocument(${doc.id})" title="下载">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteDocument(${doc.id}, '${doc.originalName}')" title="删除">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 24px; color: #7f8c8d;">
+                            <i class="fas fa-file-alt" style="font-size: 32px; margin-bottom: 12px; color: #bdc3c7;"></i>
+                            <br>暂无最近上传的文档
+                            <br>上传文档后会在这里显示
+                        </td>
+                    </tr>
+                `;
+            }
+        } else {
+            console.error('获取最近文档失败:', response.statusText);
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 24px; color: #e74c3c;">
+                        获取最近文档失败，请稍后重试
+                    </td>
+                </tr>
+            `;
+        }
+    } catch (error) {
+        console.error('获取最近文档出错:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 24px; color: #e74c3c;">
+                    获取最近文档失败，请稍后重试
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// 显示知识库上传模态框
+async function showKnowledgeUploadModal() {
+    const modal = document.getElementById('knowledge-upload-modal');
+    if (!modal) return;
+
+    modal.style.display = 'flex';
+    modal.classList.add('show');
+    
+    // 确保课程数据已加载
+    if (currentCourses.length === 0) {
+        try {
+            await loadCourseList();
+        } catch (error) {
+            console.warn('加载课程列表失败，将显示空列表:', error);
+        }
+    }
+    
+    // 加载课程选项
+    updateKnowledgeUploadCourseSelects();
+    
+    // 重置表单
+    resetKnowledgeUploadForm();
+}
+
+// 隐藏知识库上传模态框
+function hideKnowledgeUploadModal() {
+    const modal = document.getElementById('knowledge-upload-modal');
+    if (!modal) return;
+
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
+}
+
+// 设置知识库上传模态框事件
+function setupKnowledgeUploadModal() {
+    // 关闭按钮
+    const closeBtn = document.getElementById('close-knowledge-upload-modal');
+    const cancelSingleBtn = document.getElementById('cancel-knowledge-upload');
+    const cancelBatchBtn = document.getElementById('cancel-batch-upload');
+    
+    if (closeBtn) {
+        closeBtn.removeEventListener('click', hideKnowledgeUploadModal);
+        closeBtn.addEventListener('click', hideKnowledgeUploadModal);
+    }
+    if (cancelSingleBtn) {
+        cancelSingleBtn.removeEventListener('click', hideKnowledgeUploadModal);
+        cancelSingleBtn.addEventListener('click', hideKnowledgeUploadModal);
+    }
+    if (cancelBatchBtn) {
+        cancelBatchBtn.removeEventListener('click', hideKnowledgeUploadModal);
+        cancelBatchBtn.addEventListener('click', hideKnowledgeUploadModal);
+    }
+
+    // 标签页切换
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        // 移除现有的事件监听器
+        btn.removeEventListener('click', btn._tabClickHandler);
+        
+        // 创建新的事件处理函数
+        btn._tabClickHandler = function() {
+            const tabId = this.dataset.tab;
+            switchKnowledgeTab(tabId);
+        };
+        
+        // 添加新的事件监听器
+        btn.addEventListener('click', btn._tabClickHandler);
+    });
+
+    // 文件上传区域点击
+    const singleUploadArea = document.getElementById('knowledge-file-upload-area');
+    const batchUploadArea = document.getElementById('batch-file-upload-area');
+    const singleFileInput = document.getElementById('knowledge-file-input');
+    const batchFileInput = document.getElementById('batch-file-input');
+
+    if (singleUploadArea && singleFileInput) {
+        // 移除现有的事件监听器
+        singleUploadArea.removeEventListener('click', singleUploadArea._clickHandler);
+        singleFileInput.removeEventListener('change', handleSingleFileSelect);
+        
+        // 创建新的点击处理函数
+        singleUploadArea._clickHandler = () => singleFileInput.click();
+        
+        // 添加新的事件监听器
+        singleUploadArea.addEventListener('click', singleUploadArea._clickHandler);
+        singleFileInput.addEventListener('change', handleSingleFileSelect);
+    }
+
+    if (batchUploadArea && batchFileInput) {
+        // 移除现有的事件监听器
+        batchUploadArea.removeEventListener('click', batchUploadArea._clickHandler);
+        batchFileInput.removeEventListener('change', handleBatchFileSelect);
+        
+        // 创建新的点击处理函数
+        batchUploadArea._clickHandler = () => batchFileInput.click();
+        
+        // 添加新的事件监听器
+        batchUploadArea.addEventListener('click', batchUploadArea._clickHandler);
+        batchFileInput.addEventListener('change', handleBatchFileSelect);
+    }
+
+    // 表单提交
+    const singleForm = document.getElementById('knowledge-single-upload-form');
+    const batchForm = document.getElementById('knowledge-batch-upload-form');
+
+    if (singleForm) {
+        singleForm.removeEventListener('submit', handleSingleUpload);
+        singleForm.addEventListener('submit', handleSingleUpload);
+    }
+    if (batchForm) {
+        batchForm.removeEventListener('submit', handleBatchUpload);
+        batchForm.addEventListener('submit', handleBatchUpload);
+    }
+}
+
+// 切换知识库上传标签页
+function switchKnowledgeTab(tabId) {
+    // 更新按钮状态
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.tab === tabId) {
+            btn.classList.add('active');
+        }
+    });
+
+    // 显示对应内容
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+        if (content.id === tabId) {
+            content.classList.add('active');
+        }
+    });
+}
+
+// 更新知识库上传课程选择器
+function updateKnowledgeUploadCourseSelects() {
+    console.log('更新知识库上传课程选择器...');
+    const singleSelect = document.getElementById('knowledge-course-select');
+    const batchSelect = document.getElementById('batch-course-select');
+    
+    [singleSelect, batchSelect].forEach(select => {
+        if (!select) {
+            console.warn('课程选择器元素未找到:', select);
+            return;
+        }
+        
+        select.innerHTML = '<option value="">请选择课程</option>';
+        
+        // 优先使用全局课程数据，确保数据可用性
+        const coursesToUse = currentCourses.length > 0 ? currentCourses : knowledgeCurrentCourses;
+        console.log('可用的课程数据:', coursesToUse);
+        
+        if (coursesToUse.length === 0) {
+            console.warn('没有可用的课程数据');
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = '暂无课程数据';
+            option.disabled = true;
+            select.appendChild(option);
+            return;
+        }
+        
+        coursesToUse.forEach(course => {
+            const option = document.createElement('option');
+            option.value = course.id;
+            option.textContent = `${course.name} (${course.courseCode || course.code || 'SE-0000'})`;
+            select.appendChild(option);
+            console.log('添加课程选项:', course.name, course.id);
+        });
+    });
+}
+
+// 重置知识库上传表单
+function resetKnowledgeUploadForm() {
+    // 切换到单文档上传标签
+    switchKnowledgeTab('single-upload');
+    
+    // 清空表单
+    const singleForm = document.getElementById('knowledge-single-upload-form');
+    const batchForm = document.getElementById('knowledge-batch-upload-form');
+    
+    if (singleForm) singleForm.reset();
+    if (batchForm) batchForm.reset();
+    
+    // 隐藏文件预览
+    const singlePreview = document.getElementById('single-file-preview');
+    const batchPreview = document.getElementById('batch-files-preview');
+    const processing = document.getElementById('knowledge-processing');
+    
+    if (singlePreview) singlePreview.style.display = 'none';
+    if (batchPreview) batchPreview.style.display = 'none';
+    if (processing) processing.style.display = 'none';
+}
+
+// 处理单文件选择
+function handleSingleFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // 验证文件类型
+    const allowedTypes = ['txt', 'doc', 'docx', 'pdf', 'html', 'htm'];
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+        showNotification('不支持的文件类型。支持的格式：TXT、DOC、DOCX、PDF、HTML', 'error');
+        event.target.value = '';
+        return;
+    }
+
+    // 验证文件大小（50MB限制）
+    if (file.size > 50 * 1024 * 1024) {
+        showNotification('文件大小不能超过50MB', 'error');
+        event.target.value = '';
+        return;
+    }
+
+    // 显示文件预览
+    const preview = document.getElementById('single-file-preview');
+    const fileName = document.getElementById('single-file-name');
+    const fileSize = document.getElementById('single-file-size');
+    
+    if (preview && fileName && fileSize) {
+        fileName.textContent = file.name;
+        fileSize.textContent = `(${formatFileSize(file.size)})`;
+        preview.style.display = 'block';
+    }
+}
+
+// 处理批量文件选择
+function handleBatchFileSelect(event) {
+    const files = Array.from(event.target.files);
+    if (!files.length) return;
+
+    // 验证文件
+    const allowedTypes = ['txt', 'doc', 'docx', 'pdf', 'html', 'htm'];
+    const validFiles = [];
+    const invalidFiles = [];
+
+    files.forEach(file => {
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        if (allowedTypes.includes(fileExtension) && file.size <= 50 * 1024 * 1024) {
+            validFiles.push(file);
+        } else {
+            invalidFiles.push(file.name);
+        }
+    });
+
+    if (invalidFiles.length > 0) {
+        showNotification(`以下文件不符合要求：${invalidFiles.join(', ')}`, 'warning');
+    }
+
+    if (validFiles.length === 0) {
+        event.target.value = '';
+        return;
+    }
+
+    // 显示文件列表
+    const preview = document.getElementById('batch-files-preview');
+    const fileCount = document.getElementById('batch-file-count');
+    const fileList = document.getElementById('batch-file-list');
+    
+    if (preview && fileCount && fileList) {
+        fileCount.textContent = validFiles.length;
+        
+        let listHtml = '';
+        validFiles.forEach((file, index) => {
+            listHtml += `
+                <div class="file-item" style="display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #e9ecef;">
+                    <i class="fas fa-file-alt" style="color: #007bff;"></i>
+                    <span style="flex: 1;">${file.name}</span>
+                    <span style="color: #6c757d; font-size: 12px;">(${formatFileSize(file.size)})</span>
+                </div>
+            `;
+        });
+        
+        fileList.innerHTML = listHtml;
+        preview.style.display = 'block';
+    }
+}
+
+// 移除单个文件
+function removeSingleFile() {
+    const fileInput = document.getElementById('knowledge-file-input');
+    const preview = document.getElementById('single-file-preview');
+    
+    if (fileInput) fileInput.value = '';
+    if (preview) preview.style.display = 'none';
+}
+
+// 处理单文档上传
+async function handleSingleUpload(event) {
+    event.preventDefault();
+    
+    if (isProcessingFiles) {
+        showNotification('正在处理其他文件，请稍候...', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    const courseId = document.getElementById('knowledge-course-select').value;
+    const file = document.getElementById('knowledge-file-input').files[0];
+    const description = document.getElementById('knowledge-description').value;
+
+    if (!courseId) {
+        showNotification('请选择课程', 'warning');
+        return;
+    }
+
+    if (!file) {
+        showNotification('请选择文件', 'warning');
+        return;
+    }
+
+    formData.append('courseId', courseId);
+    formData.append('file', file);
+    if (description) {
+        formData.append('description', description);
+    }
+
+    try {
+        isProcessingFiles = true;
+        showKnowledgeProcessing('单文档上传');
+
+        const response = await fetch('/api/teacher/knowledge/upload', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('文档上传并处理成功！', 'success');
+            hideKnowledgeUploadModal();
+            refreshKnowledgeData();
+        } else {
+            showNotification(result.message || '文档处理失败', 'error');
+        }
+
+    } catch (error) {
+        console.error('上传失败:', error);
+        showNotification('上传失败，请重试', 'error');
+    } finally {
+        isProcessingFiles = false;
+        hideKnowledgeProcessing();
+    }
+}
+
+// 处理批量上传
+async function handleBatchUpload(event) {
+    event.preventDefault();
+    
+    if (isProcessingFiles) {
+        showNotification('正在处理其他文件，请稍候...', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    const courseId = document.getElementById('batch-course-select').value;
+    const files = document.getElementById('batch-file-input').files;
+
+    if (!courseId) {
+        showNotification('请选择课程', 'warning');
+        return;
+    }
+
+    if (!files.length) {
+        showNotification('请选择文件', 'warning');
+        return;
+    }
+
+    formData.append('courseId', courseId);
+    Array.from(files).forEach(file => {
+        formData.append('files', file);
+    });
+
+    try {
+        isProcessingFiles = true;
+        showKnowledgeProcessing('批量上传');
+
+        const response = await fetch('/api/teacher/knowledge/batch-upload', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('批量上传完成！', 'success');
+            hideKnowledgeUploadModal();
+            refreshKnowledgeData();
+        } else {
+            showNotification(result.message || '批量上传失败', 'error');
+        }
+
+    } catch (error) {
+        console.error('批量上传失败:', error);
+        showNotification('批量上传失败，请重试', 'error');
+    } finally {
+        isProcessingFiles = false;
+        hideKnowledgeProcessing();
+    }
+}
+
+// 显示知识库处理进度
+function showKnowledgeProcessing(type) {
+    // 隐藏表单内容
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.style.display = 'none';
+    });
+    
+    // 显示处理进度
+    const processing = document.getElementById('knowledge-processing');
+    if (processing) {
+        processing.style.display = 'block';
+        
+        // 更新处理状态
+        const status = document.getElementById('processing-status');
+        if (status) {
+            status.textContent = `正在进行${type}，请稍候...`;
+        }
+        
+        // 模拟进度更新
+        simulateProcessingProgress();
+    }
+}
+
+// 隐藏知识库处理进度
+function hideKnowledgeProcessing() {
+    const processing = document.getElementById('knowledge-processing');
+    if (processing) {
+        processing.style.display = 'none';
+    }
+    
+    // 显示表单内容
+    document.querySelectorAll('.tab-content').forEach(content => {
+        if (content.classList.contains('active')) {
+            content.style.display = 'block';
+        }
+    });
+}
+
+// 模拟处理进度
+function simulateProcessingProgress() {
+    const progressBar = document.getElementById('processing-progress');
+    const stepElement = document.getElementById('processing-step');
+    const infoElement = document.getElementById('processing-info');
+    
+    if (!progressBar || !stepElement || !infoElement) return;
+    
+    const steps = [
+        { progress: 25, step: '步骤 1/4: 文档上传', info: '正在上传文档到服务器...' },
+        { progress: 50, step: '步骤 2/4: 文本提取', info: '正在提取文档内容...' },
+        { progress: 75, step: '步骤 3/4: 智能分块', info: '正在进行智能文本分块...' },
+        { progress: 100, step: '步骤 4/4: 向量化存储', info: '正在生成向量并存储到知识库...' }
+    ];
+    
+    let currentStep = 0;
+    
+    const updateStep = () => {
+        if (currentStep >= steps.length || !isProcessingFiles) return;
+        
+        const step = steps[currentStep];
+        progressBar.style.width = step.progress + '%';
+        stepElement.textContent = step.step;
+        infoElement.textContent = step.info;
+        
+        currentStep++;
+        
+        if (currentStep < steps.length) {
+            setTimeout(updateStep, 1500);
+        }
+    };
+    
+    updateStep();
+}
+
+
+
+// 删除知识库
+async function deleteKnowledgeBase(courseId, courseName) {
+    const confirmed = await showConfirmDialog(
+        '确认删除知识库',
+        `确定要删除课程"${courseName}"的所有知识库数据吗？\n\n此操作将永久删除：\n• 所有上传的文档\n• 文本分块数据\n• 向量数据\n\n此操作无法撤销！`,
+        '确认删除'
+    );
+
+    if (!confirmed) return;
+
+    try {
+        showLoading('正在删除知识库...');
+
+        const response = await fetch(`/api/teacher/knowledge/${courseId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        hideLoading();
+
+        if (result.success) {
+            showNotification('知识库删除成功', 'success');
+            refreshKnowledgeData();
+        } else {
+            showNotification(result.message || '删除失败', 'error');
+        }
+
+    } catch (error) {
+        hideLoading();
+        console.error('删除知识库失败:', error);
+        showNotification('删除知识库失败，请重试', 'error');
+    }
+}
+
+// 刷新知识库数据
+async function refreshKnowledgeData() {
+    await loadKnowledgeData();
+    showNotification('知识库数据已刷新', 'success');
+}
+
+// 过滤知识库（按课程）
+function filterKnowledgeByCourse() {
+    const selectedCourseId = document.getElementById('knowledge-course-filter').value;
+    
+    if (!selectedCourseId) {
+        // 显示所有课程
+        updateKnowledgeList();
+        return;
+    }
+    
+    // 只显示选中的课程
+    const selectedCourse = knowledgeCurrentCourses.find(course => course.id == selectedCourseId);
+    if (selectedCourse) {
+        const originalCourses = knowledgeCurrentCourses;
+        knowledgeCurrentCourses = [selectedCourse];
+        updateKnowledgeList();
+        knowledgeCurrentCourses = originalCourses;
+    }
+}
+
+// 搜索知识库
+function searchKnowledge() {
+    const query = document.getElementById('knowledge-search').value.toLowerCase().trim();
+    
+    if (!query) {
+        updateKnowledgeList();
+        return;
+    }
+    
+    // 简单的客户端搜索
+    const filteredCourses = knowledgeCurrentCourses.filter(course => 
+        course.name.toLowerCase().includes(query) || 
+        course.courseCode.toLowerCase().includes(query)
+    );
+    
+    const originalCourses = knowledgeCurrentCourses;
+    knowledgeCurrentCourses = filteredCourses;
+    updateKnowledgeList();
+    knowledgeCurrentCourses = originalCourses;
+}
+
+// 下载文档
+function downloadDocument(documentId) {
+    if (!documentId) {
+        showNotification('文档ID无效', 'error');
+        return;
+    }
+    
+    // 直接打开下载链接
+    window.open(`/api/teacher/knowledge/document/${documentId}/download`, '_blank');
+}
+
+// 删除文档
+async function deleteDocument(documentId, fileName) {
+    if (!documentId) {
+        showNotification('文档ID无效', 'error');
+        return;
+    }
+    
+    // 确认删除
+    const confirmed = await showConfirmDialog(
+        '删除文档',
+        `确定要删除文档"${fileName}"吗？\n删除后将无法恢复，同时会清除相关的知识库数据。`,
+        '删除'
+    );
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        showLoading('正在删除文档...');
+        
+        const response = await fetch(`/api/teacher/knowledge/document/${documentId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('文档删除成功', 'success');
+            // 刷新文档列表
+            await updateRecentDocumentsTable();
+            // 刷新知识库数据
+            await refreshKnowledgeData();
+        } else {
+            showNotification(result.message || '删除失败', 'error');
+        }
+    } catch (error) {
+        console.error('删除文档失败:', error);
+        showNotification('删除失败，请重试', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// 显示所有文档
+async function showAllDocuments() {
+    try {
+        showLoading('正在加载所有文档...');
+        
+        const response = await fetch('/api/teacher/knowledge/all-documents', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showAllDocumentsModal(result.data);
+            } else {
+                showNotification(result.message || '获取文档失败', 'error');
+            }
+        } else {
+            showNotification('获取文档失败，请重试', 'error');
+        }
+    } catch (error) {
+        console.error('获取所有文档失败:', error);
+        showNotification('获取文档失败，请重试', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// 显示所有文档模态框
+function showAllDocumentsModal(documents) {
+    // 保存原始数据用于搜索和筛选
+    window.allDocumentsData = documents;
+    
+    // 创建模态框HTML
+    const modalHtml = `
+        <div id="all-documents-modal" class="course-modal-overlay">
+            <div class="course-modal-container" style="max-width: 1200px; width: 95%; height: 80vh; display: flex; flex-direction: column;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <div class="modal-icon">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <h3>所有知识库文档</h3>
+                    </div>
+                    <button id="close-all-documents-modal" class="modal-close-btn" onclick="hideAllDocumentsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="course-modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                    <!-- 搜索和筛选区域 -->
+                    <div style="margin-bottom: 20px; padding: 16px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef;">
+                        <div style="display: flex; gap: 16px; align-items: end; flex-wrap: wrap;">
+                            <div class="course-form-group" style="flex: 1; min-width: 200px; margin-bottom: 0;">
+                                <label class="course-form-label" style="margin-bottom: 4px;">
+                                    <i class="fas fa-search"></i>
+                                    搜索文档名称
+                                </label>
+                                <input type="text" id="document-search-input" class="course-form-input" placeholder="输入文档名称进行搜索..." onkeyup="filterAllDocuments()">
+                            </div>
+                            <div class="course-form-group" style="flex: 0 0 180px; margin-bottom: 0;">
+                                <label class="course-form-label" style="margin-bottom: 4px;">
+                                    <i class="fas fa-filter"></i>
+                                    按课程筛选
+                                </label>
+                                <select id="document-course-filter" class="course-form-input" onchange="filterAllDocuments()">
+                                    <option value="">所有课程</option>
+                                </select>
+                            </div>
+                            <div class="course-form-group" style="flex: 0 0 120px; margin-bottom: 0;">
+                                <label class="course-form-label" style="margin-bottom: 4px;">
+                                    <i class="fas fa-tasks"></i>
+                                    状态筛选
+                                </label>
+                                <select id="document-status-filter" class="course-form-input" onchange="filterAllDocuments()">
+                                    <option value="">所有状态</option>
+                                    <option value="processed">已完成</option>
+                                    <option value="processing">处理中</option>
+                                </select>
+                            </div>
+
+                        </div>
+                        <div style="margin-top: 12px; font-size: 14px; color: #6c757d; display: flex; justify-content: between; align-items: center;">
+                            <span>共找到 <span id="documents-count">${documents.length}</span> 个文档</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 表格区域 -->
+                    <div style="flex: 1; overflow: hidden; border: 1px solid #e9ecef; border-radius: 8px;">
+                        <div style="height: 100%; overflow-y: auto;">
+                            <table class="table" style="margin-bottom: 0;">
+                                <thead style="position: sticky; top: 0; background: white; z-index: 10;">
+                                    <tr>
+                                        <th style="width: 25%;">文档名称</th>
+                                        <th style="width: 25%;">课程</th>
+                                        <th style="width: 15%;">上传时间</th>
+                                        <th style="width: 10%;">知识块数</th>
+                                        <th style="width: 10%;">处理状态</th>
+                                        <th style="width: 15%;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="all-documents-table-body">
+                                    ${generateAllDocumentsTableRows(documents)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    `;
+    
+    // 移除已存在的模态框
+    const existingModal = document.getElementById('all-documents-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 添加新模态框
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 显示模态框
+    setTimeout(() => {
+        const modal = document.getElementById('all-documents-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('show');
+            
+            // 添加键盘事件监听
+            document.addEventListener('keydown', handleAllDocumentsModalKeydown);
+            
+            // 添加背景点击事件
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    hideAllDocumentsModal();
+                }
+            });
+        }
+    }, 10);
+    
+    // 初始化课程筛选选项
+    initializeDocumentCourseFilter(documents);
+}
+
+// 生成所有文档表格行
+function generateAllDocumentsTableRows(documents) {
+    if (!documents || documents.length === 0) {
+        return `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 24px; color: #7f8c8d;">
+                    <i class="fas fa-file-alt" style="font-size: 32px; margin-bottom: 12px; color: #bdc3c7;"></i>
+                    <br>暂无文档数据
+                </td>
+            </tr>
+        `;
+    }
+    
+    return documents.map(doc => {
+        // 格式化时间到分钟
+        const uploadTime = new Date(doc.uploadTime).toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        // 处理状态显示
+        const statusText = doc.processed ? '已完成' : '处理中';
+        const statusClass = doc.processed ? 'badge-success' : 'badge-warning';
+        
+        return `
+            <tr>
+                <td title="${doc.originalName}">${doc.originalName}</td>
+                <td title="${doc.courseDisplay || doc.courseName + ' (' + doc.courseCode + ')'}">${doc.courseDisplay || doc.courseName + ' (' + doc.courseCode + ')'}</td>
+                <td title="${uploadTime}">${uploadTime}</td>
+                <td title="${doc.chunksCount || 0} 个">${doc.chunksCount || 0} 个</td>
+                <td title="${statusText}"><span class="badge ${statusClass}">${statusText}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="downloadDocument(${doc.id})" title="下载">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteDocument(${doc.id}, '${doc.originalName}')" title="删除">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// 隐藏所有文档模态框
+function hideAllDocumentsModal() {
+    const modal = document.getElementById('all-documents-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+        
+        // 移除键盘事件监听
+        document.removeEventListener('keydown', handleAllDocumentsModalKeydown);
+    }
+}
+
+// 处理所有文档模态框的键盘事件
+function handleAllDocumentsModalKeydown(e) {
+    if (e.key === 'Escape') {
+        hideAllDocumentsModal();
+    }
+}
+
+// 初始化文档课程筛选器
+function initializeDocumentCourseFilter(documents) {
+    const courseFilter = document.getElementById('document-course-filter');
+    if (!courseFilter || !documents) return;
+    
+    // 获取唯一的课程列表
+    const courses = new Set();
+    documents.forEach(doc => {
+        const courseDisplay = doc.courseDisplay || `${doc.courseName} (${doc.courseCode})`;
+        courses.add(courseDisplay);
+    });
+    
+    // 清空并重新填充选项
+    courseFilter.innerHTML = '<option value="">所有课程</option>';
+    [...courses].sort().forEach(course => {
+        const option = document.createElement('option');
+        option.value = course;
+        option.textContent = course;
+        courseFilter.appendChild(option);
+    });
+}
+
+// 筛选所有文档
+function filterAllDocuments() {
+    const searchInput = document.getElementById('document-search-input');
+    const courseFilter = document.getElementById('document-course-filter');
+    const statusFilter = document.getElementById('document-status-filter');
+    const tableBody = document.getElementById('all-documents-table-body');
+    const countElement = document.getElementById('documents-count');
+    
+    if (!searchInput || !courseFilter || !statusFilter || !tableBody || !window.allDocumentsData) return;
+    
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    const selectedCourse = courseFilter.value;
+    const selectedStatus = statusFilter.value;
+    
+    // 筛选文档
+    const filteredDocuments = window.allDocumentsData.filter(doc => {
+        // 文档名称搜索
+        const nameMatch = !searchTerm || doc.originalName.toLowerCase().includes(searchTerm);
+        
+        // 课程筛选
+        const courseDisplay = doc.courseDisplay || `${doc.courseName} (${doc.courseCode})`;
+        const courseMatch = !selectedCourse || courseDisplay === selectedCourse;
+        
+        // 状态筛选
+        let statusMatch = true;
+        if (selectedStatus) {
+            if (selectedStatus === 'processed') {
+                statusMatch = doc.processed === true;
+            } else if (selectedStatus === 'processing') {
+                statusMatch = doc.processed === false;
+            }
+        }
+        
+        return nameMatch && courseMatch && statusMatch;
+    });
+    
+    // 更新表格内容
+    tableBody.innerHTML = generateAllDocumentsTableRows(filteredDocuments);
+    
+    // 更新计数
+    if (countElement) {
+        countElement.textContent = filteredDocuments.length;
+    }
+}
+
+// 清除所有文档筛选器
+function clearAllDocumentFilters() {
+    const searchInput = document.getElementById('document-search-input');
+    const courseFilter = document.getElementById('document-course-filter');
+    const statusFilter = document.getElementById('document-status-filter');
+    
+    if (searchInput) searchInput.value = '';
+    if (courseFilter) courseFilter.value = '';
+    if (statusFilter) statusFilter.value = '';
+    
+    // 重新筛选
+    filterAllDocuments();
+}
+
+// 缺失的函数实现
+function showScheduleModal() {
+    showNotification('考试安排功能待实现', 'info');
+}
+
+function loadAnswersList() {
+    showNotification('答案列表功能待实现', 'info');
+}
+
+function autoGradeAll() {
+    showNotification('自动批改功能待实现', 'info');
+}
+
+function exportAnalysisReport() {
+    showNotification('导出分析报告功能待实现', 'info');
+}
+
+function generateImprovements() {
+    showNotification('生成改进建议功能待实现', 'info');
+}
+
+function exportImprovements() {
+    showNotification('导出改进建议功能待实现', 'info');
+}
+
+// ============= 知识块查看功能 =============
+
+// 查看知识块功能
+async function viewKnowledgeChunks(courseId, courseName) {
+    try {
+        // 显示模态框
+        const modal = document.getElementById('knowledge-chunks-modal');
+        if (!modal) return;
+        
+        modal.style.display = 'flex';
+        modal.classList.add('show');
+        
+        // 设置课程信息
+        document.getElementById('chunks-modal-title').textContent = `${courseName} - 知识块详情`;
+        document.getElementById('chunks-course-name').textContent = courseName;
+        
+        // 找到课程代码
+        const course = knowledgeCurrentCourses.find(c => c.id == courseId);
+        if (course) {
+            document.getElementById('chunks-course-code').textContent = course.courseCode || '';
+        }
+        
+        // 显示加载状态
+        document.getElementById('chunks-loading').style.display = 'block';
+        document.getElementById('chunks-list').style.display = 'none';
+        document.getElementById('chunks-empty').style.display = 'none';
+        
+        // 获取知识块数据
+        const response = await fetch(`/api/teacher/knowledge/${courseId}/chunks`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        document.getElementById('chunks-loading').style.display = 'none';
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data && result.data.length > 0) {
+                displayKnowledgeChunks(result.data);
+            } else {
+                document.getElementById('chunks-empty').style.display = 'block';
+            }
+        } else {
+            showNotification('获取知识块数据失败，请重试', 'error');
+            document.getElementById('chunks-empty').style.display = 'block';
+        }
+        
+    } catch (error) {
+        console.error('查看知识块失败:', error);
+        showNotification('查看知识块失败，请重试', 'error');
+        document.getElementById('chunks-loading').style.display = 'none';
+        document.getElementById('chunks-empty').style.display = 'block';
+    }
+}
+
+// 显示知识块列表
+function displayKnowledgeChunks(chunks) {
+    const container = document.getElementById('chunks-list');
+    const totalCountElement = document.getElementById('chunks-total-count');
+    const fileFilterSelect = document.getElementById('chunks-file-filter');
+    
+    // 更新总数
+    totalCountElement.textContent = chunks.length;
+    
+    // 更新文件过滤器
+    const fileNames = [...new Set(chunks.map(chunk => chunk.fileName))];
+    fileFilterSelect.innerHTML = '<option value="">所有文件</option>';
+    fileNames.forEach(fileName => {
+        const option = document.createElement('option');
+        option.value = fileName;
+        option.textContent = fileName;
+        fileFilterSelect.appendChild(option);
+    });
+    
+    // 渲染知识块列表
+    renderKnowledgeChunks(chunks);
+    
+    // 设置搜索和过滤事件
+    setupChunksFilters(chunks);
+    
+    container.style.display = 'block';
+}
+
+// 渲染知识块列表
+function renderKnowledgeChunks(chunks) {
+    const container = document.getElementById('chunks-list');
+    
+    let html = '';
+    chunks.forEach((chunk, index) => {
+        const statusBadge = chunk.processed ? 
+            '<span class="badge badge-success">已处理</span>' : 
+            '<span class="badge badge-warning">处理中</span>';
+            
+        const createdTime = chunk.createdAt ? 
+            new Date(chunk.createdAt).toLocaleString() : '未知';
+            
+        html += `
+            <div class="chunk-item" style="border: 1px solid #e9ecef; border-radius: 8px; margin-bottom: 12px; padding: 16px; background: white;">
+                <div class="chunk-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div>
+                        <strong style="color: #2c3e50;">知识块 #${chunk.chunkIndex !== null && chunk.chunkIndex !== undefined ? chunk.chunkIndex + 1 : index + 1}</strong>
+                        <span style="color: #7f8c8d; margin-left: 8px; font-size: 14px;">${chunk.fileName}</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        ${statusBadge}
+                        <button class="btn btn-sm btn-warning" onclick="editKnowledgeChunk('${chunk.chunkId}', '${chunk.fileName}', ${chunk.chunkIndex !== null && chunk.chunkIndex !== undefined ? chunk.chunkIndex + 1 : index + 1})">
+                            <i class="fas fa-edit"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteKnowledgeChunk('${chunk.chunkId}', '${chunk.fileName}', ${chunk.chunkIndex !== null && chunk.chunkIndex !== undefined ? chunk.chunkIndex + 1 : index + 1})">
+                            <i class="fas fa-trash"></i> 删除
+                        </button>
+                        <button class="btn btn-sm btn-info" onclick="showChunkDetail('${chunk.chunkId}', '${chunk.fileName}', ${chunk.chunkIndex !== null && chunk.chunkIndex !== undefined ? chunk.chunkIndex + 1 : index + 1})">
+                            <i class="fas fa-eye"></i> 查看详情
+                        </button>
+                    </div>
+                </div>
+                <div class="chunk-preview" style="color: #7f8c8d; font-size: 14px; line-height: 1.5; padding: 12px; background: #f8f9fa; border-radius: 4px; margin-bottom: 8px;">
+                    ${chunk.preview || '无内容预览'}
+                </div>
+                <div class="chunk-meta" style="font-size: 12px; color: #95a5a6;">
+                    创建时间: ${createdTime} | 块ID: ${chunk.chunkId}
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// 设置知识块搜索和过滤功能
+function setupChunksFilters(allChunks) {
+    const searchInput = document.getElementById('chunks-search');
+    const fileFilter = document.getElementById('chunks-file-filter');
+    
+    function filterChunks() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const selectedFile = fileFilter.value;
+        
+        let filteredChunks = allChunks.filter(chunk => {
+            const matchesSearch = !searchTerm || 
+                (chunk.content && chunk.content.toLowerCase().includes(searchTerm)) ||
+                (chunk.fileName && chunk.fileName.toLowerCase().includes(searchTerm));
+            
+            const matchesFile = !selectedFile || chunk.fileName === selectedFile;
+            
+            return matchesSearch && matchesFile;
+        });
+        
+        renderKnowledgeChunks(filteredChunks);
+        document.getElementById('chunks-total-count').textContent = filteredChunks.length;
+    }
+    
+    // 移除现有的事件监听器
+    searchInput.removeEventListener('input', searchInput._filterHandler);
+    fileFilter.removeEventListener('change', fileFilter._filterHandler);
+    
+    // 添加新的事件监听器
+    searchInput._filterHandler = filterChunks;
+    fileFilter._filterHandler = filterChunks;
+    
+    searchInput.addEventListener('input', searchInput._filterHandler);
+    fileFilter.addEventListener('change', fileFilter._filterHandler);
+}
+
+// 显示知识块详细内容
+async function showChunkDetail(chunkId, fileName, chunkIndex) {
+    try {
+        // 显示详情模态框
+        const modal = document.getElementById('chunk-detail-modal');
+        if (!modal) return;
+        
+        modal.style.display = 'flex';
+        modal.classList.add('show');
+        
+        // 设置基本信息
+        document.getElementById('chunk-detail-title').textContent = `知识块 #${chunkIndex} - 详情`;
+        document.getElementById('chunk-detail-name').textContent = `知识块 #${chunkIndex}`;
+        document.getElementById('chunk-detail-file').textContent = fileName;
+        document.getElementById('chunk-detail-id').textContent = chunkId;
+        
+        // 显示加载状态
+        const contentDisplay = document.getElementById('chunk-content-display');
+        contentDisplay.innerHTML = '<div style="text-align: center; padding: 40px; color: #7f8c8d;"><i class="fas fa-spinner fa-spin"></i> 加载知识块详情中...</div>';
+        
+        // 获取知识块详细信息
+        const response = await fetch(`/api/teacher/knowledge/chunk/${encodeURIComponent(chunkId)}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+                displayChunkDetail(result.data);
+            } else {
+                contentDisplay.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c;">获取知识块详情失败</div>';
+                showNotification(result.message || '获取知识块详情失败', 'error');
+            }
+        } else {
+            contentDisplay.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c;">获取知识块详情失败</div>';
+            showNotification('获取知识块详情失败，请重试', 'error');
+        }
+        
+    } catch (error) {
+        console.error('查看知识块详情失败:', error);
+        showNotification('查看知识块详情失败，请重试', 'error');
+        
+        const contentDisplay = document.getElementById('chunk-content-display');
+        if (contentDisplay) {
+            contentDisplay.innerHTML = '<div style="text-align: center; padding: 40px; color: #e74c3c;">获取知识块详情失败</div>';
+        }
+    }
+}
+
+// 显示知识块详细信息
+function displayChunkDetail(chunkData) {
+    // 更新状态标签
+    const statusElement = document.getElementById('chunk-detail-status');
+    if (chunkData.processed) {
+        statusElement.className = 'badge badge-success';
+        statusElement.textContent = '已处理';
+    } else {
+        statusElement.className = 'badge badge-warning';
+        statusElement.textContent = '处理中';
+    }
+    
+    // 更新创建时间
+    const createdTime = chunkData.createdAt ? 
+        new Date(chunkData.createdAt).toLocaleString() : '未知';
+    document.getElementById('chunk-detail-time').textContent = createdTime;
+    
+    // 显示完整内容
+    const contentDisplay = document.getElementById('chunk-content-display');
+    if (chunkData.content && chunkData.content.trim()) {
+        contentDisplay.textContent = chunkData.content;
+    } else {
+        contentDisplay.innerHTML = '<div style="text-align: center; padding: 40px; color: #7f8c8d;">该知识块暂无内容</div>';
+    }
+}
+
+// 隐藏知识块详情模态框
+function hideChunkDetailModal() {
+    const modal = document.getElementById('chunk-detail-modal');
+    if (!modal) return;
+    
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
+}
+
+// 隐藏知识块查看模态框
+function hideKnowledgeChunksModal() {
+    const modal = document.getElementById('knowledge-chunks-modal');
+    if (!modal) return;
+    
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
+}
+
+// ============= 知识块编辑删除功能 =============
+
+// 编辑知识块
+async function editKnowledgeChunk(chunkId, fileName, chunkIndex) {
+    try {
+        // 显示编辑模态框
+        const modal = document.getElementById('edit-chunk-modal');
+        if (!modal) return;
+        
+        modal.style.display = 'flex';
+        modal.classList.add('show');
+        
+        // 设置基本信息
+        document.getElementById('edit-chunk-title').textContent = `编辑知识块 #${chunkIndex}`;
+        document.getElementById('edit-chunk-name').textContent = `知识块 #${chunkIndex}`;
+        document.getElementById('edit-chunk-file').textContent = fileName;
+        document.getElementById('edit-chunk-id').textContent = chunkId;
+        
+        // 显示加载状态
+        const textarea = document.getElementById('edit-chunk-textarea');
+        textarea.value = '加载中...';
+        textarea.disabled = true;
+        
+        // 获取知识块详细信息
+        const response = await fetch(`/api/teacher/knowledge/chunk/${encodeURIComponent(chunkId)}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+                // 更新状态标签
+                const statusElement = document.getElementById('edit-chunk-status');
+                if (result.data.processed) {
+                    statusElement.className = 'badge badge-success';
+                    statusElement.textContent = '已处理';
+                } else {
+                    statusElement.className = 'badge badge-warning';
+                    statusElement.textContent = '处理中';
+                }
+                
+                // 更新创建时间
+                const createdTime = result.data.createdAt ? 
+                    new Date(result.data.createdAt).toLocaleString() : '未知';
+                document.getElementById('edit-chunk-time').textContent = createdTime;
+                
+                // 设置内容到文本框
+                textarea.value = result.data.content || '';
+                textarea.disabled = false;
+                textarea.focus();
+                
+                // 存储chunkId供保存时使用
+                textarea.dataset.chunkId = chunkId;
+                
+            } else {
+                textarea.value = '获取知识块内容失败';
+                showNotification(result.message || '获取知识块内容失败', 'error');
+            }
+        } else {
+            textarea.value = '获取知识块内容失败';
+            showNotification('获取知识块内容失败，请重试', 'error');
+        }
+        
+    } catch (error) {
+        console.error('编辑知识块失败:', error);
+        showNotification('编辑知识块失败，请重试', 'error');
+    }
+}
+
+// 保存知识块编辑
+async function saveChunkEdit() {
+    try {
+        const textarea = document.getElementById('edit-chunk-textarea');
+        const chunkId = textarea.dataset.chunkId;
+        const content = textarea.value.trim();
+        
+        if (!content) {
+            showNotification('内容不能为空', 'warning');
+            return;
+        }
+        
+        showLoading('保存中...');
+        
+        const response = await fetch(`/api/teacher/knowledge/chunk/${encodeURIComponent(chunkId)}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ content: content })
+        });
+        
+        hideLoading();
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showNotification('知识块保存成功', 'success');
+                hideEditChunkModal();
+                // 刷新知识块列表
+                refreshCurrentChunksList();
+            } else {
+                showNotification(result.message || '保存失败', 'error');
+            }
+        } else {
+            showNotification('保存失败，请重试', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('保存知识块失败:', error);
+        showNotification('保存知识块失败，请重试', 'error');
+    }
+}
+
+// 删除知识块
+async function deleteKnowledgeChunk(chunkId, fileName, chunkIndex) {
+    const confirmed = await showConfirmDialog(
+        '确认删除知识块',
+        `确定要删除知识块 #${chunkIndex} 吗？\n\n文件：${fileName}\n\n此操作无法撤销！`,
+        '确认删除'
+    );
+
+    if (!confirmed) return;
+
+    try {
+        showLoading('删除中...');
+
+        const response = await fetch(`/api/teacher/knowledge/chunk/${encodeURIComponent(chunkId)}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        hideLoading();
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                showNotification('知识块删除成功', 'success');
+                // 刷新知识块列表
+                refreshCurrentChunksList();
+            } else {
+                showNotification(result.message || '删除失败', 'error');
+            }
+        } else {
+            showNotification('删除失败，请重试', 'error');
+        }
+
+    } catch (error) {
+        hideLoading();
+        console.error('删除知识块失败:', error);
+        showNotification('删除知识块失败，请重试', 'error');
+    }
+}
+
+// 隐藏编辑模态框
+function hideEditChunkModal() {
+    const modal = document.getElementById('edit-chunk-modal');
+    if (!modal) return;
+    
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+    }, 300);
+}
+
+// 刷新当前知识块列表
+function refreshCurrentChunksList() {
+    // 获取当前显示的课程ID
+    const modal = document.getElementById('knowledge-chunks-modal');
+    if (modal && modal.style.display === 'flex') {
+        // 如果知识块列表模态框正在显示，重新加载数据
+        const courseName = document.getElementById('chunks-course-name').textContent;
+        const courseCode = document.getElementById('chunks-course-code').textContent;
+        
+        // 从当前课程列表中找到对应的课程ID
+        const course = knowledgeCurrentCourses.find(c => c.name === courseName);
+        if (course) {
+            viewKnowledgeChunks(course.id, course.name);
+        }
     }
 }

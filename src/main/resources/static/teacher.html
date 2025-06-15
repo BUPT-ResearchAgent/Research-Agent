@@ -190,6 +190,79 @@
             border-radius: 6px;
             border: 1px solid #e9ecef;
         }
+        
+        /* 最近上传文档表格样式 - 固定行高 */
+        #recent-documents-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+        
+        #recent-documents-table tbody tr {
+            height: 50px;
+        }
+        
+        #recent-documents-table tbody td {
+            height: 50px;
+            vertical-align: middle;
+            padding: 8px 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: center;
+        }
+        
+        #recent-documents-table thead th {
+            text-align: center;
+        }
+        
+        #recent-documents-table tbody td:last-child {
+            white-space: nowrap;
+            text-align: center;
+        }
+        
+        /* 操作按钮样式 */
+        #recent-documents-table .btn {
+            min-width: 32px;
+            padding: 6px 8px;
+            margin: 0 2px;
+        }
+        
+        /* 状态徽章样式 */
+        #recent-documents-table .badge {
+            padding: 4px 8px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        
+        /* 全部文档模态框表格样式 */
+        .modal .table tbody tr {
+            height: 50px;
+        }
+        
+        .modal .table tbody td {
+            height: 50px;
+            vertical-align: middle;
+            padding: 8px 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: center;
+        }
+        
+        .modal .table thead th {
+            text-align: center;
+        }
+        
+        .modal .table tbody td:last-child {
+            white-space: nowrap;
+            text-align: center;
+        }
+        
+        .modal .table .btn {
+            min-width: 32px;
+            padding: 6px 8px;
+            margin: 0 2px;
+        }
     </style>
 </head>
 <body>
@@ -375,7 +448,7 @@
                 <div class="card-header">
                     <i class="fas fa-chart-bar"></i> 知识点掌握情况
                     <div class="card-actions">
-                        <select id="knowledge-course-select" class="form-select">
+                        <select id="dashboard-course-select" class="form-select">
                             <option value="">请选择课程</option>
                         </select>
                         <select class="form-select">
@@ -466,33 +539,119 @@
             <div class="content-header">
                 <h1 class="page-title">构建课程知识库</h1>
                 <div class="header-actions">
-                    <button class="btn btn-accent" onclick="loadMaterialsData()">
-                        <i class="fas fa-sync-alt"></i> 刷新资料
+                    <button class="btn btn-accent" onclick="refreshKnowledgeData()">
+                        <i class="fas fa-sync-alt"></i> 刷新数据
                     </button>
-                    <button class="btn btn-primary" onclick="showUploadModal()">
-                        <i class="fas fa-plus"></i> 上传资料
+                    <button class="btn btn-primary" onclick="showKnowledgeUploadModal()">
+                        <i class="fas fa-plus"></i> 上传文档
                     </button>
+
+                </div>
+                        </div>
+            
+            <!-- 知识库统计数据（独立显示） -->
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">知识库数量</div>
+                        <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
+                            <i class="fas fa-database" style="color: var(--primary-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="knowledge-base-count">0</div>
+                    <div class="stat-change">
+                        <!-- 删除绿色描述文字 -->
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">知识块数量</div>
+                        <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
+                            <i class="fas fa-puzzle-piece" style="color: var(--success-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="total-chunks">0</div>
+                    <div class="stat-change">
+                        <!-- 删除绿色描述文字 -->
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">文档数量</div>
+                        <div class="stat-icon" style="background-color: rgba(142, 68, 173, 0.1);">
+                            <i class="fas fa-file-alt" style="color: #8e44ad;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="total-files">0</div>
+                    <div class="stat-change">
+                        <!-- 删除绿色描述文字 -->
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">总大小</div>
+                        <div class="stat-icon" style="background-color: rgba(243, 156, 18, 0.1);">
+                            <i class="fas fa-hdd" style="color: #f39c12;"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="total-size">0 Bytes</div>
+                    <div class="stat-change">
+                        <!-- 删除绿色描述文字 -->
+                    </div>
                 </div>
                         </div>
             
             <div class="main-content">
-                <!-- 上传表单已移至模态框，此处隐藏 -->
                 
+                <!-- 按课程分组的知识库列表 -->
                     <div class="content-card">
                         <div class="card-header">
-                        <i class="fas fa-database"></i> 知识库
+                        <i class="fas fa-database"></i> 课程知识库
                             <div class="card-actions">
-                            <input type="text" id="material-search" class="form-input" placeholder="搜索资料..." style="width: 200px;">
+                            <select id="knowledge-course-filter" class="form-select" onchange="filterKnowledgeByCourse()" style="margin-right: 10px;">
+                                <option value="">全部课程</option>
+                            </select>
+                            <input type="text" id="knowledge-search" class="form-input" placeholder="搜索课程或文档..." style="width: 200px;" oninput="searchKnowledge()">
+                        </div>
+                    </div>
+                    <div id="knowledge-list-container" class="knowledge-carousel-container">
+                        <div class="knowledge-carousel-wrapper">
+                            <div class="knowledge-carousel-track" id="knowledge-carousel-track">
+                                <div class="knowledge-empty-state" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                                    <i class="fas fa-database" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                                    <p>暂无知识库数据</p>
+                                    <p>上传文档后这里会显示知识库信息</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="knowledge-carousel-indicators" id="knowledge-carousel-indicators" style="display: none;">
+                            <!-- 动态生成指示器 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 最近上传文档 -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-clock"></i> 最近上传文档
+                        <div class="card-actions">
+                            <button class="btn btn-sm btn-accent" onclick="showAllDocuments()">
+                                <i class="fas fa-list"></i> 查看全部
+                            </button>
                             </div>
                         </div>
                     <div class="table-container">
-                        <table id="materials-table">
+                        <table id="recent-documents-table">
                             <thead>
                                 <tr>
+                                    <th>文档名称</th>
                                     <th>课程</th>
-                                    <th>资料名称</th>
                                     <th>上传时间</th>
-                                    <th>文件大小</th>
+                                    <th>知识块数</th>
+                                    <th>处理状态</th>
                                     <th>操作</th>
                                 </tr>
                             </thead>
@@ -587,7 +746,7 @@
             <div class="content-header">
                 <h1 class="page-title">发布通知</h1>
                 <div class="header-actions">
-                    <button class="btn btn-accent" onclick="openNoticeHistory()">
+                    <button class="btn btn-accent" onclick="loadNoticeHistory()">
                         <i class="fas fa-history"></i> 历史通知
                     </button>
                 </div>
@@ -1199,89 +1358,157 @@
         </div>
     </main>
 
-    <!-- 上传资料模态框 -->
-    <div id="upload-material-modal" class="course-modal-overlay">
-        <div class="course-modal-container" style="max-width: 800px;">
+    <!-- 知识库文档上传模态框 -->
+    <div id="knowledge-upload-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 900px;">
             <div class="course-modal-header">
                 <div class="modal-title-section">
                     <div class="modal-icon">
-                        <i class="fas fa-upload"></i>
+                        <i class="fas fa-database"></i>
                     </div>
-                    <h3>上传资料文件</h3>
+                    <h3>构建课程知识库</h3>
                 </div>
-                <button id="close-upload-modal" class="modal-close-btn">
+                <button id="close-knowledge-upload-modal" class="modal-close-btn">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             
             <div class="course-modal-body">
-                <form id="upload-material-form">
-                    <!-- 第一行：选择课程和资料类型 -->
-                    <div class="form-row" style="display: flex; gap: 20px; margin-bottom: 20px;">
-                        <div class="course-form-group" style="flex: 1; min-width: 0; width: calc(50% - 10px);">
+                <div class="upload-tabs" style="margin-bottom: 24px;">
+                    <button class="tab-btn active" data-tab="single-upload">
+                        <i class="fas fa-file"></i> 单文档上传
+                    </button>
+                    <button class="tab-btn" data-tab="batch-upload">
+                        <i class="fas fa-files"></i> 批量上传
+                    </button>
+                </div>
+
+                <!-- 单文档上传 -->
+                <div id="single-upload" class="tab-content active">
+                    <form id="knowledge-single-upload-form">
+                        <div class="course-form-group" style="margin-bottom: 20px;">
                             <label class="course-form-label">
                                 <i class="fas fa-book"></i>
                                 选择课程 <span class="required">*</span>
                             </label>
-                            <select id="modal-material-course-select" class="course-form-input" required>
+                            <select id="knowledge-course-select" class="course-form-input" required>
                                 <option value="">请选择课程</option>
                             </select>
                         </div>
                         
-                        <div class="course-form-group" style="flex: 1; min-width: 0; width: calc(50% - 10px);">
+                        <div class="course-form-group">
                             <label class="course-form-label">
-                                <i class="fas fa-tags"></i>
-                                资料类型 <span class="required">*</span>
+                                <i class="fas fa-file-alt"></i>
+                                选择文档 <span class="required">*</span>
                             </label>
-                            <select id="modal-material-type" class="course-form-input" required>
-                                <option value="PPT">PPT课件</option>
-                                <option value="PDF">PDF文档</option>
-                                <option value="WORD">Word文档</option>
-                                <option value="OTHER">其他资料</option>
-                            </select>
+                            <div class="file-upload-area" id="knowledge-file-upload-area">
+                                <input type="file" id="knowledge-file-input" accept=".txt,.pdf,.doc,.docx,.html,.htm" style="display: none;" required>
+                                <div class="upload-prompt">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p>点击上传文档或拖拽文档至此区域</p>
+                                    <p class="upload-tips">支持 TXT、PDF、DOC、DOCX、HTML 格式，单个文件不超过50MB</p>
+                                </div>
+                            </div>
+                            <div id="single-file-preview" style="display: none; margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <i class="fas fa-file-alt" style="color: #007bff;"></i>
+                                    <span id="single-file-name"></span>
+                                    <span id="single-file-size" style="color: #6c757d; font-size: 12px;"></span>
+                                    <button type="button" onclick="removeSingleFile()" style="margin-left: auto; background: none; border: none; color: #dc3545; cursor: pointer;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
                         </div>
                     </div>
                     
-                    <!-- 第二行：选择文件和资料描述 -->
-                    <div class="form-row" style="display: flex; gap: 20px; margin-bottom: 20px;">
-                        <div class="course-form-group" style="flex: 1; min-width: 0; width: calc(50% - 10px);">
+                        <div class="course-form-group">
                             <label class="course-form-label">
-                                <i class="fas fa-file"></i>
-                                选择文件 <span class="required">*</span>
+                                <i class="fas fa-edit"></i>
+                                文档描述
                             </label>
-                            <div class="file-upload-area" id="modal-file-upload-area" style="height: 200px; min-height: 200px;">
-                                <input type="file" id="modal-file-input" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt" style="display: none;" required>
+                            <textarea id="knowledge-description" class="course-form-input" rows="3" placeholder="请输入文档的简要描述（可选）..."></textarea>
+                        </div>
+                        
+                        <div class="course-modal-actions">
+                            <button type="button" id="cancel-knowledge-upload" class="course-btn course-btn-cancel">
+                                <i class="fas fa-times"></i>
+                                <span>取消</span>
+                            </button>
+                            <button type="submit" class="course-btn course-btn-primary">
+                                <i class="fas fa-robot"></i>
+                                <span>上传并智能处理</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 批量上传 -->
+                <div id="batch-upload" class="tab-content">
+                    <form id="knowledge-batch-upload-form">
+                        <div class="course-form-group" style="margin-bottom: 20px;">
+                            <label class="course-form-label">
+                                <i class="fas fa-book"></i>
+                                选择课程 <span class="required">*</span>
+                            </label>
+                            <select id="batch-course-select" class="course-form-input" required>
+                                <option value="">请选择课程</option>
+                            </select>
+                        </div>
+                        
+                        <div class="course-form-group">
+                            <label class="course-form-label">
+                                <i class="fas fa-files"></i>
+                                选择多个文档 <span class="required">*</span>
+                            </label>
+                            <div class="file-upload-area" id="batch-file-upload-area">
+                                <input type="file" id="batch-file-input" accept=".txt,.pdf,.doc,.docx,.html,.htm" multiple style="display: none;" required>
                                 <div class="upload-prompt">
                                     <i class="fas fa-cloud-upload-alt"></i>
-                                    <p>点击上传文件或拖拽文件至此区域</p>
-                                    <p class="upload-tips">支持 PDF、Word、PPT、TXT 格式，单个文件不超过50MB</p>
+                                    <p>点击选择多个文档或拖拽文档至此区域</p>
+                                    <p class="upload-tips">支持 TXT、PDF、DOC、DOCX、HTML 格式，可同时选择多个文件</p>
                                 </div>
+                            </div>
+                            <div id="batch-files-preview" style="display: none; max-height: 200px; overflow-y: auto; margin-top: 12px; padding: 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
+                                <div style="margin-bottom: 8px; font-weight: 500; color: #495057;">
+                                    已选择 <span id="batch-file-count">0</span> 个文件
+                                </div>
+                                <div id="batch-file-list"></div>
                             </div>
                         </div>
                         
-                        <div class="course-form-group" style="flex: 1; min-width: 0; width: calc(50% - 10px);">
-                            <label class="course-form-label">
-                                <i class="fas fa-edit"></i>
-                                资料描述
-                            </label>
-                            <textarea id="modal-material-description" class="course-form-input" rows="3" placeholder="请输入资料的简要描述..." style="height: 200px; min-height: 200px; max-height: 200px; resize: none;"></textarea>
+                        <div class="course-modal-actions">
+                            <button type="button" id="cancel-batch-upload" class="course-btn course-btn-cancel">
+                                <i class="fas fa-times"></i>
+                                <span>取消</span>
+                            </button>
+                            <button type="submit" class="course-btn course-btn-primary">
+                                <i class="fas fa-robot"></i>
+                                <span>批量上传并处理</span>
+                            </button>
                         </div>
+                    </form>
+                </div>
+
+                <!-- 处理进度 -->
+                <div id="knowledge-processing" style="display: none; padding: 24px; text-align: center;">
+                    <div style="margin-bottom: 16px;">
+                        <i class="fas fa-robot fa-3x" style="color: #007bff; animation: pulse 2s infinite;"></i>
                     </div>
-                    
-                    <div class="course-modal-actions">
-                        <button type="button" id="cancel-upload" class="course-btn course-btn-cancel">
-                            <i class="fas fa-times"></i>
-                            <span>取消</span>
-                        </button>
-                        <button type="submit" class="course-btn course-btn-primary">
-                            <i class="fas fa-upload"></i>
-                            <span>上传资料</span>
-                        </button>
+                    <h4>AI智能处理中...</h4>
+                    <p id="processing-status" style="color: #6c757d; margin-bottom: 20px;">正在分析文档内容</p>
+                    <div class="progress-bar" style="width: 100%; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden;">
+                        <div id="processing-progress" class="progress-fill" style="width: 0%; height: 100%; background: linear-gradient(45deg, #007bff, #0056b3); transition: width 0.3s ease-in-out;"></div>
                     </div>
-                </form>
+                    <div id="processing-details" style="margin-top: 16px; font-size: 14px; color: #6c757d;">
+                        <div id="processing-step">步骤 1/4: 文档上传</div>
+                        <div id="processing-info" style="margin-top: 8px;"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
+
 
     <!-- 修改密码模态框 -->
     <div id="change-password-modal" class="course-modal-overlay">
@@ -2097,6 +2324,163 @@
                 </button>
                 <button id="download-outline" class="btn btn-accent" onclick="downloadCurrentOutline()" style="flex: 0 0 auto; min-width: 100px; height: 40px;">
                     <i class="fas fa-download"></i> 下载
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识块查看模态框 -->
+    <div id="knowledge-chunks-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="width: 900px; max-width: 95vw; height: 700px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(255, 255, 255, 0.2);">
+                        <i class="fas fa-list" style="color: white;"></i>
+                    </div>
+                    <h3 id="chunks-modal-title">知识块详情</h3>
+                </div>
+                <button id="close-chunks-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px;">
+                <div class="chunks-info" style="padding: 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
+                    <div id="chunks-course-info" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong id="chunks-course-name">课程名称</strong>
+                            <span style="color: #7f8c8d; margin-left: 10px;" id="chunks-course-code">课程代码</span>
+                        </div>
+                        <div style="color: #7f8c8d;">
+                            共 <span id="chunks-total-count">0</span> 个知识块
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chunks-filters" style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-shrink: 0;">
+                    <input type="text" id="chunks-search" class="form-input" placeholder="搜索知识块内容..." style="flex: 1;">
+                    <select id="chunks-file-filter" class="form-select" style="width: 200px;">
+                        <option value="">所有文件</option>
+                    </select>
+                </div>
+                
+                <div class="chunks-content" style="flex: 1; position: relative; min-height: 0;">
+                    <div id="chunks-loading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #7f8c8d;">
+                        <i class="fas fa-spinner fa-spin"></i> 加载知识块数据中...
+                    </div>
+                    
+                    <div id="chunks-list" style="display: none; height: 100%; overflow-y: auto; padding-right: 8px;">
+                        <!-- 动态加载知识块列表 -->
+                    </div>
+                    
+                    <div id="chunks-empty" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #7f8c8d;">
+                        <i class="fas fa-puzzle-piece" style="font-size: 32px; margin-bottom: 12px; color: #bdc3c7;"></i>
+                        <p>该课程暂无知识块数据</p>
+                        <p>上传文档后会生成知识块</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: none;">
+                <!-- 移除关闭按钮 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识块详情查看模态框 -->
+    <div id="chunk-detail-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="width: 800px; max-width: 90vw; height: 600px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(255, 255, 255, 0.2);">
+                        <i class="fas fa-eye" style="color: white;"></i>
+                    </div>
+                    <h3 id="chunk-detail-title">知识块详情</h3>
+                </div>
+                <button id="close-chunk-detail-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px;">
+                <div class="chunk-detail-info" style="padding: 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div>
+                            <strong id="chunk-detail-name">知识块 #1</strong>
+                            <span style="color: #7f8c8d; margin-left: 10px;" id="chunk-detail-file">文件名</span>
+                        </div>
+                        <div>
+                            <span id="chunk-detail-status" class="badge badge-success">已处理</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #95a5a6;">
+                        <span>块ID: <span id="chunk-detail-id">-</span></span>
+                        <span style="margin-left: 20px;">创建时间: <span id="chunk-detail-time">-</span></span>
+                    </div>
+                </div>
+                
+                <div class="chunk-detail-content" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <h5 style="margin-bottom: 12px; color: #2c3e50; flex-shrink: 0;">
+                        <i class="fas fa-file-text"></i> 完整内容
+                    </h5>
+                    <div id="chunk-content-display" style="flex: 1; overflow-y: auto; padding: 16px; background: white; border: 1px solid #e9ecef; border-radius: 8px; line-height: 1.6; font-size: 14px; white-space: pre-wrap;">
+                        <!-- 动态加载知识块完整内容 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: none;">
+                <!-- 移除关闭按钮 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识块编辑模态框 -->
+    <div id="edit-chunk-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="width: 800px; max-width: 90vw; height: 600px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(255, 255, 255, 0.2);">
+                        <i class="fas fa-edit" style="color: white;"></i>
+                    </div>
+                    <h3 id="edit-chunk-title">编辑知识块</h3>
+                </div>
+                <button id="close-edit-chunk-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px;">
+                <div class="edit-chunk-info" style="padding: 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px; flex-shrink: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div>
+                            <strong id="edit-chunk-name">知识块 #1</strong>
+                            <span style="color: #7f8c8d; margin-left: 10px;" id="edit-chunk-file">文件名</span>
+                        </div>
+                        <div>
+                            <span id="edit-chunk-status" class="badge badge-success">已处理</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #95a5a6;">
+                        <span>块ID: <span id="edit-chunk-id">-</span></span>
+                        <span style="margin-left: 20px;">创建时间: <span id="edit-chunk-time">-</span></span>
+                    </div>
+                </div>
+                
+                <div class="edit-chunk-content" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
+                    <h5 style="margin-bottom: 12px; color: #2c3e50; flex-shrink: 0;">
+                        <i class="fas fa-file-text"></i> 编辑内容
+                    </h5>
+                    <textarea id="edit-chunk-textarea" style="flex: 1; padding: 16px; border: 1px solid #e9ecef; border-radius: 8px; line-height: 1.6; font-size: 14px; resize: none; font-family: inherit;" placeholder="请输入知识块内容..."></textarea>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: flex; gap: 12px; justify-content: center; padding: 15px 20px; border-top: 1px solid #e9ecef;">
+                <button type="button" class="btn btn-secondary" onclick="hideEditChunkModal()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button type="button" class="btn btn-success" onclick="saveChunkEdit()">
+                    <i class="fas fa-save"></i> 保存
                 </button>
             </div>
         </div>
