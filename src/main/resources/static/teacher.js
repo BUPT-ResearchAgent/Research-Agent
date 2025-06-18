@@ -791,7 +791,6 @@ function updateCourseSelects() {
         }
     });
     }
-
 // 文件上传功能
 function setupFileUpload() {
     const uploadArea = document.getElementById('file-upload-area');
@@ -1100,19 +1099,12 @@ function updateSelectedExamMaterials() {
     console.log(`已选择 ${selectedCount} 个考试资料`);
 }
 
-// 生成教学大纲
+// 生成教学大纲（基于知识库）
 async function generateOutline() {
     try {
         const courseId = document.getElementById('outline-course-select').value;
         const hours = document.getElementById('outline-hours').value;
         const requirements = document.getElementById('outline-requirements').value;
-        
-        // 获取选中的资料
-        const selectedMaterials = [];
-        const checkboxes = document.querySelectorAll('#materials-list input[type="checkbox"]:checked');
-        checkboxes.forEach(checkbox => {
-            selectedMaterials.push(parseInt(checkbox.value));
-        });
         
         if (!courseId) {
             showNotification('请选择课程', 'warning');
@@ -1124,16 +1116,10 @@ async function generateOutline() {
             return;
         }
         
-        if (selectedMaterials.length === 0) {
-            showNotification('请至少选择一个资料', 'warning');
-            return;
-        }
-        
-        showLoading('AI正在基于知识库生成教学大纲...');
+        showLoading('🔍 正在使用RAG技术从知识库中搜索相关内容...<br>🤖 AI将基于检索到的知识块生成教学大纲...');
         
         const response = await TeacherAPI.generateOutline({
             courseId: parseInt(courseId),
-            materialIds: selectedMaterials,
             requirements: requirements || '',
             hours: parseInt(hours)
         });
@@ -1142,7 +1128,7 @@ async function generateOutline() {
         
         if (response.success) {
             console.log('教学大纲生成成功，响应数据:', response);
-            showNotification('教学大纲生成成功！', 'success');
+            showNotification('🎉 基于知识库的教学大纲生成成功！', 'success');
             displayOutlineResult(response.data);
         } else {
             console.error('教学大纲生成失败:', response);
@@ -1161,12 +1147,6 @@ function clearOutlineForm() {
     document.getElementById('outline-course-select').value = '';
     document.getElementById('outline-hours').value = '';
     document.getElementById('outline-requirements').value = '';
-    
-    // 重置资料选择区域
-    document.getElementById('materials-loading').style.display = 'none';
-    document.getElementById('materials-selection').style.display = 'none';
-    document.getElementById('materials-empty').style.display = 'block';
-    document.getElementById('materials-list').innerHTML = '';
     
     // 隐藏结果区域
     const resultDiv = document.getElementById('outline-result');
@@ -1435,7 +1415,36 @@ function parseTableContent(html) {
 function formatOutlineContent(content) {
     if (!content) return '暂无内容';
     
-    // 使用Markdown解析器
+    console.log('开始格式化内容，内容长度:', content.length);
+    console.log('内容前100字符:', content.substring(0, 100));
+    
+    // 检查内容是否包含HTML表格
+    if (content.includes('<table') && content.includes('</table>')) {
+        console.log('检测到HTML表格内容，直接返回');
+        // 如果是HTML表格内容，直接返回，不进行Markdown解析
+        return content;
+    }
+    
+    // 检查是否包含HTML标签
+    if (content.includes('<') && content.includes('>')) {
+        console.log('检测到HTML标签，进行基本清理');
+        // 如果包含HTML标签但不是表格，进行基本的HTML清理和格式化
+        let html = content;
+        
+        // 确保段落有适当的样式
+        html = html.replace(/<p>/g, '<p style="margin: 12px 0; line-height: 1.7; color: #2c3e50;">');
+        
+        // 确保标题有适当的样式
+        html = html.replace(/<h1>/g, '<h1 style="color: #e74c3c; margin: 32px 0 20px 0; font-size: 24px; border-bottom: 3px solid #e74c3c; padding-bottom: 10px;">');
+        html = html.replace(/<h2>/g, '<h2 style="color: #2980b9; margin: 24px 0 16px 0; font-size: 20px; border-bottom: 2px solid #3498db; padding-bottom: 8px;">');
+        html = html.replace(/<h3>/g, '<h3 style="color: #2c3e50; margin: 20px 0 12px 0; font-size: 18px;">');
+        html = html.replace(/<h4>/g, '<h4 style="color: #7f8c8d; margin: 16px 0 8px 0; font-size: 16px;">');
+        
+        return html;
+    }
+    
+    console.log('使用Markdown解析器');
+    // 如果是纯文本或Markdown内容，使用Markdown解析器
     return parseMarkdown(content);
 }
 
@@ -2708,8 +2717,7 @@ function updateDashboardRecentNotices() {
         const courseName = notice.courseName || '未知课程';
         const courseCode = notice.courseCode || '未知代码';
         const teacherName = notice.teacherName || '未知教师';
-        const statusText = notice.pushTime === 'scheduled' && notice.scheduledTime ? 
-                          (new Date(notice.scheduledTime) > new Date() ? '待推送' : '已推送') : '已推送';
+        const statusText = notice.pushTime === 'scheduled' ? '定时推送' : '立即推送';
         const statusClass = statusText === '待推送' ? 'status-pending' : 'status-sent';
         const truncatedContent = notice.content.length > 60 ? notice.content.substring(0, 60) + '...' : notice.content;
         
@@ -4392,7 +4400,7 @@ function clearUploadModalForm() {
             prompt.innerHTML = `
                 <i class="fas fa-cloud-upload-alt"></i>
                 <p>点击上传文件或拖拽文件至此区域</p>
-                <p class="upload-tips">支持 PDF、Word、PPT、TXT 格式，单个文件不超过50MB</p>
+                <p class="upload-tips">支持 PDF、Word、PPT、TXT、HTML 格式，单个文件不超过50MB</p>
             `;
         }
     }
@@ -4703,66 +4711,131 @@ async function refreshOutlineHistory() {
 // 显示历史记录列表
 function displayHistoryList(outlines) {
     const contentDiv = document.getElementById('history-content');
-    let html = '';
+    
+    // 清空内容并设置容器样式
+    contentDiv.innerHTML = '';
+    contentDiv.style.cssText = `
+        display: block;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        clear: both;
+    `;
     
     outlines.forEach((outline, index) => {
         const createTime = formatDate(outline.createdAt);
         const courseName = outline.course ? outline.course.name : '未知课程';
         const courseCode = outline.course ? outline.course.courseCode : '';
         const previewContent = outline.teachingDesign ? 
-            outline.teachingDesign.substring(0, 100) + '...' : '暂无内容';
+            outline.teachingDesign.substring(0, 100).replace(/[<>]/g, '') + '...' : '暂无内容';
         
-        html += `
-            <div class="history-item" style="
-                border: 1px solid #e9ecef;
-                border-radius: 8px;
-                padding: 20px;
-                margin-bottom: 16px;
-                background: #fff;
-                transition: all 0.3s ease;
-                cursor: pointer;
-            " onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" 
-               onmouseout="this.style.boxShadow='none'"
-               onclick="viewHistoryDetail(${outline.id})">
-                
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                    <div>
-                        <h4 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 16px;">
-                            <i class="fas fa-file-alt" style="color: #3498db; margin-right: 8px;"></i>
-                            ${courseName}${courseCode ? ` (${courseCode})` : ''}
-                        </h4>
-                        <div style="display: flex; align-items: center; gap: 16px; font-size: 13px; color: #7f8c8d;">
-                            <span><i class="fas fa-calendar-alt"></i> ${createTime}</span>
-                            <span><i class="fas fa-list-ol"></i> 第 ${outlines.length - index} 版</span>
-                        </div>
-                    </div>
-                    <div class="btn-group" style="display: flex; gap: 8px;">
-                        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); viewHistoryDetail(${outline.id})" title="查看详情">
-                            <i class="fas fa-eye"></i>
-                        </button>
-
-                        <button class="btn btn-sm btn-accent" onclick="event.stopPropagation(); downloadHistoryOutline(${outline.id})" title="下载">
-                            <i class="fas fa-download"></i>
-                        </button>
-                        <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); applyHistoryOutline(${outline.id})" title="应用">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteHistoryOutline(${outline.id}, '${courseName.replace(/'/g, "\\'")}')" title="删除">
-                            <i class="fas fa-trash"></i>
-                        </button>
+        // 创建历史记录项元素
+        const historyItem = document.createElement('div');
+        historyItem.className = 'history-item';
+        historyItem.style.cssText = `
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #fff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            clear: both;
+            overflow: hidden;
+        `;
+        
+        // 鼠标悬停效果
+        historyItem.addEventListener('mouseenter', function() {
+            this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+            this.style.transform = 'translateY(-2px)';
+        });
+        
+        historyItem.addEventListener('mouseleave', function() {
+            this.style.boxShadow = 'none';
+            this.style.transform = 'translateY(0)';
+        });
+        
+        // 点击查看详情
+        historyItem.addEventListener('click', function() {
+            viewHistoryDetail(outline.id);
+        });
+        
+        historyItem.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <div style="flex: 1; min-width: 300px;">
+                    <h4 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 16px; font-weight: 600;">
+                        <i class="fas fa-file-alt" style="color: #3498db; margin-right: 8px;"></i>
+                        ${courseName}${courseCode ? ` (${courseCode})` : ''}
+                    </h4>
+                    <div style="display: flex; align-items: center; gap: 16px; font-size: 13px; color: #7f8c8d; flex-wrap: wrap;">
+                        <span><i class="fas fa-calendar-alt" style="margin-right: 4px;"></i> ${createTime}</span>
+                        <span><i class="fas fa-list-ol" style="margin-right: 4px;"></i> 第 ${outlines.length - index} 版</span>
                     </div>
                 </div>
-                
-                <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #3498db;">
-                    <div style="font-size: 13px; color: #5a6c7d; line-height: 1.5;">
-                        ${previewContent}
-                    </div>
+                <div class="btn-group" style="display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
+                    <button class="btn btn-sm btn-primary history-btn-view" data-outline-id="${outline.id}" title="查看详情" style="min-width: 36px;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-accent history-btn-download" data-outline-id="${outline.id}" title="下载PDF" style="min-width: 36px;">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button class="btn btn-sm btn-success history-btn-apply" data-outline-id="${outline.id}" title="应用此大纲" style="min-width: 36px;">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger history-btn-delete" data-outline-id="${outline.id}" data-course-name="${courseName.replace(/"/g, '&quot;')}" title="删除" style="min-width: 36px;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #3498db; margin-top: 10px;">
+                <div style="font-size: 13px; color: #5a6c7d; line-height: 1.6; word-wrap: break-word;">
+                    ${previewContent}
                 </div>
             </div>
         `;
+        
+        // 添加按钮事件监听器
+        const viewBtn = historyItem.querySelector('.history-btn-view');
+        const downloadBtn = historyItem.querySelector('.history-btn-download');
+        const applyBtn = historyItem.querySelector('.history-btn-apply');
+        const deleteBtn = historyItem.querySelector('.history-btn-delete');
+        
+        if (viewBtn) {
+            viewBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                viewHistoryDetail(outline.id);
+            });
+        }
+        
+        if (downloadBtn) {
+            downloadBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                downloadHistoryOutline(outline.id);
+            });
+        }
+        
+        if (applyBtn) {
+            applyBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                applyHistoryOutline(outline.id);
+            });
+        }
+        
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                deleteHistoryOutline(outline.id, courseName);
+            });
+        }
+        
+        // 添加到容器
+        contentDiv.appendChild(historyItem);
     });
-    
-    contentDiv.innerHTML = html;
 }
 
 // 查看历史大纲详情
@@ -6928,6 +7001,9 @@ function handleBatchFileSelect(event) {
                     <i class="fas fa-file-alt" style="color: #007bff;"></i>
                     <span style="flex: 1;">${file.name}</span>
                     <span style="color: #6c757d; font-size: 12px;">(${formatFileSize(file.size)})</span>
+                    <button class="btn btn-sm btn-danger" onclick="removeBatchFile(${index})" style="margin-left: 8px;">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
             `;
         });
@@ -8040,3 +8116,4 @@ function refreshCurrentChunksList() {
         }
     }
 }
+

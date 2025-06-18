@@ -15,6 +15,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.ArrayList;
 
 @Service
 @Transactional
@@ -52,6 +54,12 @@ public class TeacherService {
     
     @Autowired
     private StudentCourseRepository studentCourseRepository;
+    
+    @Autowired
+    private KnowledgeBaseService knowledgeBaseService;
+    
+    @Autowired
+    private VectorDatabaseService vectorDatabaseService;
     
     private static final String SALT = "SmartEdu2024"; // 与UserService保持一致的盐值
     
@@ -523,31 +531,79 @@ public class TeacherService {
     }
     
     /**
-     * 根据选定的资料生成教学大纲
+     * 根据知识库生成教学大纲（使用RAG技术）
      */
-    public TeachingOutline generateOutlineWithMaterials(Long courseId, List<Integer> materialIds, String requirements, Integer hours) {
+    public TeachingOutline generateOutlineWithKnowledgeBase(Long courseId, String requirements, Integer hours) {
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new RuntimeException("课程不存在"));
         
-        // 获取选定的课程资料
-        StringBuilder contentBuilder = new StringBuilder();
-        for (Integer materialId : materialIds) {
-            Optional<CourseMaterial> materialOpt = materialRepository.findById(materialId.longValue());
-            if (materialOpt.isPresent() && materialOpt.get().getContent() != null) {
-                contentBuilder.append(materialOpt.get().getContent()).append("\n\n");
+        // 先检查课程是否有知识库数据
+        KnowledgeBaseService.KnowledgeStats stats = knowledgeBaseService.getKnowledgeStats(courseId);
+        if (stats.getTotalChunks() == 0) {
+            throw new RuntimeException("该课程还没有知识库数据，请先在「构建课程知识库」中上传课程资料");
+        }
+        
+        if (stats.getProcessedChunks() == 0) {
+            throw new RuntimeException("该课程的知识库数据正在处理中，请稍后再试");
+        }
+        
+        System.out.println("课程 " + courseId + " 知识库检查通过: 总块数=" + stats.getTotalChunks() + 
+                          ", 已处理=" + stats.getProcessedChunks());
+
+        // 测试向量数据库连接和集合状态
+        vectorDatabaseService.testConnectionAndCollection(courseId);
+
+        // 构建查询问题，包含课程信息和教学要求
+        String queryText = buildOutlineQuery(course.getName(), requirements, hours);
+        
+        System.out.println("开始RAG搜索，查询内容: " + queryText);
+        
+        // 使用RAG技术搜索相关知识块
+        List<VectorDatabaseService.SearchResult> searchResults = 
+            knowledgeBaseService.searchKnowledge(courseId, queryText, 10); // 搜索top 10相关内容
+        
+        if (searchResults.isEmpty()) {
+            // 如果RAG搜索没有结果，可能是向量数据库的问题，尝试重建集合
+            System.out.println("向量搜索无结果，可能是字段名称问题，尝试重建向量集合");
+            boolean rebuilt = vectorDatabaseService.rebuildCollectionForCourse(courseId);
+            
+            if (rebuilt) {
+                // 重建成功后，需要重新导入知识库数据
+                System.out.println("向量集合重建成功，需要重新导入知识库数据");
+                knowledgeBaseService.reimportCourseKnowledge(courseId);
+                
+                // 再次尝试搜索
+                searchResults = knowledgeBaseService.searchKnowledge(courseId, queryText, 10);
+            }
+            
+            if (searchResults.isEmpty()) {
+                // 如果仍然没有结果，使用备用方案
+                System.out.println("重建后仍无搜索结果，使用数据库中的知识块");
+                searchResults = getFallbackKnowledgeChunks(courseId, 5);
+                
+                if (searchResults.isEmpty()) {
+                    throw new RuntimeException("无法从知识库中检索到相关内容，请检查知识库数据是否正常");
+                }
             }
         }
         
-        if (contentBuilder.length() == 0) {
-            throw new RuntimeException("选定的资料中没有可用的内容");
+        System.out.println("RAG搜索完成，找到 " + searchResults.size() + " 个相关知识块");
+        
+        // 提取匹配的内容
+        StringBuilder relevantContent = new StringBuilder();
+        for (int i = 0; i < searchResults.size(); i++) {
+            VectorDatabaseService.SearchResult result = searchResults.get(i);
+            relevantContent.append("【相关内容").append(i + 1).append("】");
+            if (result.getScore() > 0) {
+                relevantContent.append(" (相似度: ").append(String.format("%.3f", result.getScore())).append(")");
+            }
+            relevantContent.append("\n");
+            relevantContent.append(result.getContent()).append("\n\n");
         }
         
-        // 构建生成请求
-        String prompt = String.format("课程名称：%s\n学时：%d\n特殊要求：%s\n\n课程资料内容：\n%s", 
-                course.getName(), hours, requirements, contentBuilder.toString());
-        
-        // 调用DeepSeek生成教学大纲
-        String outlineContent = deepSeekService.generateTeachingOutlineWithHours(course.getName(), contentBuilder.toString(), requirements, hours);
+        // 调用DeepSeek生成教学大纲（使用RAG结果）
+        String outlineContent = deepSeekService.generateTeachingOutlineWithRAG(
+            course.getName(), relevantContent.toString(), requirements, hours, searchResults.size());
         
         // 总是创建新的教学大纲，不覆盖现有记录
         TeachingOutline outline = new TeachingOutline();
@@ -555,58 +611,65 @@ public class TeacherService {
         outline.setTeachingDesign(outlineContent);
         outline.setHours(hours); // 保存学时信息
         
-        System.out.println("开始创建新的教学大纲，课程ID: " + courseId + ", 课程名: " + course.getName());
+        System.out.println("开始创建新的教学大纲（基于知识库RAG），课程ID: " + courseId + ", 课程名: " + course.getName());
         
         TeachingOutline saved = outlineRepository.save(outline);
-        System.out.println("创建教学大纲成功，ID: " + saved.getId());
+        System.out.println("知识库RAG教学大纲生成成功，ID: " + saved.getId());
         // 确保Course被正确加载以避免懒加载问题
         saved.getCourse().getName(); // 触发加载
         return saved;
     }
     
     /**
-     * 重新生成教学大纲（更新当前显示的大纲）
+     * 获取备用知识块（当向量搜索失败时使用）
      */
-    public TeachingOutline regenerateOutlineWithMaterials(Long outlineId, Long courseId, List<Integer> materialIds, String requirements, Integer hours) {
-        // 验证大纲是否存在
-        TeachingOutline existingOutline = outlineRepository.findById(outlineId)
-                .orElseThrow(() -> new RuntimeException("教学大纲不存在"));
-        
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new RuntimeException("课程不存在"));
-        
-        // 获取选定的课程资料
-        StringBuilder contentBuilder = new StringBuilder();
-        for (Integer materialId : materialIds) {
-            Optional<CourseMaterial> materialOpt = materialRepository.findById(materialId.longValue());
-            if (materialOpt.isPresent() && materialOpt.get().getContent() != null) {
-                contentBuilder.append(materialOpt.get().getContent()).append("\n\n");
+    private List<VectorDatabaseService.SearchResult> getFallbackKnowledgeChunks(Long courseId, int limit) {
+        try {
+            List<Map<String, Object>> chunks = knowledgeBaseService.getKnowledgeChunks(courseId);
+            List<VectorDatabaseService.SearchResult> results = new ArrayList<>();
+            
+            int count = Math.min(limit, chunks.size());
+            for (int i = 0; i < count; i++) {
+                Map<String, Object> chunk = chunks.get(i);
+                VectorDatabaseService.SearchResult result = new VectorDatabaseService.SearchResult();
+                result.setChunkId((String) chunk.get("chunkId"));
+                result.setContent((String) chunk.get("content"));
+                result.setCourseId(courseId);
+                result.setScore(0.0f); // 备用方案没有相似度分数
+                results.add(result);
             }
+            
+            System.out.println("使用备用方案获取了 " + results.size() + " 个知识块");
+            return results;
+        } catch (Exception e) {
+            System.err.println("获取备用知识块失败: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+    
+    /**
+     * 构建大纲生成的查询问题
+     */
+    private String buildOutlineQuery(String courseName, String requirements, Integer hours) {
+        StringBuilder query = new StringBuilder();
+        
+        // 基本查询内容
+        query.append(courseName).append(" 教学大纲 课程设计");
+        
+        // 添加学时信息
+        if (hours != null && hours > 0) {
+            query.append(" ").append(hours).append("学时");
         }
         
-        if (contentBuilder.length() == 0) {
-            throw new RuntimeException("选定的资料中没有可用的内容");
+        // 添加特殊要求
+        if (requirements != null && !requirements.trim().isEmpty()) {
+            query.append(" ").append(requirements);
         }
         
-        // 构建生成请求
-        String prompt = String.format("课程名称：%s\n学时：%d\n特殊要求：%s\n\n课程资料内容：\n%s", 
-                course.getName(), hours, requirements, contentBuilder.toString());
+        // 添加相关教学术语
+        query.append(" 教学目标 教学重点 教学难点 教学方法 教学设计 课程内容");
         
-        // 调用DeepSeek重新生成教学大纲
-        String outlineContent = deepSeekService.generateTeachingOutlineWithHours(course.getName(), contentBuilder.toString(), requirements, hours);
-        
-        System.out.println("开始更新教学大纲，ID: " + outlineId + ", 课程: " + course.getName());
-        
-        // 更新现有大纲
-        existingOutline.setTeachingDesign(outlineContent);
-        existingOutline.setHours(hours); // 更新学时信息
-        existingOutline.setUpdatedAt(LocalDateTime.now());
-        
-        TeachingOutline saved = outlineRepository.save(existingOutline);
-        System.out.println("更新教学大纲成功，ID: " + saved.getId());
-        // 确保Course被正确加载以避免懒加载问题
-        saved.getCourse().getName(); // 触发加载
-        return saved;
+        return query.toString();
     }
     
     /**
@@ -628,5 +691,113 @@ public class TeacherService {
      */
     private boolean verifyPassword(String plainPassword, String hashedPassword) {
         return hashPassword(plainPassword).equals(hashedPassword);
+    }
+
+    // 保留原有方法以兼容现有API调用
+    /**
+     * 根据选定的资料生成教学大纲（使用RAG技术）
+     * @deprecated 推荐使用 generateOutlineWithKnowledgeBase 方法
+     */
+    @Deprecated
+    public TeachingOutline generateOutlineWithMaterials(Long courseId, List<Integer> materialIds, String requirements, Integer hours) {
+        // 直接调用新的知识库方法，忽略materialIds参数
+        return generateOutlineWithKnowledgeBase(courseId, requirements, hours);
+    }
+
+    /**
+     * 重新生成教学大纲（更新当前显示的大纲，使用RAG技术）
+     * @deprecated 推荐使用 regenerateOutlineWithKnowledgeBase 方法
+     */
+    @Deprecated
+    public TeachingOutline regenerateOutlineWithMaterials(Long outlineId, Long courseId, List<Integer> materialIds, String requirements, Integer hours) {
+        // 直接调用新的知识库方法，忽略materialIds参数
+        return regenerateOutlineWithKnowledgeBase(outlineId, courseId, requirements, hours);
+    }
+
+    /**
+     * 重新生成教学大纲（更新当前显示的大纲，使用知识库RAG技术）
+     */
+    public TeachingOutline regenerateOutlineWithKnowledgeBase(Long outlineId, Long courseId, String requirements, Integer hours) {
+        // 验证大纲是否存在
+        TeachingOutline existingOutline = outlineRepository.findById(outlineId)
+                .orElseThrow(() -> new RuntimeException("教学大纲不存在"));
+        
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        
+        // 先检查课程是否有知识库数据
+        KnowledgeBaseService.KnowledgeStats stats = knowledgeBaseService.getKnowledgeStats(courseId);
+        if (stats.getTotalChunks() == 0) {
+            throw new RuntimeException("该课程还没有知识库数据，请先在「构建课程知识库」中上传课程资料");
+        }
+        
+        if (stats.getProcessedChunks() == 0) {
+            throw new RuntimeException("该课程的知识库数据正在处理中，请稍后再试");
+        }
+        
+        // 构建查询问题，包含课程信息和教学要求
+        String queryText = buildOutlineQuery(course.getName(), requirements, hours);
+        
+        System.out.println("开始RAG重新搜索，查询内容: " + queryText);
+        
+        // 使用RAG技术搜索相关知识块
+        List<VectorDatabaseService.SearchResult> searchResults = 
+            knowledgeBaseService.searchKnowledge(courseId, queryText, 10); // 搜索top 10相关内容
+        
+        if (searchResults.isEmpty()) {
+            // 如果RAG搜索没有结果，可能是向量数据库的问题，尝试重建集合
+            System.out.println("向量搜索无结果，可能是字段名称问题，尝试重建向量集合");
+            boolean rebuilt = vectorDatabaseService.rebuildCollectionForCourse(courseId);
+            
+            if (rebuilt) {
+                // 重建成功后，需要重新导入知识库数据
+                System.out.println("向量集合重建成功，需要重新导入知识库数据");
+                knowledgeBaseService.reimportCourseKnowledge(courseId);
+                
+                // 再次尝试搜索
+                searchResults = knowledgeBaseService.searchKnowledge(courseId, queryText, 10);
+            }
+            
+            if (searchResults.isEmpty()) {
+                // 如果仍然没有结果，使用备用方案
+                System.out.println("重建后仍无搜索结果，使用数据库中的知识块");
+                searchResults = getFallbackKnowledgeChunks(courseId, 5);
+                
+                if (searchResults.isEmpty()) {
+                    throw new RuntimeException("无法从知识库中检索到相关内容，请检查知识库数据是否正常");
+                }
+            }
+        }
+        
+        System.out.println("RAG重新搜索完成，找到 " + searchResults.size() + " 个相关知识块");
+        
+        // 提取匹配的内容
+        StringBuilder relevantContent = new StringBuilder();
+        for (int i = 0; i < searchResults.size(); i++) {
+            VectorDatabaseService.SearchResult result = searchResults.get(i);
+            relevantContent.append("【相关内容").append(i + 1).append("】");
+            if (result.getScore() > 0) {
+                relevantContent.append(" (相似度: ").append(String.format("%.3f", result.getScore())).append(")");
+            }
+            relevantContent.append("\n");
+            relevantContent.append(result.getContent()).append("\n\n");
+        }
+        
+        // 调用DeepSeek重新生成教学大纲（使用RAG结果）
+        String outlineContent = deepSeekService.generateTeachingOutlineWithRAG(
+            course.getName(), relevantContent.toString(), requirements, hours, searchResults.size());
+        
+        System.out.println("开始更新教学大纲（基于知识库RAG），ID: " + outlineId + ", 课程: " + course.getName());
+        
+        // 更新现有大纲
+        existingOutline.setTeachingDesign(outlineContent);
+        existingOutline.setHours(hours); // 更新学时信息
+        existingOutline.setUpdatedAt(LocalDateTime.now());
+        
+        TeachingOutline saved = outlineRepository.save(existingOutline);
+        System.out.println("知识库RAG教学大纲更新成功，ID: " + saved.getId());
+        // 确保Course被正确加载以避免懒加载问题
+        saved.getCourse().getName(); // 触发加载
+        return saved;
     }
 } 

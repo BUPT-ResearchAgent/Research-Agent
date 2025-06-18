@@ -38,12 +38,12 @@ public class StudentController {
     @Autowired
     private NoticeRepository noticeRepository;
     
-        @Autowired
+    @Autowired
     private CourseMaterialRepository materialRepository;
     
     @Autowired
     private KnowledgeDocumentRepository knowledgeDocumentRepository;
-
+    
     @Autowired
     private CourseService courseService;
     

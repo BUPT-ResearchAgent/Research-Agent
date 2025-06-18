@@ -263,6 +263,7 @@ public class Course {
     }
     
     // 用于JSON序列化的教师信息
+    @JsonIgnore
     public Teacher getTeacherInfo() {
         return teacher;
     }

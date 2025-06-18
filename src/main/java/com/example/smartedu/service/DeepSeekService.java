@@ -120,6 +120,98 @@ public class DeepSeekService {
     }
     
     /**
+     * 基于RAG搜索结果生成教学大纲
+     */
+    public String generateTeachingOutlineWithRAG(String courseName, String ragContent, String requirements, Integer hours, int matchCount) {
+        int totalMinutes = hours * 45; // 1学时 = 45分钟
+        
+        String prompt = String.format(
+            "**基于知识库检索结果生成教学大纲**\n\n" +
+            "课程名称：《%s》\n" +
+            "教学学时：%d学时（共%d分钟）\n" +
+            "检索到相关知识块：%d个\n\n" +
+            "**RAG技术说明：**\n" +
+            "以下内容是通过向量相似性搜索从课程知识库中检索到的最相关内容，请基于这些内容生成教学大纲。\n\n" +
+            "**重要要求：**\n\n" +
+            "1. **标题设计要求：**\n" +
+            "   - 请根据检索到的知识内容，智能分析其核心主题\n" +
+            "   - 将教学大纲标题设定为：《%s》[基于检索内容的核心主题]\n" +
+            "   - 例如：《Python程序设计》面向对象编程与异常处理、《数据结构》栈与队列实现、《计算机网络》TCP/IP协议原理等\n" +
+            "   - 标题必须体现具体的教学内容主题，而非泛泛的课程名称\n\n" +
+            "2. **输出格式要求（重要）：**\n" +
+            "   - **必须使用HTML表格格式**\n" +
+            "   - **不要使用Markdown表格格式**\n" +
+            "   - 表格必须包含完整的HTML标签\n" +
+            "   - 表格样式要清晰美观\n\n" +
+            "3. **教学大纲结构要求：**\n" +
+            "   - **教学目标**：基于检索内容制定具体、可衡量的学习目标\n" +
+            "   - **教学思路**：体现基于知识库内容的教学逻辑和方法\n" +
+            "   - **教学重点**：从检索内容中提炼关键知识点\n" +
+            "   - **教学难点**：识别学生理解的潜在困难点\n" +
+            "   - **思政融入点**：结合专业内容的价值观教育\n" +
+            "   - **教学设计**：详细的时间安排和教学活动（必须用表格呈现）\n\n" +
+            "4. **教学设计表格要求（核心）：**\n" +
+            "   - 必须使用以下HTML表格格式\n" +
+            "   - 包含：教学内容、教学手段、时间分配（分钟）三列\n" +
+            "   - 时间分配必须精确到分钟，总计必须等于%d分钟\n" +
+            "   - 内容安排要与检索到的知识内容高度相关\n\n" +
+            "**教学设计表格格式（必须严格遵循）：**\n" +
+            "<table border='1' style='border-collapse: collapse; width: 100%%;'>\n" +
+            "  <tr style='background-color: #f0f8ff;'>\n" +
+            "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>教学内容</th>\n" +
+            "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>教学手段</th>\n" +
+            "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>时间分配（分钟）</th>\n" +
+            "  </tr>\n" +
+            "  <tr>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>课程导入与回顾</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>提问互动、知识回顾</td>\n" +
+            "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>5</td>\n" +
+            "  </tr>\n" +
+            "  <tr>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>核心概念讲解</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>理论讲授、实例分析</td>\n" +
+            "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>20</td>\n" +
+            "  </tr>\n" +
+            "  <tr>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>实践操作</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>动手实验、案例演示</td>\n" +
+            "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>15</td>\n" +
+            "  </tr>\n" +
+            "  <tr>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>总结提升</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>知识梳理、作业布置</td>\n" +
+            "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>5</td>\n" +
+            "  </tr>\n" +
+            "</table>\n\n" +
+            "%s" +
+            "**从知识库检索到的相关内容：**\n" +
+            "%s\n\n" +
+            "**特别注意：**\n" +
+            "- 教学大纲内容必须与检索到的知识内容紧密结合\n" +
+            "- 时间分配总和必须精确等于%d分钟\n" +
+            "- 教学活动设计要体现对检索内容的深度利用\n" +
+            "- 确保教学逻辑清晰，知识点覆盖全面\n" +
+            "- **必须使用HTML表格格式，不要使用Markdown或其他格式**\n" +
+            "- 表格要包含完整的样式，确保在网页中显示美观",
+            courseName,
+            hours,
+            totalMinutes,
+            matchCount,
+            courseName,
+            totalMinutes,
+            (requirements != null && !requirements.trim().isEmpty()) ? 
+                ("**特殊教学要求：**\n" + requirements + "\n\n") : "",
+            ragContent,
+            totalMinutes
+        );
+        
+        System.out.println("生成RAG教学大纲的Prompt长度: " + prompt.length());
+        System.out.println("使用的知识块数量: " + matchCount);
+        
+        return callDeepSeekAPI(prompt);
+    }
+    
+    /**
      * 生成考试题目
      */
     public String generateExamQuestions(String courseName, String chapter, List<String> questionTypes, String materialContent) {

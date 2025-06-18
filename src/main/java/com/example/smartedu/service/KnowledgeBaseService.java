@@ -505,6 +505,67 @@ public class KnowledgeBaseService {
         }
     }
     
+    /**
+     * 重新导入课程知识库数据到向量数据库
+     */
+    @Transactional
+    public boolean reimportCourseKnowledge(Long courseId) {
+        try {
+            System.out.println("开始重新导入课程 " + courseId + " 的知识库数据到向量数据库");
+            
+            // 1. 获取所有已处理的知识块
+            List<Knowledge> processedKnowledge = knowledgeRepository.findByCourseIdAndProcessed(courseId, true);
+            
+            if (processedKnowledge.isEmpty()) {
+                System.out.println("课程 " + courseId + " 没有已处理的知识块，无需重新导入");
+                return true;
+            }
+            
+            System.out.println("找到 " + processedKnowledge.size() + " 个已处理的知识块");
+            
+            // 2. 转换为DocumentChunk格式
+            List<VectorDatabaseService.DocumentChunk> chunks = new ArrayList<>();
+            for (Knowledge knowledge : processedKnowledge) {
+                if (knowledge.getContent() != null && !knowledge.getContent().trim().isEmpty()) {
+                    VectorDatabaseService.DocumentChunk chunk = new VectorDatabaseService.DocumentChunk(
+                        knowledge.getChunkId(), knowledge.getContent());
+                    chunks.add(chunk);
+                }
+            }
+            
+            if (chunks.isEmpty()) {
+                System.out.println("没有有效的知识块内容，无需重新导入");
+                return true;
+            }
+            
+            System.out.println("准备导入 " + chunks.size() + " 个知识块到向量数据库");
+            
+            // 3. 批量插入到向量数据库
+            boolean success = vectorDatabaseService.insertDocumentChunks(courseId, chunks);
+            
+            if (success) {
+                System.out.println("成功重新导入课程 " + courseId + " 的知识库数据");
+                
+                // 等待向量数据库完成索引
+                try {
+                    System.out.println("等待向量数据库完成索引...");
+                    Thread.sleep(2000); // 等待2秒
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            } else {
+                System.err.println("重新导入课程 " + courseId + " 的知识库数据失败");
+            }
+            
+            return success;
+            
+        } catch (Exception e) {
+            System.err.println("重新导入知识库数据异常: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
     // 数据传输对象
     public static class ProcessResult {
         private boolean success;

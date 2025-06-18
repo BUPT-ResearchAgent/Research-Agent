@@ -317,21 +317,28 @@ public class TeacherController {
     }
     
     /**
-     * 生成教学大纲
+     * 生成教学大纲（基于知识库）
      */
     @PostMapping("/outline/generate")
     public ApiResponse<TeachingOutline> generateTeachingOutline(@RequestBody Map<String, Object> request) {
         try {
             Long courseId = Long.valueOf(request.get("courseId").toString());
-            List<Integer> materialIds = (List<Integer>) request.get("materialIds");
             String requirements = (String) request.get("requirements");
             Integer hours = request.get("hours") != null ? Integer.valueOf(request.get("hours").toString()) : null;
             
-            TeachingOutline outline = teacherService.generateOutlineWithMaterials(courseId, materialIds, requirements, hours);
-            System.out.println("控制器：教学大纲生成成功，返回数据 - ID: " + outline.getId() + 
+            // 验证必填参数
+            if (courseId == null) {
+                return ApiResponse.error("课程ID不能为空");
+            }
+            if (hours == null || hours <= 0) {
+                return ApiResponse.error("教学学时必须大于0");
+            }
+            
+            TeachingOutline outline = teacherService.generateOutlineWithKnowledgeBase(courseId, requirements, hours);
+            System.out.println("控制器：基于知识库的教学大纲生成成功，返回数据 - ID: " + outline.getId() + 
                 ", 课程: " + (outline.getCourse() != null ? outline.getCourse().getName() : "null") +
                 ", 内容长度: " + (outline.getTeachingDesign() != null ? outline.getTeachingDesign().length() : 0));
-            return ApiResponse.success("教学大纲生成成功", outline);
+            return ApiResponse.success("基于知识库的教学大纲生成成功", outline);
         } catch (Exception e) {
             e.printStackTrace();
             return ApiResponse.error("生成教学大纲失败：" + e.getMessage());
@@ -339,22 +346,32 @@ public class TeacherController {
     }
     
     /**
-     * 重新生成教学大纲（更新现有大纲）
+     * 重新生成教学大纲（更新现有大纲，基于知识库）
      */
     @PostMapping("/outline/regenerate")
     public ApiResponse<TeachingOutline> regenerateTeachingOutline(@RequestBody Map<String, Object> request) {
         try {
             Long outlineId = Long.valueOf(request.get("outlineId").toString());
             Long courseId = Long.valueOf(request.get("courseId").toString());
-            List<Integer> materialIds = (List<Integer>) request.get("materialIds");
             String requirements = (String) request.get("requirements");
             Integer hours = request.get("hours") != null ? Integer.valueOf(request.get("hours").toString()) : null;
             
-            TeachingOutline outline = teacherService.regenerateOutlineWithMaterials(outlineId, courseId, materialIds, requirements, hours);
-            System.out.println("控制器：教学大纲重新生成成功，更新数据 - ID: " + outline.getId() + 
+            // 验证必填参数
+            if (outlineId == null) {
+                return ApiResponse.error("大纲ID不能为空");
+            }
+            if (courseId == null) {
+                return ApiResponse.error("课程ID不能为空");
+            }
+            if (hours == null || hours <= 0) {
+                return ApiResponse.error("教学学时必须大于0");
+            }
+            
+            TeachingOutline outline = teacherService.regenerateOutlineWithKnowledgeBase(outlineId, courseId, requirements, hours);
+            System.out.println("控制器：基于知识库的教学大纲重新生成成功，更新数据 - ID: " + outline.getId() + 
                 ", 课程: " + (outline.getCourse() != null ? outline.getCourse().getName() : "null") +
                 ", 内容长度: " + (outline.getTeachingDesign() != null ? outline.getTeachingDesign().length() : 0));
-            return ApiResponse.success("教学大纲重新生成成功", outline);
+            return ApiResponse.success("基于知识库的教学大纲重新生成成功", outline);
         } catch (Exception e) {
             e.printStackTrace();
             return ApiResponse.error("重新生成教学大纲失败：" + e.getMessage());

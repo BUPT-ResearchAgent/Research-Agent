@@ -11,6 +11,12 @@ import io.milvus.param.dml.DeleteParam;
 import io.milvus.param.index.CreateIndexParam;
 import io.milvus.param.index.DropIndexParam;
 import io.milvus.response.SearchResultsWrapper;
+import io.milvus.grpc.GetCollectionStatisticsResponse;
+import io.milvus.common.clientenum.ConsistencyLevelEnum;
+import io.milvus.grpc.KeyValuePair;
+import io.milvus.param.collection.GetLoadStateParam;
+import io.milvus.grpc.FlushResponse;
+import io.milvus.param.collection.FlushParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -28,8 +34,8 @@ public class VectorDatabaseService {
     private static final String VECTOR_FIELD = "embedding";
     private static final String ID_FIELD = "id";
     private static final String CONTENT_FIELD = "content";
-    private static final String CHUNK_ID_FIELD = "chunk_id";
-    private static final String COURSE_ID_FIELD = "course_id";
+    private static final String CHUNK_ID_FIELD = "chunkId";
+    private static final String COURSE_ID_FIELD = "courseId";
     
     /**
      * 为课程创建向量集合
@@ -208,9 +214,61 @@ public class VectorDatabaseService {
         String collectionName = getCollectionName(courseId);
         
         try {
+            // 检查集合是否存在
+            R<Boolean> hasCollectionResp = milvusClient.hasCollection(
+                HasCollectionParam.newBuilder()
+                    .withCollectionName(collectionName)
+                    .build());
+            
+            if (!hasCollectionResp.getData()) {
+                System.err.println("向量集合不存在: " + collectionName);
+                return new ArrayList<>();
+            }
+            
+            // 确保集合已加载
+            loadCollection(collectionName);
+            
+            // 强制刷新集合以确保新数据可见
+            try {
+                R<FlushResponse> flushResp = milvusClient.flush(
+                    FlushParam.newBuilder()
+                        .withCollectionNames(Arrays.asList(collectionName))
+                        .build());
+                
+                if (flushResp.getStatus() == R.Status.Success.getCode()) {
+                    System.out.println("集合刷新成功: " + collectionName);
+                } else {
+                    System.out.println("集合刷新失败: " + flushResp.getMessage());
+                }
+            } catch (Exception e) {
+                System.out.println("集合刷新异常: " + e.getMessage());
+            }
+            
+            // 获取集合统计信息
+            try {
+                R<GetCollectionStatisticsResponse> statsResp = milvusClient.getCollectionStatistics(
+                    GetCollectionStatisticsParam.newBuilder()
+                        .withCollectionName(collectionName)
+                        .build());
+                
+                if (statsResp.getStatus() == R.Status.Success.getCode()) {
+                    System.out.println("搜索前集合统计信息:");
+                    for (KeyValuePair kv : statsResp.getData().getStatsList()) {
+                        System.out.println("  " + kv.getKey() + ": " + kv.getValue());
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("获取集合统计信息失败: " + e.getMessage());
+            }
+            
             // 将查询文本向量化
+            System.out.println("开始向量化查询文本: " + queryText.substring(0, Math.min(100, queryText.length())) + "...");
             float[] queryVector = embeddingService.encode(queryText);
+            System.out.println("查询向量维度: " + queryVector.length);
             List<List<Float>> vectors = Arrays.asList(floatArrayToList(queryVector));
+            
+            // 指定要返回的字段
+            List<String> outFields = Arrays.asList(CHUNK_ID_FIELD, CONTENT_FIELD, COURSE_ID_FIELD);
             
             SearchParam searchParam = SearchParam.newBuilder()
                 .withCollectionName(collectionName)
@@ -218,9 +276,12 @@ public class VectorDatabaseService {
                 .withVectors(vectors)
                 .withTopK(topK)
                 .withMetricType(io.milvus.param.MetricType.COSINE)
-                .withParams("{\"nprobe\":10}")
+                .withParams("{\"nprobe\":32}")
+                .withOutFields(outFields)
+                .withConsistencyLevel(ConsistencyLevelEnum.STRONG)
                 .build();
             
+            System.out.println("开始执行向量搜索，topK=" + topK);
             R<io.milvus.grpc.SearchResults> searchResp = milvusClient.search(searchParam);
             
             if (!searchResp.getStatus().equals(R.Status.Success.getCode())) {
@@ -232,6 +293,13 @@ public class VectorDatabaseService {
             SearchResultsWrapper wrapper = new SearchResultsWrapper(searchResp.getData().getResults());
             List<SearchResult> results = new ArrayList<>();
             
+            System.out.println("搜索返回的结果数量: " + wrapper.getIDScore(0).size());
+            
+            if (wrapper.getIDScore(0).size() == 0) {
+                System.out.println("未找到匹配的向量结果");
+                return new ArrayList<>();
+            }
+            
             for (int i = 0; i < wrapper.getIDScore(0).size(); i++) {
                 SearchResult result = new SearchResult();
                 result.setChunkId((String) wrapper.getFieldData(CHUNK_ID_FIELD, 0).get(i));
@@ -239,12 +307,17 @@ public class VectorDatabaseService {
                 result.setCourseId((Long) wrapper.getFieldData(COURSE_ID_FIELD, 0).get(i));
                 result.setScore(wrapper.getIDScore(0).get(i).getScore());
                 results.add(result);
+                
+                System.out.println("搜索结果 " + (i+1) + ": 相似度=" + result.getScore() + 
+                                 ", 内容长度=" + result.getContent().length());
             }
             
+            System.out.println("向量搜索成功，找到 " + results.size() + " 个匹配结果");
             return results;
             
         } catch (Exception e) {
             System.err.println("向量搜索异常: " + e.getMessage());
+            e.printStackTrace();
             return new ArrayList<>();
         }
     }
@@ -256,7 +329,7 @@ public class VectorDatabaseService {
         String collectionName = getCollectionName(courseId);
         
         try {
-            // 构建删除表达式 - 根据chunk_id删除
+            // 构建删除表达式 - 根据chunkId删除
             String expr = CHUNK_ID_FIELD + " == \"" + chunkId + "\"";
             
             DeleteParam deleteParam = DeleteParam.newBuilder()
@@ -326,6 +399,104 @@ public class VectorDatabaseService {
         } catch (Exception e) {
             System.err.println("删除向量集合异常: " + e.getMessage());
             return false;
+        }
+    }
+    
+    /**
+     * 重建向量集合（删除旧集合并创建新集合）
+     */
+    public boolean rebuildCollectionForCourse(Long courseId) {
+        String collectionName = getCollectionName(courseId);
+        
+        try {
+            System.out.println("开始重建课程 " + courseId + " 的向量集合: " + collectionName);
+            
+            // 1. 检查并删除现有集合
+            R<Boolean> hasCollectionResp = milvusClient.hasCollection(
+                HasCollectionParam.newBuilder()
+                    .withCollectionName(collectionName)
+                    .build());
+            
+            if (hasCollectionResp.getData()) {
+                System.out.println("删除现有集合: " + collectionName);
+                R<RpcStatus> dropResp = milvusClient.dropCollection(
+                    DropCollectionParam.newBuilder()
+                        .withCollectionName(collectionName)
+                        .build());
+                
+                if (!dropResp.getStatus().equals(R.Status.Success.getCode())) {
+                    System.err.println("删除集合失败: " + dropResp.getMessage());
+                    return false;
+                }
+                System.out.println("成功删除旧集合");
+            }
+            
+            // 2. 创建新集合
+            boolean created = createCollectionForCourse(courseId);
+            if (created) {
+                System.out.println("成功重建向量集合: " + collectionName);
+            } else {
+                System.err.println("重建向量集合失败: " + collectionName);
+            }
+            
+            return created;
+            
+        } catch (Exception e) {
+            System.err.println("重建向量集合异常: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    /**
+     * 测试向量数据库连接和集合状态
+     */
+    public void testConnectionAndCollection(Long courseId) {
+        String collectionName = getCollectionName(courseId);
+        
+        try {
+            System.out.println("=== 开始测试向量数据库连接 ===");
+            
+            // 1. 测试连接
+            System.out.println("1. 测试Milvus连接...");
+            
+            // 2. 检查集合是否存在
+            System.out.println("2. 检查集合: " + collectionName);
+            R<Boolean> hasCollectionResp = milvusClient.hasCollection(
+                HasCollectionParam.newBuilder()
+                    .withCollectionName(collectionName)
+                    .build());
+            
+            if (hasCollectionResp.getData()) {
+                System.out.println("   集合存在: " + collectionName);
+                
+                // 3. 获取集合统计信息
+                R<GetCollectionStatisticsResponse> statsResp = milvusClient.getCollectionStatistics(
+                    GetCollectionStatisticsParam.newBuilder()
+                        .withCollectionName(collectionName)
+                        .build());
+                
+                if (statsResp.getStatus() == R.Status.Success.getCode()) {
+                    System.out.println("   集合统计信息:");
+                    for (KeyValuePair kv : statsResp.getData().getStatsList()) {
+                        System.out.println("     " + kv.getKey() + ": " + kv.getValue());
+                    }
+                } else {
+                    System.out.println("   无法获取集合统计信息: " + statsResp.getMessage());
+                }
+                
+            } else {
+                System.out.println("   集合不存在: " + collectionName);
+                System.out.println("   尝试创建集合...");
+                boolean created = createCollectionForCourse(courseId);
+                System.out.println("   集合创建结果: " + (created ? "成功" : "失败"));
+            }
+            
+            System.out.println("=== 向量数据库测试完成 ===");
+            
+        } catch (Exception e) {
+            System.err.println("向量数据库测试异常: " + e.getMessage());
+            e.printStackTrace();
         }
     }
     
