@@ -294,8 +294,8 @@ class TeacherAPI {
     }
 
     // 获取考试统计数据
-    static async getExamStats() {
-        return this.request('/api/exam/stats');
+    static async getExamStats(teacherId) {
+        return this.request(`/api/exam/stats?teacherId=${teacherId}`);
     }
 
     // 获取试卷列表

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/exam")
@@ -113,6 +114,19 @@ public class ExamController {
             return ApiResponse.success("获取试卷列表成功", examList);
         } catch (Exception e) {
             return ApiResponse.error("获取试卷列表失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取考试统计数据
+     */
+    @GetMapping("/stats")
+    public ApiResponse<Map<String, Object>> getExamStats(@RequestParam Long teacherId) {
+        try {
+            Map<String, Object> stats = examService.getExamStatsByTeacher(teacherId);
+            return ApiResponse.success("获取考试统计数据成功", stats);
+        } catch (Exception e) {
+            return ApiResponse.error("获取考试统计数据失败：" + e.getMessage());
         }
     }
     

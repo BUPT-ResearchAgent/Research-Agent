@@ -999,105 +999,22 @@ function updateSelectedMaterials() {
     console.log(`已选择 ${selectedCount} 个资料`);
 }
 
-// AI智能出题：加载课程资料
+// RAG智能检索：选择课程后的处理（无需加载具体资料）
 async function loadExamCourseMaterials() {
     const courseId = document.getElementById('exam-course-select').value;
-    const loadingDiv = document.getElementById('exam-materials-loading');
-    const selectionDiv = document.getElementById('exam-materials-selection');
-    const emptyDiv = document.getElementById('exam-materials-empty');
-    const materialsListDiv = document.getElementById('exam-materials-list');
-    
-    // 重置显示状态
-    loadingDiv.style.display = 'none';
-    selectionDiv.style.display = 'none';
-    emptyDiv.style.display = 'none';
     
     if (!courseId) {
-        emptyDiv.style.display = 'block';
+        console.log('未选择课程');
         return;
     }
     
-    try {
-        loadingDiv.style.display = 'block';
-        console.log('开始加载考试生成课程资料，courseId:', courseId);
-        
-        // 获取课程资料
-        const response = await fetch(`/api/teacher/courses/${courseId}/materials`);
-        console.log('API响应状态:', response.status);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        console.log('API响应结果:', result);
-        
-        loadingDiv.style.display = 'none';
-        
-        if (result.success) {
-            if (result.data && result.data.length > 0) {
-                console.log('找到课程资料数量:', result.data.length);
-                // 显示资料选择区域
-                selectionDiv.style.display = 'block';
-                
-                // 渲染资料列表
-                materialsListDiv.innerHTML = result.data.map((material, index) => `
-                    <div class="materials-checkbox-item">
-                        <input type="checkbox" id="exam-material-${material.id}" value="${material.id}" 
-                               onchange="updateSelectedExamMaterials()">
-                        <label for="exam-material-${material.id}">
-                            <div class="file-icon">
-                                <i class="fas ${getFileTypeIcon(material.originalName)}"></i>
-                            </div>
-                            <div class="file-name">${material.originalName || material.filename}</div>
-                            <div class="file-size">${formatFileSize(material.fileSize)}</div>
-                        </label>
-                    </div>
-                `).join('');
-            } else {
-                console.log('该课程暂无资料');
-                emptyDiv.style.display = 'block';
-            }
-        } else {
-            console.error('API返回错误:', result.message);
-            emptyDiv.style.display = 'block';
-            showNotification(result.message || '获取课程资料失败', 'error');
-        }
-        
-    } catch (error) {
-        loadingDiv.style.display = 'none';
-        emptyDiv.style.display = 'block';
-        console.error('获取课程资料失败:', error);
-        showNotification('获取课程资料失败，请重试', 'error');
-    }
+    // 使用RAG技术，无需加载具体资料列表
+    // 系统会自动从知识库中检索相关内容
+    console.log('已选择课程:', courseId, '- 将使用RAG技术自动从知识库检索相关内容');
 }
 
-// AI智能出题：全选资料
-function selectAllExamMaterials() {
-    const checkboxes = document.querySelectorAll('#exam-materials-list input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = true;
-    });
-    updateSelectedExamMaterials();
-}
-
-// AI智能出题：清空选择
-function clearAllExamMaterials() {
-    const checkboxes = document.querySelectorAll('#exam-materials-list input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = false;
-    });
-    updateSelectedExamMaterials();
-}
-
-// AI智能出题：更新选中的资料
-function updateSelectedExamMaterials() {
-    const checkboxes = document.querySelectorAll('#exam-materials-list input[type="checkbox"]:checked');
-    const selectedCount = checkboxes.length;
-    
-    // 可以在这里显示选中数量
-    console.log(`已选择 ${selectedCount} 个考试资料`);
-}
+// RAG智能检索：无需手动选择资料的相关函数已移除
+// 系统将自动从知识库中检索最相关的内容
 
 // 生成教学大纲（基于知识库）
 async function generateOutline() {
@@ -1711,17 +1628,9 @@ async function generateExam() {
             return;
         }
         
-        // 2. 验证选择资料（必填）
-        const selectedMaterials = [];
-        const checkboxes = document.querySelectorAll('#exam-materials-list input[type="checkbox"]:checked');
-        checkboxes.forEach(checkbox => {
-            selectedMaterials.push(parseInt(checkbox.value));
-        });
-        
-        if (selectedMaterials.length === 0) {
-            showNotification('请至少选择一个资料作为生成依据 *', 'warning');
-            return;
-        }
+        // 2. 验证课程知识库（RAG自动检索，无需手动选择资料）
+        // 注意：现在使用RAG技术自动从整个课程知识库中检索相关内容
+        const selectedMaterials = []; // 保持空数组，后端将使用RAG检索
         
         // 3. 验证题型设置（必填）
         const questionTypes = {};
@@ -1806,7 +1715,7 @@ async function generateExam() {
         
         console.log('生成试卷数据:', examData);
         
-        showLoading('AI正在基于知识库生成试卷...');
+        showLoading('AI正在使用RAG技术从知识库生成试卷...');
         
         const response = await TeacherAPI.generateExam(examData);
         
@@ -1850,13 +1759,10 @@ function displayExamPreview(examData) {
         <div class="card-header">
             <i class="fas fa-file-alt"></i> 试卷预览
             <div class="card-actions">
-                <button class="btn btn-sm btn-secondary" onclick="returnToExamGeneration()" title="返回试卷生成页面">
-                    <i class="fas fa-arrow-left"></i> 返回
-                </button>
-                <button class="btn btn-sm btn-accent" onclick="editExam()">
+                <button class="btn btn-sm btn-accent" onclick="editExam(${examData.id})">
                     <i class="fas fa-edit"></i> 编辑
                 </button>
-                <button class="btn btn-sm btn-primary" onclick="publishExam()">
+                <button class="btn btn-sm btn-primary" onclick="publishExam(${examData.id})">
                     <i class="fas fa-paper-plane"></i> 发布
                 </button>
                 <button class="btn btn-sm btn-secondary" onclick="exportExam()">
@@ -1893,9 +1799,12 @@ function displayExamPreview(examData) {
                     <p class="question-content">${question.content || '题目内容加载失败'}</p>
                     ${options.length > 0 ? `
                         <div class="question-options">
-                            ${options.map((option, i) => 
-                                `<p>${String.fromCharCode(65 + i)}. ${option}</p>`
-                            ).join('')}
+                            ${options.map((option, i) => {
+                                // 检查选项是否已经包含标签，如果有则去掉
+                                const cleanOption = typeof option === 'string' ? 
+                                    option.replace(/^[A-Z]\.\s*/, '') : option;
+                                return `<p><span style="font-weight: 500; color: #3498db; margin-right: 8px;">${String.fromCharCode(65 + i)}.</span>${cleanOption}</p>`;
+                            }).join('')}
                         </div>
                     ` : ''}
                     <div class="question-answer">
@@ -2106,8 +2015,14 @@ async function loadExamManageData() {
         // 加载试卷列表
         await loadExamList();
         
+        // 获取当前教师ID
+        const teacherId = await getUserId();
+        if (!teacherId) {
+            throw new Error('未获取到教师ID');
+        }
+        
         // 加载考试统计数据
-        const statsResponse = await TeacherAPI.getDashboardStats();
+        const statsResponse = await TeacherAPI.getExamStats(teacherId);
         const stats = statsResponse.data || {};
         
         // 更新考试统计卡片
@@ -2593,7 +2508,13 @@ function downloadMaterial(materialId) {
 // 删除资料
 async function deleteMaterial(materialId) {
     try {
-        if (!confirm('确定要删除这个资料吗？删除后不可恢复！')) {
+        const confirmed = await showConfirmDialog(
+            '删除资料',
+            '确定要删除这个资料吗？删除后不可恢复！',
+            '删除'
+        );
+        
+        if (!confirmed) {
             return;
         }
         
@@ -4622,7 +4543,7 @@ async function updateHistoryCourseFilter() {
             select.innerHTML = '<option value="">所有课程</option>';
         }
     } catch (error) {
-        console.error('更新课程筛选器失败:', error);
+        console.error('更新课程选择器失败:', error);
         // 失败时至少保证有一个默认选项
         const select = document.getElementById('history-course-filter');
         if (select) {
@@ -4733,13 +4654,13 @@ function displayHistoryList(outlines) {
         const historyItem = document.createElement('div');
         historyItem.className = 'history-item';
         historyItem.style.cssText = `
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
+                border: 1px solid #e9ecef;
+                border-radius: 8px;
+                padding: 20px;
             margin-bottom: 20px;
-            background: #fff;
-            transition: all 0.3s ease;
-            cursor: pointer;
+                background: #fff;
+                transition: all 0.3s ease;
+                cursor: pointer;
             position: relative;
             display: block;
             width: 100%;
@@ -4768,33 +4689,33 @@ function displayHistoryList(outlines) {
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
                 <div style="flex: 1; min-width: 300px;">
                     <h4 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 16px; font-weight: 600;">
-                        <i class="fas fa-file-alt" style="color: #3498db; margin-right: 8px;"></i>
-                        ${courseName}${courseCode ? ` (${courseCode})` : ''}
-                    </h4>
+                            <i class="fas fa-file-alt" style="color: #3498db; margin-right: 8px;"></i>
+                            ${courseName}${courseCode ? ` (${courseCode})` : ''}
+                        </h4>
                     <div style="display: flex; align-items: center; gap: 16px; font-size: 13px; color: #7f8c8d; flex-wrap: wrap;">
                         <span><i class="fas fa-calendar-alt" style="margin-right: 4px;"></i> ${createTime}</span>
                         <span><i class="fas fa-list-ol" style="margin-right: 4px;"></i> 第 ${outlines.length - index} 版</span>
+                        </div>
                     </div>
-                </div>
                 <div class="btn-group" style="display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
                     <button class="btn btn-sm btn-primary history-btn-view" data-outline-id="${outline.id}" title="查看详情" style="min-width: 36px;">
-                        <i class="fas fa-eye"></i>
-                    </button>
+                            <i class="fas fa-eye"></i>
+                        </button>
                     <button class="btn btn-sm btn-accent history-btn-download" data-outline-id="${outline.id}" title="下载PDF" style="min-width: 36px;">
                         <i class="fas fa-file-pdf"></i>
-                    </button>
+                        </button>
                     <button class="btn btn-sm btn-success history-btn-apply" data-outline-id="${outline.id}" title="应用此大纲" style="min-width: 36px;">
-                        <i class="fas fa-copy"></i>
-                    </button>
+                            <i class="fas fa-copy"></i>
+                        </button>
                     <button class="btn btn-sm btn-danger history-btn-delete" data-outline-id="${outline.id}" data-course-name="${courseName.replace(/"/g, '&quot;')}" title="删除" style="min-width: 36px;">
-                        <i class="fas fa-trash"></i>
-                    </button>
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
-            </div>
-            
+                
             <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; border-left: 4px solid #3498db; margin-top: 10px;">
                 <div style="font-size: 13px; color: #5a6c7d; line-height: 1.6; word-wrap: break-word;">
-                    ${previewContent}
+                        ${previewContent}
                 </div>
             </div>
         `;
@@ -5459,7 +5380,32 @@ function returnToExamGeneration() {
 }
 
 // 试卷操作函数
-async function editExam() {
+async function editExam(examId) {
+    // 如果传入了examId，使用它；否则使用当前试卷
+    if (examId && examId !== window.currentExam?.id) {
+        // 如果examId与当前试卷不匹配，需要先加载试卷数据
+        try {
+            showLoading('正在加载试卷数据...');
+            const response = await TeacherAPI.getExamDetail(examId);
+            hideLoading();
+            
+            if (response.success) {
+                window.currentExam = response.data;
+                // 显示试卷预览页面
+                displayExamPreview(response.data);
+                showSection('gen-test');
+            } else {
+                showNotification('加载试卷数据失败', 'error');
+                return;
+            }
+        } catch (error) {
+            hideLoading();
+            console.error('加载试卷数据失败:', error);
+            showNotification('加载失败，请重试', 'error');
+            return;
+        }
+    }
+    
     if (!window.currentExam) {
         showNotification('没有可编辑的试卷', 'warning');
         return;
@@ -5470,6 +5416,28 @@ async function editExam() {
     
     // 创建编辑界面
     const previewDiv = document.getElementById('exam-preview');
+    
+    // 设置编辑模式的页面标题和按钮
+    previewDiv.innerHTML = `
+        <div class="card-header">
+            <i class="fas fa-edit"></i> 试卷编辑
+            <div class="card-actions">
+                <button class="btn btn-sm btn-secondary" onclick="displayExamPreview(window.currentExam)">
+                    <i class="fas fa-eye"></i> 预览
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="publishExam(${window.currentExam.id})">
+                    <i class="fas fa-paper-plane"></i> 发布
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="exportExam()">
+                    <i class="fas fa-download"></i> 导出
+                </button>
+            </div>
+        </div>
+        <div id="exam-content" style="padding: 24px;">
+            <!-- 动态生成的编辑内容 -->
+        </div>
+    `;
+    
     const editContainer = document.createElement('div');
     editContainer.className = 'exam-edit-container';
     
@@ -5485,7 +5453,30 @@ async function editExam() {
     
     // 实时预览功能
     function updatePreview() {
-        previewContent.innerHTML = parseExamMarkdown(textarea.value);
+        const markdown = textarea.value.trim();
+        if (!markdown) {
+            previewContent.innerHTML = `
+                <div style="color: #95a5a6; text-align: center; padding: 50px; font-style: italic;">
+                    开始编辑以查看预览...
+                </div>
+            `;
+            return;
+        }
+        
+        try {
+            // 解析Markdown并渲染预览
+            const examData = parseExamMarkdownToData(markdown);
+            renderExamPreviewFromData(examData, previewContent);
+        } catch (error) {
+            console.error('Markdown解析失败:', error);
+            previewContent.innerHTML = `
+                <div style="color: #e74c3c; text-align: center; padding: 50px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                    预览解析失败<br>
+                    <small style="font-size: 12px; margin-top: 5px; display: block;">${error.message}</small>
+                </div>
+            `;
+        }
     }
     
     textarea.addEventListener('input', updatePreview);
@@ -5576,9 +5567,8 @@ async function editExam() {
     buttonGroup.appendChild(cancelBtn);
     buttonGroup.appendChild(saveBtn);
     
-    // 只替换内容部分，保持头部结构：先添加编辑容器，再添加按钮组
+    // 将编辑容器和按钮组添加到内容区域
     const contentDiv = document.getElementById('exam-content');
-    contentDiv.innerHTML = '';
     contentDiv.appendChild(editContainer);
     contentDiv.appendChild(buttonGroup);
     
@@ -5586,7 +5576,29 @@ async function editExam() {
     textarea.focus();
 }
 
-async function publishExam() {
+async function publishExam(examId) {
+    // 如果传入了examId，使用它；否则使用当前试卷
+    if (examId && examId !== window.currentExam?.id) {
+        // 如果examId与当前试卷不匹配，需要先加载试卷数据
+        try {
+            showLoading('正在加载试卷数据...');
+            const response = await TeacherAPI.getExamDetail(examId);
+            hideLoading();
+            
+            if (response.success) {
+                window.currentExam = response.data;
+            } else {
+                showNotification('加载试卷数据失败', 'error');
+                return;
+            }
+        } catch (error) {
+            hideLoading();
+            console.error('加载试卷数据失败:', error);
+            showNotification('加载失败，请重试', 'error');
+            return;
+        }
+    }
+    
     if (!window.currentExam) {
         showNotification('没有可发布的试卷', 'warning');
         return;
@@ -5726,13 +5738,16 @@ function displayExamList(examList) {
             <td>${exam.totalScore || 0}分</td>
             <td>
                 <div class="action-buttons">
-                    <button class="btn btn-sm btn-accent" onclick="previewExam(${exam.id})" title="预览">
+                    <button class="btn btn-sm btn-accent" onclick="showExamPreviewModal(${exam.id})" title="预览">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-primary" onclick="editExam(${exam.id})" title="编辑">
+                    <button class="btn btn-sm btn-primary" onclick="showExamEditModal(${exam.id})" title="编辑">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-success" onclick="publishExam(${exam.id})" 
+                    <button class="btn btn-sm btn-secondary" onclick="downloadExam(${exam.id})" title="下载">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="btn btn-sm btn-success" onclick="showPublishExamWithModal(${exam.id})" 
                             title="发布" ${exam.status === 'PUBLISHED' ? 'disabled' : ''}>
                         <i class="fas fa-paper-plane"></i>
                     </button>
@@ -5782,13 +5797,10 @@ async function previewExam(examId) {
     }
 }
 
-// 编辑试卷
-function editExam(examId) {
-    previewExam(examId); // 使用预览功能，然后用户可以点击编辑按钮
-}
+// 编辑试卷（此函数已在前面定义，这里移除重复定义）
 
-// 发布试卷
-async function publishExam(examId) {
+// 显示发布试卷模态框
+async function showPublishExamWithModal(examId) {
     try {
         // 先获取试卷信息
         const response = await TeacherAPI.getExamDetail(examId);
@@ -5819,10 +5831,53 @@ async function publishExam(examId) {
     }
 }
 
+// 下载试卷
+async function downloadExam(examId) {
+    try {
+        showLoading('正在下载试卷...');
+        
+        const response = await TeacherAPI.getExamDetail(examId);
+        
+        hideLoading();
+        
+        if (response.success && response.data) {
+            const examData = response.data;
+            
+            // 生成试卷Markdown内容
+            const examMarkdown = generateExamMarkdown(examData);
+            
+            // 创建并下载文件
+            const blob = new Blob([examMarkdown], { type: 'text/markdown;charset=utf-8' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${examData.title || '试卷'}.md`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showNotification('试卷下载成功！', 'success');
+        } else {
+            showNotification(response.message || '获取试卷详情失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('下载试卷失败:', error);
+        showNotification('下载试卷失败，请重试', 'error');
+    }
+}
+
 // 删除试卷
 async function deleteExam(examId) {
     try {
-        const confirmed = confirm('确定要删除这份试卷吗？删除后将无法恢复。');
+        const confirmed = await showConfirmDialog(
+            '删除试卷',
+            '确定要删除这份试卷吗？删除后将无法恢复。',
+            '删除'
+        );
+        
         if (!confirmed) return;
         
         showLoading('正在删除试卷...');
@@ -5833,8 +5888,9 @@ async function deleteExam(examId) {
         
         if (response.success) {
             showNotification('试卷删除成功！', 'success');
-            // 重新加载试卷列表
-            loadExamList();
+            // 重新加载试卷列表和统计数据
+            await loadExamList();
+            await refreshExamStats();
         } else {
             showNotification(response.message || '删除试卷失败', 'error');
         }
@@ -5878,6 +5934,30 @@ async function getUserId() {
         console.error('获取用户ID失败:', error);
         // 不再使用localStorage，完全依赖服务器端session
         return null;
+    }
+}
+
+// 刷新考试统计数据
+async function refreshExamStats() {
+    try {
+        // 获取当前教师ID
+        const teacherId = await getUserId();
+        if (!teacherId) {
+            console.error('未获取到教师ID，无法刷新统计数据');
+            return;
+        }
+        
+        // 获取最新的统计数据
+        const statsResponse = await TeacherAPI.getExamStats(teacherId);
+        if (statsResponse.success) {
+            const stats = statsResponse.data || {};
+            updateExamStatsCards(stats);
+            console.log('统计数据已刷新:', stats);
+        } else {
+            console.error('获取统计数据失败:', statsResponse.message);
+        }
+    } catch (error) {
+        console.error('刷新统计数据失败:', error);
     }
 }
 
@@ -6005,6 +6085,7 @@ function generateMarkdownFromQuestions(questions) {
 }
 
 // 解析试卷Markdown为HTML预览（与试卷预览样式一致）
+// 解析Markdown为HTML（用于试卷生成界面）
 function parseExamMarkdown(markdown) {
     if (!markdown) return '<p style="color: #999;">请输入试卷内容</p>';
     
@@ -6050,7 +6131,97 @@ D. 选项D
     return `<div class="exam-questions">${questionsHtml}</div>`;
 }
 
-// 解析单个题目块
+// 解析Markdown为数据对象（用于试卷编辑模态框）
+function parseExamMarkdownToData(markdown) {
+    if (!markdown) return { questions: [] };
+    
+    // 按题目分割（使用 ### 作为分隔符）
+    const questionBlocks = markdown.split(/^### /gm);
+    
+    if (questionBlocks.length < 2) {
+        return { questions: [] };
+    }
+    
+    const questions = [];
+    
+    // 从第二个元素开始处理（第一个是标题部分）
+    for (let i = 1; i < questionBlocks.length; i++) {
+        const block = '### ' + questionBlocks[i];
+        const questionData = parseQuestionBlockToData(block, i);
+        if (questionData) {
+            questions.push(questionData);
+        }
+    }
+    
+    return { questions: questions };
+}
+
+// 解析单个题目块为数据对象
+function parseQuestionBlockToData(block, questionIndex) {
+    try {
+        // 提取题目标题和类型
+        const titleMatch = block.match(/^### (.+)$/m);
+        if (!titleMatch) return null;
+        
+        const title = titleMatch[1];
+        
+        // 提取题目内容
+        const contentMatch = block.match(/\*\*题目内容\*\*：(.+?)(?=\n\*\*|$)/s);
+        const content = contentMatch ? contentMatch[1].trim() : '题目内容未找到';
+        
+        // 提取选项 - 精确匹配选项部分，避免包含答案和解析
+        const optionsMatch = block.match(/\*\*选项\*\*：\s*\n((?:[A-Z]\.\s*.+\n?)*?)(?=\n\*\*正确答案\*\*|\n\*\*解析\*\*|\n\*\*分值建议\*\*|$)/s);
+        let options = [];
+        if (optionsMatch) {
+            const optionsText = optionsMatch[1];
+            console.log('原始选项文本:', optionsText);
+            // 按行分割，并过滤掉空行
+            const lines = optionsText.split('\n').filter(line => line.trim() && /^[A-Z]\.\s*.+/.test(line.trim()));
+            options = lines.map(line => {
+                const trimmed = line.trim();
+                console.log('处理选项行:', trimmed);
+                // 匹配开头的单个字母加点和空格，然后保留其余内容
+                const match = trimmed.match(/^([A-Z])\.\s*(.+)$/);
+                if (match) {
+                    console.log('选项匹配成功:', match[2]);
+                    return match[2]; // 返回选项内容部分
+                }
+                return trimmed; // 如果匹配失败，返回原内容
+            });
+        }
+        console.log('解析后的选项数组:', options);
+        
+        // 提取答案
+        const answerMatch = block.match(/\*\*正确答案\*\*：(.+?)(?=\n\*\*|$)/s);
+        const correctAnswer = answerMatch ? answerMatch[1].trim() : 'N/A';
+        
+        // 提取解析
+        const explanationMatch = block.match(/\*\*解析\*\*：(.+?)(?=\n\*\*|$)/s);
+        const explanation = explanationMatch ? explanationMatch[1].trim() : null;
+        
+        // 提取分值
+        const scoreMatch = block.match(/\*\*分值建议\*\*：(\d+)分/);
+        const score = scoreMatch ? parseInt(scoreMatch[1]) : 10;
+        
+        return {
+            title: title,
+            content: content,
+            questionText: content,
+            options: options,
+            correctAnswer: correctAnswer,
+            answer: correctAnswer,
+            explanation: explanation,
+            analysis: explanation,
+            score: score
+        };
+        
+    } catch (error) {
+        console.error('解析题目块失败:', error);
+        return null;
+    }
+}
+
+// 解析单个题目块（保留原函数用于其他地方）
 function parseQuestionBlock(block, questionIndex) {
     try {
         // 提取题目标题和类型
@@ -6063,15 +6234,28 @@ function parseQuestionBlock(block, questionIndex) {
         const contentMatch = block.match(/\*\*题目内容\*\*：(.+?)(?=\n\*\*|$)/s);
         const content = contentMatch ? contentMatch[1].trim() : '题目内容未找到';
         
-        // 提取选项
-        const optionsMatch = block.match(/\*\*选项\*\*：\n((?:[A-Z]\..+?\n?)+)/);
+        // 提取选项 - 精确匹配选项部分，避免包含答案和解析
+        const optionsMatch = block.match(/\*\*选项\*\*：\s*\n((?:[A-Z]\.\s*.+\n?)*?)(?=\n\*\*正确答案\*\*|\n\*\*解析\*\*|\n\*\*分值建议\*\*|$)/s);
         let optionsHtml = '';
         if (optionsMatch) {
             const optionsText = optionsMatch[1];
-            const options = optionsText.split('\n').filter(opt => opt.trim());
+            // 按行分割，并过滤掉空行
+            const lines = optionsText.split('\n').filter(line => line.trim() && /^[A-Z]\.\s*.+/.test(line.trim()));
+            const options = lines.map(line => {
+                const trimmed = line.trim();
+                // 匹配开头的单个字母加点和空格，然后保留其余内容
+                const match = trimmed.match(/^([A-Z])\.\s*(.+)$/);
+                if (match) {
+                    return { label: match[1], content: match[2] }; // 返回标签和内容
+                }
+                return { label: 'X', content: trimmed }; // 如果匹配失败，返回原内容
+            });
+            
             optionsHtml = `
                 <div class="question-options">
-                    ${options.map(option => `<p>${option.trim()}</p>`).join('')}
+                    ${options.map((option) => {
+                        return `<p><span style="font-weight: 500; color: #3498db; margin-right: 8px;">${option.label}.</span>${option.content}</p>`;
+                    }).join('')}
                 </div>
             `;
         }
@@ -6160,11 +6344,9 @@ function resetPublishExamForm() {
 function setupPublishExamModalEvents() {
     // 关闭按钮
     const closeBtn = document.getElementById('close-publish-modal');
-    const cancelBtn = document.getElementById('cancel-publish');
     const confirmBtn = document.getElementById('confirm-publish');
     
     if (closeBtn) closeBtn.addEventListener('click', hidePublishExamModal);
-    if (cancelBtn) cancelBtn.addEventListener('click', hidePublishExamModal);
     if (confirmBtn) confirmBtn.addEventListener('click', handleConfirmPublish);
     
     // 选项切换
@@ -6305,9 +6487,9 @@ async function handleConfirmPublish() {
         if (response.success) {
             showNotification('试卷发布成功！', 'success');
             hidePublishExamModal();
-            // 重新加载试卷列表
-            loadExamList();
-            updateExamStatsCards();
+            // 重新加载试卷列表和统计数据
+            await loadExamList();
+            await refreshExamStats();
         } else {
             showNotification(response.message || '发布试卷失败', 'error');
         }
@@ -8114,6 +8296,552 @@ function refreshCurrentChunksList() {
         if (course) {
             viewKnowledgeChunks(course.id, course.name);
         }
+    }
+}
+
+// ======== 试卷预览和编辑功能 ========
+
+// 显示试卷预览模态框
+async function showExamPreviewModal(examId) {
+    try {
+        showLoading('加载试卷内容...');
+        
+        // 获取试卷详情
+        const response = await TeacherAPI.getExamDetail(examId);
+        if (!response.success) {
+            throw new Error(response.message || '获取试卷详情失败');
+        }
+        
+        const exam = response.data;
+        
+        // 调试信息
+        console.log('试卷数据:', exam);
+        console.log('试卷题目数据:', exam.questions);
+        
+        // 设置基本信息
+        document.getElementById('preview-exam-title').textContent = exam.title || 'AI生成试卷';
+        document.getElementById('preview-exam-duration').textContent = (exam.timeLimit || 90) + '分钟';
+        document.getElementById('preview-exam-total-score').textContent = (exam.totalScore || 100) + '分';
+        document.getElementById('preview-exam-question-count').textContent = 
+            (exam.questions ? exam.questions.length : 0) + '题';
+        
+        // 渲染题目内容
+        renderExamQuestions(exam.questions || []);
+        
+        // 保存当前试卷ID用于其他操作
+        document.getElementById('exam-preview-modal').setAttribute('data-exam-id', examId);
+        
+        // 显示模态框
+        document.getElementById('exam-preview-modal').style.display = 'flex';
+        
+        // 设置事件监听器
+        setupExamPreviewModalEvents();
+        
+        hideLoading();
+    } catch (error) {
+        console.error('显示试卷预览失败:', error);
+        hideLoading();
+        showNotification('加载试卷预览失败: ' + error.message, 'error');
+    }
+}
+
+// 渲染试卷题目
+function renderExamQuestions(questions) {
+    const container = document.getElementById('preview-questions-container');
+    
+    if (!questions || questions.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; color: #7f8c8d; padding: 50px; font-style: italic;">
+                <i class="fas fa-question-circle" style="font-size: 48px; margin-bottom: 20px; display: block;"></i>
+                该试卷暂无题目
+            </div>
+        `;
+        return;
+    }
+    
+    let questionsHtml = '';
+    
+    questions.forEach((question, index) => {
+        // 添加防御性检查
+        if (!question || typeof question !== 'object') {
+            console.warn('跳过无效题目:', question);
+            return;
+        }
+        
+        const questionNumber = index + 1;
+        const score = question.score || 10;
+        
+        console.log(`渲染第${questionNumber}题:`, question);
+        console.log(`题目答案字段:`, {
+            correctAnswer: question.correctAnswer,
+            answer: question.answer,
+            correct: question.correct,
+            solution: question.solution
+        });
+        console.log(`题目解析字段:`, {
+            explanation: question.explanation,
+            analysis: question.analysis,
+            solution_detail: question.solution_detail,
+            rationale: question.rationale
+        });
+        
+        questionsHtml += `
+            <div class="question-item" style="margin-bottom: 30px; padding: 25px; border: 1px solid #e9ecef; border-radius: 10px; background: #fafbfc;">
+                <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="color: #3498db; margin: 0; font-size: 16px; font-weight: 600;">
+                        第${questionNumber}题 (${score}分)
+                    </h4>
+                </div>
+                
+                <div class="question-content" style="margin-bottom: 20px;">
+                    <p style="font-size: 15px; line-height: 1.6; color: #2c3e50; margin: 0;">
+                        ${question.content || question.questionText || question.text || '题目内容'}
+                    </p>
+                </div>
+                
+                ${renderQuestionOptions(question)}
+                
+                ${renderQuestionAnswer(question)}
+                
+                ${renderQuestionExplanation(question)}
+            </div>
+        `;
+    });
+    
+    container.innerHTML = questionsHtml;
+}
+
+// 渲染题目选项
+function renderQuestionOptions(question) {
+    if (!question.options) {
+        return '';
+    }
+    
+    // 确保options是数组
+    let options = [];
+    if (Array.isArray(question.options)) {
+        options = question.options;
+    } else if (typeof question.options === 'string') {
+        // 如果是字符串，尝试解析
+        try {
+            options = JSON.parse(question.options);
+        } catch (e) {
+            // 如果解析失败，按行分割
+            options = question.options.split('\n').filter(opt => opt.trim());
+        }
+    } else if (typeof question.options === 'object') {
+        // 如果是对象，转换为数组
+        options = Object.values(question.options);
+    }
+    
+    if (!options || options.length === 0) {
+        return '';
+    }
+    
+    const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F'];
+    let optionsHtml = '<div class="question-options" style="margin-bottom: 20px;">';
+    
+    options.forEach((option, index) => {
+        const label = optionLabels[index] || (index + 1);
+        // 检查选项是否已经包含标签，如果有则去掉
+        const cleanOption = option.replace(/^[A-Z]\.\s*/, '');
+        optionsHtml += `
+            <div class="option-item" style="margin-bottom: 8px; padding: 8px 0;">
+                <span style="font-weight: 500; color: #3498db; margin-right: 8px;">${label}.</span>
+                <span style="color: #2c3e50;">${cleanOption}</span>
+            </div>
+        `;
+    });
+    
+    optionsHtml += '</div>';
+    return optionsHtml;
+}
+
+// 渲染正确答案
+function renderQuestionAnswer(question) {
+    // 支持多种答案字段名
+    const answer = question.correctAnswer || question.answer || question.correct || question.solution;
+    
+    if (!answer) {
+        console.log('题目无答案信息:', question);
+        return '';
+    }
+    
+    return `
+        <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
+            <span style="font-weight: 600; color: #155724;">参考答案：</span>
+            <span style="color: #155724;">${answer}</span>
+        </div>
+    `;
+}
+
+// 渲染题目解析
+function renderQuestionExplanation(question) {
+    // 支持多种解析字段名
+    const explanation = question.explanation || question.analysis || question.solution_detail || question.rationale;
+    
+    if (!explanation) {
+        console.log('题目无解析信息:', question);
+        return '';
+    }
+    
+    return `
+        <div class="question-explanation" style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px;">
+            <span style="font-weight: 600; color: #0c5460;">解析：</span>
+            <span style="color: #0c5460; line-height: 1.6;">${explanation}</span>
+        </div>
+    `;
+}
+
+// 设置试卷预览模态框事件监听器
+function setupExamPreviewModalEvents() {
+    const modal = document.getElementById('exam-preview-modal');
+    const closeBtn = document.getElementById('close-preview-modal');
+    
+    // 关闭按钮事件
+    if (closeBtn) {
+        closeBtn.removeEventListener('click', hideExamPreviewModal);
+        closeBtn.addEventListener('click', hideExamPreviewModal);
+    }
+    
+    // ESC键关闭
+    const escHandler = (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            hideExamPreviewModal();
+        }
+    };
+    
+    document.removeEventListener('keydown', escHandler);
+    document.addEventListener('keydown', escHandler);
+    
+    // 点击背景关闭
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            hideExamPreviewModal();
+        }
+    };
+}
+
+// 隐藏试卷预览模态框
+function hideExamPreviewModal() {
+    const modal = document.getElementById('exam-preview-modal');
+    modal.style.display = 'none';
+    modal.removeAttribute('data-exam-id');
+}
+
+// 从预览进入编辑模式
+function editExamFromPreview() {
+    const modal = document.getElementById('exam-preview-modal');
+    const examId = modal.getAttribute('data-exam-id');
+    
+    if (examId) {
+        hideExamPreviewModal();
+        showExamEditModal(examId);
+    }
+}
+
+// 从预览发布试卷
+function publishExamFromPreview() {
+    const modal = document.getElementById('exam-preview-modal');
+    const examId = modal.getAttribute('data-exam-id');
+    
+    if (examId) {
+        hideExamPreviewModal();
+        showPublishExamWithModal(examId);
+    }
+}
+
+// 从预览导出试卷
+function exportExamFromPreview() {
+    const modal = document.getElementById('exam-preview-modal');
+    const examId = modal.getAttribute('data-exam-id');
+    
+    if (examId) {
+        exportExam(examId);
+    }
+}
+
+// 显示试卷编辑模态框
+async function showExamEditModal(examId) {
+    try {
+        showLoading('加载试卷内容...');
+        
+        // 获取试卷详情
+        const response = await TeacherAPI.getExamDetail(examId);
+        if (!response.success) {
+            throw new Error(response.message || '获取试卷详情失败');
+        }
+        
+        const exam = response.data;
+        
+        // 生成Markdown格式内容
+        const markdownContent = generateExamMarkdown(exam);
+        
+        // 设置编辑器内容
+        const editor = document.getElementById('exam-markdown-editor');
+        editor.value = markdownContent;
+        
+        // 保存当前试卷ID
+        document.getElementById('exam-edit-modal').setAttribute('data-exam-id', examId);
+        
+        // 显示模态框
+        document.getElementById('exam-edit-modal').style.display = 'flex';
+        
+        // 设置事件监听器
+        setupExamEditModalEvents();
+        
+        // 初始化预览
+        setTimeout(() => {
+            updateExamPreview();
+            // 如果编辑器有内容，立即触发预览更新
+            if (editor && editor.value.trim()) {
+                console.log('编辑器有内容，立即更新预览');
+                updateExamPreview();
+            }
+        }, 200);
+        
+        hideLoading();
+    } catch (error) {
+        console.error('显示试卷编辑失败:', error);
+        hideLoading();
+        showNotification('加载试卷编辑失败: ' + error.message, 'error');
+    }
+}
+
+// 设置试卷编辑模态框事件监听器
+function setupExamEditModalEvents() {
+    const modal = document.getElementById('exam-edit-modal');
+    const closeBtn = document.getElementById('close-edit-modal');
+    const editor = document.getElementById('exam-markdown-editor');
+    
+    // 关闭按钮事件
+    if (closeBtn) {
+        closeBtn.removeEventListener('click', hideExamEditModal);
+        closeBtn.addEventListener('click', hideExamEditModal);
+    }
+    
+    // 编辑器内容变化事件
+    if (editor) {
+        editor.removeEventListener('input', updateExamPreview);
+        editor.addEventListener('input', updateExamPreview);
+    }
+    
+    // ESC键关闭
+    const escHandler = (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            hideExamEditModal();
+        }
+    };
+    
+    document.removeEventListener('keydown', escHandler);
+    document.addEventListener('keydown', escHandler);
+    
+    // 点击背景关闭
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            hideExamEditModal();
+        }
+    };
+}
+
+// 更新编辑预览
+function updateExamPreview() {
+    const editor = document.getElementById('exam-markdown-editor');
+    const preview = document.getElementById('exam-preview-panel');
+    
+    if (!editor || !preview) return;
+    
+    const markdown = editor.value.trim();
+    
+    if (!markdown) {
+        preview.innerHTML = `
+            <div style="color: #95a5a6; text-align: center; padding: 50px; font-style: italic;">
+                开始编辑以查看预览...
+            </div>
+        `;
+        return;
+    }
+    
+    try {
+        console.log('正在解析Markdown:', markdown);
+        // 解析Markdown并渲染预览
+        const examData = parseExamMarkdownToData(markdown);
+        console.log('解析出的试卷数据:', examData);
+        renderExamPreviewFromData(examData);
+    } catch (error) {
+        console.error('Markdown解析失败:', error);
+        preview.innerHTML = `
+            <div style="color: #e74c3c; text-align: center; padding: 50px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                预览解析失败<br>
+                <small style="font-size: 12px; margin-top: 5px; display: block;">${error.message}</small>
+            </div>
+        `;
+    }
+}
+
+// 根据数据渲染编辑预览
+function renderExamPreviewFromData(examData, container = null) {
+    const preview = container || document.getElementById('exam-preview-panel');
+    
+    console.log('renderExamPreviewFromData 被调用，examData:', examData);
+    console.log('examData.questions:', examData.questions);
+    console.log('questions 长度:', examData.questions ? examData.questions.length : 'undefined');
+    
+    if (!examData.questions || examData.questions.length === 0) {
+        console.log('没有题目数据，显示暂无题目内容');
+        preview.innerHTML = `
+            <div style="color: #7f8c8d; text-align: center; padding: 30px; font-style: italic;">
+                暂无题目内容
+            </div>
+        `;
+        return;
+    }
+    
+    let previewHtml = '';
+    
+    examData.questions.forEach((question, index) => {
+        const questionNumber = index + 1;
+        
+        previewHtml += `
+            <div class="preview-question" style="margin-bottom: 25px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: #fafbfc;">
+                <div class="preview-question-header" style="margin-bottom: 10px;">
+                    <span style="color: #3498db; font-weight: 600; font-size: 14px;">第${questionNumber}题 (${question.score || 10}分)</span>
+                </div>
+                
+                <div class="preview-question-content" style="margin-bottom: 15px; line-height: 1.6;">
+                    ${question.content || question.questionText || ''}
+                </div>
+                
+                ${renderPreviewOptions(question)}
+                
+                ${(question.correctAnswer || question.answer || question.correct || question.solution) ? `
+                    <div style="margin-top: 10px; padding: 8px; background: #d4edda; border-radius: 4px; font-size: 13px;">
+                        <strong style="color: #155724;">参考答案：</strong><span style="color: #155724;">${question.correctAnswer || question.answer || question.correct || question.solution}</span>
+                    </div>
+                ` : ''}
+                
+                ${(question.explanation || question.analysis || question.solution_detail || question.rationale) ? `
+                    <div style="margin-top: 8px; padding: 8px; background: #d1ecf1; border-radius: 4px; font-size: 13px;">
+                        <strong style="color: #0c5460;">解析：</strong><span style="color: #0c5460;">${question.explanation || question.analysis || question.solution_detail || question.rationale}</span>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    });
+    
+    preview.innerHTML = previewHtml;
+}
+
+// 渲染预览选项
+function renderPreviewOptions(question) {
+    if (!question.options) {
+        return '';
+    }
+    
+    // 确保options是数组
+    let options = [];
+    if (Array.isArray(question.options)) {
+        options = question.options;
+    } else if (typeof question.options === 'string') {
+        // 如果是字符串，尝试解析
+        try {
+            options = JSON.parse(question.options);
+        } catch (e) {
+            // 如果解析失败，按行分割
+            options = question.options.split('\n').filter(opt => opt.trim());
+        }
+    } else if (typeof question.options === 'object') {
+        // 如果是对象，转换为数组
+        options = Object.values(question.options);
+    }
+    
+    if (!options || options.length === 0) {
+        return '';
+    }
+    
+    const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F'];
+    let optionsHtml = '<div class="preview-options" style="margin: 10px 0;">';
+    
+    options.forEach((option, index) => {
+        const label = optionLabels[index] || (index + 1);
+        // 检查选项是否已经包含标签，如果有则去掉
+        const cleanOption = option.replace(/^[A-Z]\.\s*/, '');
+        optionsHtml += `
+            <div style="margin: 5px 0; font-size: 13px;">
+                <span style="font-weight: 500; color: #3498db; margin-right: 5px;">${label}.</span>
+                <span>${cleanOption}</span>
+            </div>
+        `;
+    });
+    
+    optionsHtml += '</div>';
+    return optionsHtml;
+}
+
+// 隐藏试卷编辑模态框
+function hideExamEditModal() {
+    const modal = document.getElementById('exam-edit-modal');
+    modal.style.display = 'none';
+    modal.removeAttribute('data-exam-id');
+    
+    // 清空编辑器
+    const editor = document.getElementById('exam-markdown-editor');
+    if (editor) editor.value = '';
+    
+    // 清空预览
+    const preview = document.getElementById('exam-preview-panel');
+    if (preview) {
+        preview.innerHTML = `
+            <div style="color: #95a5a6; text-align: center; padding: 50px; font-style: italic;">
+                开始编辑以查看预览...
+            </div>
+        `;
+    }
+}
+
+// 保存试卷编辑
+async function saveExamEdit() {
+    try {
+        const modal = document.getElementById('exam-edit-modal');
+        const examId = modal.getAttribute('data-exam-id');
+        const editor = document.getElementById('exam-markdown-editor');
+        
+        if (!examId || !editor) {
+            throw new Error('无法获取试卷信息');
+        }
+        
+        const markdown = editor.value.trim();
+        if (!markdown) {
+            showNotification('试卷内容不能为空', 'warning');
+            return;
+        }
+        
+        showLoading('保存试卷修改...');
+        
+        // 解析Markdown内容
+        const examData = parseExamMarkdown(markdown);
+        
+        // 调用API保存
+        const response = await TeacherAPI.updateExam(examId, markdown);
+        
+        if (!response.success) {
+            throw new Error(response.message || '保存试卷失败');
+        }
+        
+        hideLoading();
+        hideExamEditModal();
+        showNotification('试卷保存成功', 'success');
+        
+        // 刷新试卷列表
+        if (typeof loadExamList === 'function') {
+            await loadExamList();
+        }
+        
+    } catch (error) {
+        console.error('保存试卷编辑失败:', error);
+        hideLoading();
+        showNotification('保存试卷失败: ' + error.message, 'error');
     }
 }
 

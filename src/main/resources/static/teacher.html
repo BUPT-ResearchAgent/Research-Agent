@@ -682,7 +682,7 @@
                         <div style="font-size: 12px; color: #7f8c8d; font-weight: normal; margin-top: 4px;">
                             🔍 自动从知识库中检索相关内容 → 🤖 AI基于检索结果生成个性化大纲
                         </div>
-                    </div>
+                                </div>
                     <div style="padding: 24px;">
                         <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
                             <div style="font-size: 14px; color: #495057; line-height: 1.6;">
@@ -701,20 +701,20 @@
                                 <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
                                     系统将自动使用该课程的完整知识库作为RAG检索范围
                                 </div>
-                            </div>
+                                </div>
                             <div class="form-group" style="flex: 0 0 200px; margin-bottom: 0;">
                                 <label>教学学时：<span style="color: #e74c3c;">*</span></label>
                                 <input type="number" id="outline-hours" class="form-input" placeholder="输入学时" min="1" max="100" step="1" title="1学时 = 45分钟">
                                 <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">1学时 = 45分钟</div>
-                            </div>
-                        </div>
-        
+                                </div>
+                                </div>
+                        
                         <div class="form-group">
                             <label>教学要求：</label>
                             <textarea id="outline-requirements" class="form-input" rows="3" placeholder="请描述您的教学要求或重点内容，RAG系统将据此精准检索相关知识..."></textarea>
                             <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
                                 💡 提示：描述越详细，RAG检索的结果越精准，生成的大纲越符合您的需求
-                            </div>
+                                </div>
             </div>
                         
                         <div class="form-actions">
@@ -857,24 +857,20 @@
                         </div>
                         
                         <div class="form-group">
-                            <label>选择资料：<span style="color: #e74c3c;">*</span></label>
-                            <div id="exam-materials-loading" style="display: none; padding: 16px; text-align: center; color: #7f8c8d;">
-                                <i class="fas fa-spinner fa-spin"></i> 加载课程资料中...
+                            <label>智能内容检索：</label>
+                            <div class="rag-info-box" style="background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                                    <i class="fas fa-brain" style="color: #007bff; margin-right: 8px;"></i>
+                                    <strong style="color: #495057;">RAG智能检索技术</strong>
                             </div>
-                            <div id="exam-materials-selection" style="display: none;">
-                                <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-size: 13px; color: #7f8c8d;">从该课程的知识库中选择资料作为生成依据</span>
-                                    <div>
-                                        <button type="button" class="btn btn-sm btn-secondary" onclick="selectAllExamMaterials()">全选</button>
-                                        <button type="button" class="btn btn-sm btn-secondary" onclick="clearAllExamMaterials()">清空</button>
+                                <p style="margin: 0; color: #6c757d; font-size: 14px; line-height: 1.4;">
+                                    系统将根据您设置的题型和要求，自动从课程知识库中智能检索最相关的内容来生成测评。
+                                    <br>无需手动选择具体资料，AI会自动匹配最适合的知识点进行测评生成。
+                                </p>
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e9ecef; font-size: 12px; color: #868e96;">
+                                    <i class="fas fa-lightbulb" style="margin-right: 4px;"></i>
+                                    RAG技术将对您的需求进行向量化，并从知识库中检索匹配度最高的内容块
                                     </div>
-                                </div>
-                                <div id="exam-materials-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #e0e6ed; border-radius: 8px; padding: 12px;">
-                                    <!-- 动态加载的资料列表 -->
-                                </div>
-                            </div>
-                            <div id="exam-materials-empty" style="display: block; padding: 20px; text-align: center; color: #7f8c8d;">
-                                <i class="fas fa-info-circle"></i> 请先选择课程，或该课程暂无知识库资料
                             </div>
                         </div>
                         
@@ -1024,8 +1020,8 @@
             <div class="content-header">
                 <h1 class="page-title">测评管理</h1>
                 <div class="header-actions">
-                    <button class="btn btn-primary" onclick="loadExamList()">
-                        <i class="fas fa-sync-alt"></i> 刷新列表
+                    <button class="btn btn-primary" onclick="loadExamManageData()">
+                        <i class="fas fa-sync-alt"></i> 刷新数据
                     </button>
                     <button class="btn btn-accent" onclick="showScheduleModal()">
                         <i class="fas fa-calendar-plus"></i> 定时发布
@@ -1092,6 +1088,9 @@
                                onkeypress="if(event.key==='Enter') searchExams()" style="width: 250px;">
                         <button class="btn btn-accent" onclick="searchExams()">
                             <i class="fas fa-search"></i>
+                        </button>
+                        <button class="btn btn-secondary" onclick="loadExamList()" title="刷新试卷列表">
+                            <i class="fas fa-sync-alt"></i>
                         </button>
                     </div>
                 </div>
@@ -1422,7 +1421,7 @@
                                 文档描述
                             </label>
                             <textarea id="knowledge-description" class="course-form-input" rows="3" placeholder="请输入文档的简要描述（可选）..."></textarea>
-                        </div>
+                                </div>
                         
                         <div class="course-modal-actions">
                             <button type="button" id="cancel-knowledge-upload" class="course-btn course-btn-cancel">
@@ -1433,10 +1432,10 @@
                                 <i class="fas fa-robot"></i>
                                 <span>上传并智能处理</span>
                             </button>
-                        </div>
+                            </div>
                     </form>
-                </div>
-
+                        </div>
+                        
                 <!-- 批量上传 -->
                 <div id="batch-upload" class="tab-content">
                     <form id="knowledge-batch-upload-form">
@@ -1468,21 +1467,21 @@
                                     已选择 <span id="batch-file-count">0</span> 个文件
                                 </div>
                                 <div id="batch-file-list"></div>
-                            </div>
                         </div>
-                        
-                        <div class="course-modal-actions">
+                    </div>
+                    
+                    <div class="course-modal-actions">
                             <button type="button" id="cancel-batch-upload" class="course-btn course-btn-cancel">
-                                <i class="fas fa-times"></i>
-                                <span>取消</span>
-                            </button>
-                            <button type="submit" class="course-btn course-btn-primary">
+                            <i class="fas fa-times"></i>
+                            <span>取消</span>
+                        </button>
+                        <button type="submit" class="course-btn course-btn-primary">
                                 <i class="fas fa-robot"></i>
                                 <span>批量上传并处理</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                        </button>
+                    </div>
+                </form>
+            </div>
 
                 <!-- 处理进度 -->
                 <div id="knowledge-processing" style="display: none; padding: 24px; text-align: center;">
@@ -2579,12 +2578,133 @@
                 </form>
             </div>
             
-            <div class="course-modal-footer">
-                <button type="button" id="cancel-publish" class="btn btn-secondary">
-                    <i class="fas fa-times"></i> 取消
-                </button>
+            <div class="course-modal-footer" style="display: flex; justify-content: center; padding: 15px 20px 20px; margin-top: -10px;">
                 <button type="button" id="confirm-publish" class="btn btn-success">
                     <i class="fas fa-paper-plane"></i> 确认发布
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 试卷预览模态框 -->
+    <div id="exam-preview-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="width: 1200px; height: 800px; max-width: 95vw; max-height: 95vh; display: flex; flex-direction: column;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(52, 152, 219, 0.1);">
+                        <i class="fas fa-eye" style="color: #3498db;"></i>
+                    </div>
+                    <h3><i class="fas fa-file-alt"></i> 试卷预览</h3>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="close-preview-modal" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="course-modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 0;">
+                <div class="exam-preview-content" style="flex: 1; overflow-y: auto; padding: 30px; background: #f8f9fa;">
+                    <div class="exam-preview-header" style="background: white; border-radius: 15px; padding: 30px; margin-bottom: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                            <h2 id="preview-exam-title" style="color: #2c3e50; margin: 0; font-size: 24px; font-weight: 600;">AI生成试卷 - 数字水印</h2>
+                            <div style="display: flex; gap: 15px; font-size: 14px; color: #7f8c8d;">
+                                <span><strong>考试时长：</strong><span id="preview-exam-duration">90分钟</span></span>
+                                <span><strong>总分：</strong><span id="preview-exam-total-score">100分</span></span>
+                                <span><strong>题目数：</strong><span id="preview-exam-question-count">10题</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="preview-questions-container" style="background: white; border-radius: 15px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                        <!-- 动态加载题目内容 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; padding: 15px 20px; border-top: 1px solid #e9ecef;">
+                <button type="button" class="btn btn-secondary" onclick="hideExamPreviewModal()">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
+                <button type="button" class="btn btn-primary" onclick="editExamFromPreview()">
+                    <i class="fas fa-edit"></i> 编辑
+                </button>
+                <button type="button" class="btn btn-success" onclick="publishExamFromPreview()">
+                    <i class="fas fa-paper-plane"></i> 发布
+                </button>
+                <button type="button" class="btn btn-info" onclick="exportExamFromPreview()">
+                    <i class="fas fa-download"></i> 导出
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 试卷编辑模态框 -->
+    <div id="exam-edit-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="width: 1400px; height: 800px; max-width: 95vw; max-height: 95vh; display: flex; flex-direction: column;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(46, 204, 113, 0.1);">
+                        <i class="fas fa-edit" style="color: #2ecc71;"></i>
+                    </div>
+                    <h3><i class="fas fa-edit"></i> 试卷编辑</h3>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <div style="font-size: 12px; color: #000000;">
+                        <i class="fas fa-eye"></i> 实时预览
+                    </div>
+                    <button id="close-edit-modal" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="course-modal-body" style="flex: 1; display: flex; overflow: hidden; padding: 0;">
+                <!-- Markdown编辑器 -->
+                <div class="markdown-editor-panel" style="flex: 1; display: flex; flex-direction: column; border-right: 1px solid #e9ecef;">
+                    <div class="editor-header" style="padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-edit" style="color: #2ecc71;"></i>
+                        <span style="font-weight: 500;">Markdown编辑器</span>
+                    </div>
+                    <textarea id="exam-markdown-editor" style="flex: 1; border: none; outline: none; padding: 20px; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 13px; line-height: 1.6; resize: none; background: white;" placeholder="### 题目10（单项选择题）
+
+**题目内容**：若嵌入的秘密信息为01001000，提取时误码率为0.50，则有多少比特发生变化？
+
+**选项**：
+A. A. 2
+B. B. 4  
+C. C. 6
+D. D. 8
+
+**正确答案**：B
+
+**解析**：误码率=错误比特数/总比特数，0.50×8=4（知识块7）。
+
+**分值建议**：10分
+
+---"></textarea>
+                </div>
+                
+                <!-- 实时预览 -->
+                <div class="preview-panel" style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="preview-header" style="padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-eye" style="color: #3498db;"></i>
+                        <span style="font-weight: 500;"></span>
+                    </div>
+                    <div id="exam-preview-panel" style="flex: 1; overflow-y: auto; padding: 20px; background: white;">
+                        <div style="color: #95a5a6; text-align: center; padding: 50px; font-style: italic;">
+                            开始编辑以查看预览...
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: flex; gap: 12px; justify-content: center; padding: 15px 20px; border-top: 1px solid #e9ecef;">
+                <button type="button" class="btn btn-secondary" onclick="hideExamEditModal()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button type="button" class="btn btn-success" onclick="saveExamEdit()">
+                    <i class="fas fa-save"></i> 保存修改
                 </button>
             </div>
         </div>

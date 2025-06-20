@@ -22,6 +22,11 @@ public class ExamDTO {
     private LocalDateTime createdAt;
     private List<QuestionDTO> questions;
     
+    // 课程信息
+    private Long courseId;
+    private String courseName;
+    private String courseCode;
+    
     public ExamDTO() {}
     
     public ExamDTO(Exam exam) {
@@ -37,6 +42,13 @@ public class ExamDTO {
         this.isPublished = exam.getIsPublished();
         this.isAnswerPublished = exam.getIsAnswerPublished();
         this.createdAt = exam.getCreatedAt();
+        
+        // 设置课程信息
+        if (exam.getCourse() != null) {
+            this.courseId = exam.getCourse().getId();
+            this.courseName = exam.getCourse().getName();
+            this.courseCode = exam.getCourse().getCourseCode();
+        }
         
         if (exam.getQuestions() != null) {
             this.questions = exam.getQuestions().stream()
@@ -148,6 +160,30 @@ public class ExamDTO {
     
     public void setQuestions(List<QuestionDTO> questions) {
         this.questions = questions;
+    }
+    
+    public Long getCourseId() {
+        return courseId;
+    }
+    
+    public void setCourseId(Long courseId) {
+        this.courseId = courseId;
+    }
+    
+    public String getCourseName() {
+        return courseName;
+    }
+    
+    public void setCourseName(String courseName) {
+        this.courseName = courseName;
+    }
+    
+    public String getCourseCode() {
+        return courseCode;
+    }
+    
+    public void setCourseCode(String courseCode) {
+        this.courseCode = courseCode;
     }
     
     // 内部QuestionDTO类

@@ -5,14 +5,14 @@ import java.util.List;
 
 public class ExamGenerationRequest {
     private Long courseId;
-    private List<Long> materialIds; // 选中的资料ID列表
+    private List<Long> materialIds; // 资料ID列表（使用RAG技术时可为空，系统自动检索）
     private String title;
     private String chapter;
     private Object questionTypes; // 题目类型配置（可以是Map或List）
     private Object difficulty; // 难度配置
     private Integer duration; // 考试时长（分钟）
     private Integer totalScore; // 总分
-    private String specialRequirements; // 特殊要求（可选）
+    private String specialRequirements; // 特殊要求（可选，RAG检索时作为关键词）
     private LocalDateTime startTime;
     private String classId; // 测评班级
     
