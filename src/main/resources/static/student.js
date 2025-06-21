@@ -33,6 +33,9 @@ function showSection(sectionId) {
         case 'my-courses':
             refreshMyCourses();
             break;
+        case 'student-helper':
+            initializeHelper();
+            break;
     }
 }
 
@@ -2468,7 +2471,12 @@ function initializeHelper() {
 // 加载学生课程列表
 async function loadHelperCourses() {
     try {
-        const response = await fetch('http://localhost:8080/api/ai-helper/courses', {
+        if (!currentUser || !currentUser.userId) {
+            console.error('用户信息不存在');
+            return;
+        }
+        
+        const response = await fetch(`/api/student/my-courses?userId=${currentUser.userId}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -2498,28 +2506,23 @@ function updateCourseSelect() {
     helperCourses.forEach(course => {
         const option = document.createElement('option');
         option.value = course.id;
-        option.textContent = `${course.name} (${course.code})`;
+        option.textContent = `${course.name} (${course.courseCode})`;
         courseSelect.appendChild(option);
     });
 }
 
-// 课程选择变化事件
-async function onCourseChange() {
+// RAG课程选择变化事件
+async function onRAGCourseChange() {
     const courseSelect = document.getElementById('helper-course-select');
-    const materialSelect = document.getElementById('helper-material-select');
     const chatInput = document.getElementById('chat-input');
     const sendButton = document.getElementById('send-button');
     
     const courseId = courseSelect.value;
     
     if (courseId) {
-        // 启用资料选择和聊天功能
-        materialSelect.disabled = false;
+        // 启用聊天功能
         chatInput.disabled = false;
         sendButton.disabled = false;
-        
-        // 加载课程资料
-        await loadCourseMaterials(courseId);
         
         // 更新状态
         updateHelperStatus('ready', '准备就绪');
@@ -2527,18 +2530,18 @@ async function onCourseChange() {
         // 添加课程选择消息到聊天历史
         const selectedCourse = helperCourses.find(c => c.id == courseId);
         if (selectedCourse) {
-            addSystemMessage(`已选择课程：${selectedCourse.name} (${selectedCourse.code})`);
+            addSystemMessage(`已选择课程：${selectedCourse.name} (${selectedCourse.courseCode})`);
         }
     } else {
         // 禁用相关功能
-        materialSelect.disabled = true;
-        materialSelect.innerHTML = '<option value="">请先选择课程</option>';
         chatInput.disabled = true;
         sendButton.disabled = true;
         
         updateHelperStatus('ready', '请选择课程');
     }
 }
+
+
 
 // 加载课程资料
 async function loadCourseMaterials(courseId) {
@@ -2591,11 +2594,20 @@ function setupChatInput() {
     const chatInput = document.getElementById('chat-input');
     if (!chatInput) return;
     
-    // 回车发送消息
+    // 回车发送消息，Shift+Enter换行
     chatInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
+        if (e.key === 'Enter') {
+            if (e.shiftKey) {
+                // Shift+Enter允许换行，不做任何处理
+                return;
+            } else {
+                // 单独Enter键发送消息
+                e.preventDefault();
+                const message = this.value.trim();
+                if (message) {
+                    sendMessage();
+                }
+            }
         }
     });
     
@@ -2610,11 +2622,10 @@ function setupChatInput() {
 async function sendMessage() {
     const chatInput = document.getElementById('chat-input');
     const courseSelect = document.getElementById('helper-course-select');
-    const materialSelect = document.getElementById('helper-material-select');
     
     const message = chatInput.value.trim();
     const courseId = courseSelect.value;
-    const materialId = materialSelect.value || null;
+    const topK = 5; // 固定使用5个检索结果
     
     if (!message) {
         showNotification('请输入您的问题', 'warning');
@@ -2623,6 +2634,11 @@ async function sendMessage() {
     
     if (!courseId) {
         showNotification('请先选择课程', 'warning');
+        return;
+    }
+    
+    if (!currentUser || !currentUser.userId) {
+        showNotification('用户信息不存在，请重新登录', 'error');
         return;
     }
     
@@ -2644,16 +2660,17 @@ async function sendMessage() {
     isAIResponding = true;
     
     try {
-        const response = await fetch('http://localhost:8080/api/ai-helper/chat', {
+        const response = await fetch('/api/student/learning-assistant/ask', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             credentials: 'include',
             body: JSON.stringify({
-                message: message,
+                userId: currentUser.userId,
                 courseId: courseId,
-                materialId: materialId
+                question: message,
+                topK: topK
             })
         });
         
@@ -2662,8 +2679,12 @@ async function sendMessage() {
         // 隐藏打字指示器
         hideTypingIndicator();
         
-        if (result.success) {
-            addAIMessage(result.data.message);
+        if (result.success && result.data) {
+            const ragData = result.data;
+            
+            // 添加AI回答
+            addAIMessage(ragData.answer);
+            
             updateHelperStatus('ready', '准备就绪');
         } else {
             addAIMessage('抱歉，我暂时无法回答您的问题。错误信息：' + result.message);
@@ -2784,27 +2805,27 @@ function updateHelperStatus(status, text) {
     statusElement.textContent = text;
 }
 
-// 格式化AI消息（支持简单的Markdown）
+// 格式化AI消息（使用Marked.js解析Markdown）
 function formatAIMessage(message) {
-    // 转义HTML
-    let formatted = escapeHtml(message);
-    
-    // 处理换行
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    // 处理粗体 **text**
-    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
-    // 处理列表项 • 或 -
-    formatted = formatted.replace(/^[•\-]\s+(.+)$/gm, '<li>$1</li>');
-    
-    // 包装连续的列表项
-    formatted = formatted.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
-    
-    // 处理数字列表
-    formatted = formatted.replace(/^(\d+)\.\s+(.+)$/gm, '<li>$2</li>');
-    
-    return `<div>${formatted}</div>`;
+    try {
+        // 配置Marked.js选项
+        marked.setOptions({
+            breaks: true,        // 支持换行
+            gfm: true,          // 支持GitHub风格Markdown
+            sanitize: false,    // 不过度清理HTML（我们信任AI的输出）
+            smartLists: true,   // 智能列表处理
+            smartypants: false  // 不转换引号
+        });
+        
+        // 使用Marked.js解析Markdown
+        const htmlContent = marked.parse(message);
+        
+        return `<div class="ai-message-content">${htmlContent}</div>`;
+    } catch (error) {
+        console.error('Markdown解析错误:', error);
+        // 如果解析失败，回退到简单的HTML转义
+        return `<div class="ai-message-content">${escapeHtml(message).replace(/\n/g, '<br>')}</div>`;
+    }
 }
 
 // 清空对话历史

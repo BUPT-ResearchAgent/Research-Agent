@@ -429,6 +429,14 @@ public class DeepSeekService {
     }
     
     /**
+     * 学习助手专用的API调用方法
+     * 供学生端学习助手功能使用
+     */
+    public String generateLearningAssistantResponse(String prompt) {
+        return callDeepSeekAPI(prompt);
+    }
+    
+    /**
      * 调用DeepSeek API
      */
     private String callDeepSeekAPI(String prompt) {

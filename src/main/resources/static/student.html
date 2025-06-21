@@ -7,6 +7,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <!-- Marked.js - Markdown解析库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
     <style>
         /* 课程网格布局 */
         .available-courses-grid, .my-courses-grid {
@@ -597,7 +599,7 @@
                         </div>
                     </div>
                     
-                    <!-- 课程和资料选择区域 -->
+                    <!-- 课程选择区域 -->
                     <div class="helper-config-area">
                         <div class="form-row" style="align-items: center; gap: 16px;">
                             <div style="display: flex; align-items: center; gap: 8px;">
@@ -605,19 +607,11 @@
                                     <i class="fas fa-book"></i>
                                     选择课程 <span class="required">*</span>
                                 </label>
-                                <select id="helper-course-select" class="form-select" onchange="onCourseChange()" style="min-width: 200px;">
+                                <select id="helper-course-select" class="form-select" onchange="onRAGCourseChange()" style="min-width: 200px;">
                                     <option value="">请选择课程</option>
                                 </select>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <label class="form-label" style="margin: 0; white-space: nowrap;">
-                                    <i class="fas fa-file-alt"></i>
-                                    选择资料 <span style="color: #7f8c8d;">(可选)</span>
-                                </label>
-                                <select id="helper-material-select" class="form-select" disabled style="min-width: 200px;">
-                                    <option value="">请先选择课程</option>
-                                </select>
-                            </div>
+
                         </div>
                     </div>
                     
@@ -650,7 +644,7 @@
                             </button>
                         </div>
                         <div class="input-tips">
-                            <span class="tip-item">💡 提示：您可以询问课程内容、学习方法、概念解释等问题</span>
+                            <span class="tip-item">💡 提示：按Enter发送消息，Shift+Enter换行</span>
                         </div>
                     </div>
                 </div>

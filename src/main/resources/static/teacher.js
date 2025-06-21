@@ -1796,23 +1796,25 @@ function displayExamPreview(examData) {
             questionsHtml += `
                 <div class="question-item">
                     <h4>第${index + 1}题 (${question.score || 2}分)</h4>
-                    <p class="question-content">${question.content || '题目内容加载失败'}</p>
+                    <div class="question-content">${formatTeacherMarkdown(question.content || '题目内容加载失败')}</div>
                     ${options.length > 0 ? `
                         <div class="question-options">
                             ${options.map((option, i) => {
                                 // 检查选项是否已经包含标签，如果有则去掉
                                 const cleanOption = typeof option === 'string' ? 
                                     option.replace(/^[A-Z]\.\s*/, '') : option;
-                                return `<p><span style="font-weight: 500; color: #3498db; margin-right: 8px;">${String.fromCharCode(65 + i)}.</span>${cleanOption}</p>`;
+                                return `<p><span style="font-weight: 500; color: #3498db; margin-right: 8px;">${String.fromCharCode(65 + i)}.</span>${formatTeacherMarkdown(cleanOption)}</p>`;
                             }).join('')}
                         </div>
                     ` : ''}
-                    <div class="question-answer">
-                        <strong>参考答案：</strong>${question.answer || 'N/A'}
+                    <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #155724;">参考答案：</span>
+                        <div style="color: #155724; margin-top: 8px;">${formatTeacherMarkdown(question.answer || 'N/A')}</div>
                     </div>
                     ${question.explanation ? `
-                        <div class="question-explanation">
-                            <strong>解析：</strong>${question.explanation}
+                        <div class="question-explanation" style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px;">
+                            <span style="font-weight: 600; color: #0c5460;">解析：</span>
+                            <div style="color: #0c5460; line-height: 1.6; margin-top: 8px;">${formatTeacherMarkdown(question.explanation)}</div>
                         </div>
                     ` : ''}
                 </div>
@@ -6254,7 +6256,7 @@ function parseQuestionBlock(block, questionIndex) {
             optionsHtml = `
                 <div class="question-options">
                     ${options.map((option) => {
-                        return `<p><span style="font-weight: 500; color: #3498db; margin-right: 8px;">${option.label}.</span>${option.content}</p>`;
+                        return `<p><span style="font-weight: 500; color: #3498db; margin-right: 8px;">${option.label}.</span>${formatTeacherMarkdown(option.content)}</p>`;
                     }).join('')}
                 </div>
             `;
@@ -6276,14 +6278,16 @@ function parseQuestionBlock(block, questionIndex) {
         return `
             <div class="question-item">
                 <h4>第${questionIndex}题 (${score}分)</h4>
-                <p class="question-content">${content}</p>
+                <div class="question-content">${formatTeacherMarkdown(content)}</div>
                 ${optionsHtml}
-                <div class="question-answer">
-                    <strong>参考答案：</strong>${answer}
+                <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
+                    <span style="font-weight: 600; color: #155724;">参考答案：</span>
+                    <div style="color: #155724; margin-top: 8px;">${formatTeacherMarkdown(answer)}</div>
                 </div>
                 ${explanation ? `
-                    <div class="question-explanation">
-                        <strong>解析：</strong>${explanation}
+                    <div class="question-explanation" style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #0c5460;">解析：</span>
+                        <div style="color: #0c5460; line-height: 1.6; margin-top: 8px;">${formatTeacherMarkdown(explanation)}</div>
                     </div>
                 ` : ''}
             </div>
@@ -8394,9 +8398,9 @@ function renderExamQuestions(questions) {
                 </div>
                 
                 <div class="question-content" style="margin-bottom: 20px;">
-                    <p style="font-size: 15px; line-height: 1.6; color: #2c3e50; margin: 0;">
-                        ${question.content || question.questionText || question.text || '题目内容'}
-                    </p>
+                    <div style="font-size: 15px; line-height: 1.6; color: #2c3e50;">
+                        ${formatTeacherMarkdown(question.content || question.questionText || question.text || '题目内容')}
+                    </div>
                 </div>
                 
                 ${renderQuestionOptions(question)}
@@ -8448,7 +8452,7 @@ function renderQuestionOptions(question) {
         optionsHtml += `
             <div class="option-item" style="margin-bottom: 8px; padding: 8px 0;">
                 <span style="font-weight: 500; color: #3498db; margin-right: 8px;">${label}.</span>
-                <span style="color: #2c3e50;">${cleanOption}</span>
+                <span style="color: #2c3e50;">${formatTeacherMarkdown(cleanOption)}</span>
             </div>
         `;
     });
@@ -8467,10 +8471,13 @@ function renderQuestionAnswer(question) {
         return '';
     }
     
+    // 使用Markdown解析答案内容
+    const formattedAnswer = formatTeacherMarkdown(answer);
+    
     return `
         <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
             <span style="font-weight: 600; color: #155724;">参考答案：</span>
-            <span style="color: #155724;">${answer}</span>
+            <div style="color: #155724; margin-top: 8px;">${formattedAnswer}</div>
         </div>
     `;
 }
@@ -8485,12 +8492,88 @@ function renderQuestionExplanation(question) {
         return '';
     }
     
+    // 使用Markdown解析解析内容
+    const formattedExplanation = formatTeacherMarkdown(explanation);
+    
     return `
         <div class="question-explanation" style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px;">
             <span style="font-weight: 600; color: #0c5460;">解析：</span>
-            <span style="color: #0c5460; line-height: 1.6;">${explanation}</span>
+            <div style="color: #0c5460; line-height: 1.6; margin-top: 8px;">${formattedExplanation}</div>
         </div>
     `;
+}
+
+// 格式化教师端的Markdown内容（用于试卷答案和解析）
+function formatTeacherMarkdown(message) {
+    // 检查Marked.js是否可用
+    if (typeof marked !== 'undefined') {
+        try {
+            // 配置Marked.js选项
+            marked.setOptions({
+                breaks: true,        // 支持单行换行
+                gfm: true,          // GitHub风格Markdown
+                sanitize: false,    // 信任内容
+                smartLists: true,   // 智能列表处理
+                smartypants: false, // 保持原始引号
+                highlight: function(code, lang) {
+                    // 简单的代码高亮处理
+                    return `<code class="language-${lang || 'text'}">${escapeHtml(code)}</code>`;
+                }
+            });
+            
+            // 预处理：确保代码块格式正确
+            let processedMessage = message;
+            
+            // 处理可能的代码块格式问题
+            // 如果包含```但没有正确的换行，尝试修复
+            if (processedMessage.includes('```') && !processedMessage.match(/```[\s\S]*?```/)) {
+                // 尝试修复代码块格式
+                processedMessage = processedMessage.replace(/```([^`]+)```/g, function(match, code) {
+                    return '```\n' + code.trim() + '\n```';
+                });
+            }
+            
+            // 使用Marked.js解析Markdown
+            const result = marked.parse(processedMessage);
+            
+            // 后处理：确保代码块有正确的样式
+            return result.replace(/<pre><code class="language-([^"]*)">/g, 
+                '<pre><code class="language-$1" style="display: block; white-space: pre-wrap; word-break: break-all;">');
+            
+        } catch (error) {
+            console.error('Marked.js解析失败:', error);
+            console.error('原始内容:', message);
+            // 回退到简单处理，但保留代码块格式
+            return formatFallbackMarkdown(message);
+        }
+    } else {
+        console.warn('Marked.js未加载，使用简单格式化');
+        // 如果Marked.js不可用，使用简单的格式化
+        return formatFallbackMarkdown(message);
+    }
+}
+
+// 备用的简单Markdown格式化函数
+function formatFallbackMarkdown(message) {
+    let formatted = message;
+    
+    // 处理代码块
+    formatted = formatted.replace(/```([\s\S]*?)```/g, function(match, code) {
+        return `<pre><code style="display: block; white-space: pre-wrap; word-break: break-all; background-color: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px;">${escapeHtml(code.trim())}</code></pre>`;
+    });
+    
+    // 处理行内代码
+    formatted = formatted.replace(/`([^`]+)`/g, function(match, code) {
+        return `<code style="background-color: rgba(0,0,0,0.1); padding: 2px 4px; border-radius: 3px; font-family: monospace;">${escapeHtml(code)}</code>`;
+    });
+    
+    // 处理粗体
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // 处理换行
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    return formatted;
 }
 
 // 设置试卷预览模态框事件监听器
@@ -8710,20 +8793,22 @@ function renderExamPreviewFromData(examData, container = null) {
                 </div>
                 
                 <div class="preview-question-content" style="margin-bottom: 15px; line-height: 1.6;">
-                    ${question.content || question.questionText || ''}
+                    ${formatTeacherMarkdown(question.content || question.questionText || '')}
                 </div>
                 
                 ${renderPreviewOptions(question)}
                 
                 ${(question.correctAnswer || question.answer || question.correct || question.solution) ? `
                     <div style="margin-top: 10px; padding: 8px; background: #d4edda; border-radius: 4px; font-size: 13px;">
-                        <strong style="color: #155724;">参考答案：</strong><span style="color: #155724;">${question.correctAnswer || question.answer || question.correct || question.solution}</span>
+                        <strong style="color: #155724;">参考答案：</strong>
+                        <div style="color: #155724; margin-top: 4px;">${formatTeacherMarkdown(question.correctAnswer || question.answer || question.correct || question.solution)}</div>
                     </div>
                 ` : ''}
                 
                 ${(question.explanation || question.analysis || question.solution_detail || question.rationale) ? `
                     <div style="margin-top: 8px; padding: 8px; background: #d1ecf1; border-radius: 4px; font-size: 13px;">
-                        <strong style="color: #0c5460;">解析：</strong><span style="color: #0c5460;">${question.explanation || question.analysis || question.solution_detail || question.rationale}</span>
+                        <strong style="color: #0c5460;">解析：</strong>
+                        <div style="color: #0c5460; margin-top: 4px;">${formatTeacherMarkdown(question.explanation || question.analysis || question.solution_detail || question.rationale)}</div>
                     </div>
                 ` : ''}
             </div>
@@ -8770,7 +8855,7 @@ function renderPreviewOptions(question) {
         optionsHtml += `
             <div style="margin: 5px 0; font-size: 13px;">
                 <span style="font-weight: 500; color: #3498db; margin-right: 5px;">${label}.</span>
-                <span>${cleanOption}</span>
+                <span>${formatTeacherMarkdown(cleanOption)}</span>
             </div>
         `;
     });

@@ -3,6 +3,9 @@ package com.example.smartedu.controller;
 import com.example.smartedu.dto.ApiResponse;
 import com.example.smartedu.entity.*;
 import com.example.smartedu.service.StudentManagementService;
+import com.example.smartedu.service.KnowledgeBaseService;
+import com.example.smartedu.service.DeepSeekService;
+import com.example.smartedu.service.VectorDatabaseService;
 import com.example.smartedu.repository.*;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
@@ -46,6 +49,12 @@ public class StudentController {
     
     @Autowired
     private CourseService courseService;
+    
+    @Autowired
+    private KnowledgeBaseService knowledgeBaseService;
+    
+    @Autowired
+    private DeepSeekService deepSeekService;
     
     /**
      * 获取学生信息
@@ -757,6 +766,186 @@ public class StudentController {
         } catch (Exception e) {
             e.printStackTrace();
             return ApiResponse.error("获取知识库文档失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 学习助手 - 智能问答（RAG技术）
+     * 基于课程知识库进行智能问答
+     */
+    @PostMapping("/learning-assistant/ask")
+    public ApiResponse<Map<String, Object>> askLearningAssistant(@RequestBody Map<String, Object> request) {
+        try {
+            Long userId = Long.valueOf(request.get("userId").toString());
+            Long courseId = Long.valueOf(request.get("courseId").toString());
+            String question = (String) request.get("question");
+            Integer topK = request.get("topK") != null ? 
+                    Integer.valueOf(request.get("topK").toString()) : 5; // 默认检索top 5
+
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+
+            // 检查学生是否已加入该课程
+            boolean isEnrolled = courseService.isStudentEnrolled(studentOpt.get().getId(), courseId);
+            if (!isEnrolled) {
+                return ApiResponse.error("您未加入此课程，无法使用学习助手");
+            }
+
+            // 检查课程知识库是否有数据
+            KnowledgeBaseService.KnowledgeStats stats = knowledgeBaseService.getKnowledgeStats(courseId);
+            if (stats.getProcessedChunks() == 0) {
+                return ApiResponse.error("该课程的知识库暂无可用数据，请联系教师上传课程资料");
+            }
+
+            System.out.println("学习助手问答 - 用户: " + userId + ", 课程: " + courseId + ", 问题: " + question);
+
+            // 第一步：文档召回 - 使用embedding模型向量化问题，并从向量数据库中进行近似搜索
+            System.out.println("步骤1: 文档召回 - 向量化问题并搜索相关内容");
+            List<VectorDatabaseService.SearchResult> searchResults = 
+                    knowledgeBaseService.searchKnowledge(courseId, question, topK);
+
+            if (searchResults.isEmpty()) {
+                return ApiResponse.error("未找到相关的课程内容，请尝试换个问法或联系教师");
+            }
+
+            System.out.println("检索到 " + searchResults.size() + " 个相关知识块");
+
+            // 组装相关内容
+            StringBuilder relevantContent = new StringBuilder();
+            for (int i = 0; i < searchResults.size(); i++) {
+                VectorDatabaseService.SearchResult result = searchResults.get(i);
+                relevantContent.append("【相关内容").append(i + 1).append("】");
+                if (result.getScore() > 0) {
+                    relevantContent.append(" (相似度: ").append(String.format("%.3f", result.getScore())).append(")");
+                }
+                relevantContent.append("\n");
+                relevantContent.append(result.getContent()).append("\n\n");
+            }
+
+            // 第二步：向LLM提问 - 将匹配的内容与用户问题组装成Prompt，向大语言模型提问
+            System.out.println("步骤2: 向LLM提问 - 组装Prompt并调用大语言模型");
+            String llmAnswer = generateLearningAssistantAnswer(question, relevantContent.toString(), courseId);
+
+            // 构建响应结果
+            Map<String, Object> response = new HashMap<>();
+            response.put("question", question);
+            response.put("answer", llmAnswer);
+            response.put("relevantCount", searchResults.size());
+            response.put("courseId", courseId);
+            response.put("searchTimestamp", System.currentTimeMillis());
+
+            // 添加检索到的相关内容详情（供调试和展示）
+            List<Map<String, Object>> searchDetails = searchResults.stream().map(result -> {
+                Map<String, Object> detail = new HashMap<>();
+                detail.put("content", result.getContent());
+                detail.put("score", result.getScore());
+                // 截取内容预览
+                String preview = result.getContent();
+                if (preview != null && preview.length() > 100) {
+                    preview = preview.substring(0, 100) + "...";
+                }
+                detail.put("preview", preview);
+                return detail;
+            }).collect(java.util.stream.Collectors.toList());
+            response.put("searchDetails", searchDetails);
+
+            System.out.println("学习助手问答完成");
+            return ApiResponse.success("学习助手回答成功", response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("学习助手服务异常：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取课程知识库统计信息（供学习助手功能检查使用）
+     */
+    @GetMapping("/learning-assistant/course/{courseId}/stats")
+    public ApiResponse<Map<String, Object>> getCourseKnowledgeStats(@PathVariable Long courseId, @RequestParam Long userId) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+
+            // 检查学生是否已加入该课程
+            boolean isEnrolled = courseService.isStudentEnrolled(studentOpt.get().getId(), courseId);
+            if (!isEnrolled) {
+                return ApiResponse.error("您未加入此课程");
+            }
+
+            // 获取课程信息
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+
+            Course course = courseOpt.get();
+            KnowledgeBaseService.KnowledgeStats stats = knowledgeBaseService.getKnowledgeStats(courseId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("courseId", courseId);
+            response.put("courseName", course.getName());
+            response.put("courseCode", course.getCourseCode());
+            response.put("totalChunks", stats.getTotalChunks());
+            response.put("processedChunks", stats.getProcessedChunks());
+            response.put("fileCount", stats.getFileCount());
+            response.put("totalSize", stats.getTotalSize());
+            response.put("available", stats.getProcessedChunks() > 0);
+            response.put("message", stats.getProcessedChunks() > 0 ? 
+                    "知识库可用，共有 " + stats.getProcessedChunks() + " 个知识块" : 
+                    "知识库暂无可用数据");
+
+            return ApiResponse.success("获取课程知识库统计成功", response);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("获取课程知识库统计失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 生成学习助手答案
+     * 使用大语言模型基于检索到的相关内容回答学生问题
+     */
+    private String generateLearningAssistantAnswer(String question, String relevantContent, Long courseId) {
+        try {
+            // 获取课程信息
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            String courseName = courseOpt.isPresent() ? courseOpt.get().getName() : "未知课程";
+
+            String prompt = String.format(
+                "**你是一个专业的学习助手，专门帮助学生解答《%s》课程的学习问题。**\n\n" +
+                "**角色定位：**\n" +
+                "- 你是一位耐心、专业的AI学习助手\n" +
+                "- 你的任务是基于课程知识库内容，准确、详细地回答学生的学习问题\n" +
+                "- 你需要用通俗易懂的语言解释复杂概念，帮助学生更好地理解\n\n" +
+                "**回答要求：**\n" +
+                "1. **准确性第一**：基于提供的课程内容进行回答，不要编造信息\n" +
+                "2. **结构清晰**：使用标题、要点、例子等方式组织答案\n" +
+                "3. **详细解释**：不仅要回答是什么，还要解释为什么\n" +
+                "4. **实用导向**：如果可能，提供学习建议或实践方法\n" +
+                "5. **友好态度**：使用鼓励性语言，让学生感到支持\n\n" +
+                "**学生问题：**\n" +
+                "%s\n\n" +
+                "**从课程知识库检索到的相关内容：**\n" +
+                "%s\n\n" +
+                "**请基于以上课程内容，详细回答学生的问题。如果检索到的内容不足以完全回答问题，请说明需要更多信息，并建议学生如何获取帮助。**",
+                courseName,
+                question,
+                relevantContent
+            );
+
+                         return deepSeekService.generateLearningAssistantResponse(prompt);
+
+        } catch (Exception e) {
+            System.err.println("生成学习助手答案失败: " + e.getMessage());
+            return "抱歉，学习助手暂时无法处理您的问题，请稍后再试或联系教师获取帮助。";
         }
     }
 } 
