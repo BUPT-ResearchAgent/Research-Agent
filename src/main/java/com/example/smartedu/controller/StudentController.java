@@ -7,6 +7,7 @@ import com.example.smartedu.service.KnowledgeBaseService;
 import com.example.smartedu.service.DeepSeekService;
 import com.example.smartedu.service.VectorDatabaseService;
 import com.example.smartedu.repository.*;
+import com.example.smartedu.dto.*;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -55,6 +56,12 @@ public class StudentController {
     
     @Autowired
     private DeepSeekService deepSeekService;
+    
+    @Autowired
+    private StudentAnswerRepository studentAnswerRepository;
+    
+    @Autowired
+    private QuestionRepository questionRepository;
     
     /**
      * 获取学生信息
@@ -448,18 +455,49 @@ public class StudentController {
     }
     
     /**
-     * 获取课程考试列表
+     * 获取课程考试列表（学生端）
      */
     @GetMapping("/courses/{courseId}/exams")
-    public ApiResponse<List<Exam>> getCourseExams(@PathVariable Long courseId) {
+    public ApiResponse<List<StudentExamDTO>> getCourseExams(@PathVariable Long courseId, @RequestParam Long userId) {
         try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            Student student = studentOpt.get();
+            
+            // 验证学生是否已加入该课程
+            if (!courseService.isStudentEnrolled(student.getId(), courseId)) {
+                return ApiResponse.error("您尚未加入此课程");
+            }
+            
             List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
             // 只返回已发布的考试
             List<Exam> publishedExams = exams.stream()
                 .filter(exam -> exam.getIsPublished() != null && exam.getIsPublished())
                 .collect(java.util.stream.Collectors.toList());
             
-            return ApiResponse.success("获取课程考试成功", publishedExams);
+            // 转换为StudentExamDTO并设置提交状态
+            List<StudentExamDTO> examDTOs = publishedExams.stream()
+                .map(exam -> {
+                    StudentExamDTO dto = new StudentExamDTO(exam);
+                    // 检查学生是否已提交
+                    Optional<ExamResult> result = examResultRepository.findByStudentIdAndExamId(student.getId(), exam.getId());
+                    dto.setHasSubmitted(result.isPresent() && result.get().getSubmitTime() != null);
+                    
+                    // 计算剩余时间
+                    if (dto.getCanTakeExam() && dto.getEndTime() != null) {
+                        java.time.Duration duration = java.time.Duration.between(
+                            java.time.LocalDateTime.now(), dto.getEndTime());
+                        dto.setRemainingMinutes((int) duration.toMinutes());
+                    }
+                    
+                    return dto;
+                })
+                .collect(java.util.stream.Collectors.toList());
+            
+            return ApiResponse.success("获取课程考试成功", examDTOs);
         } catch (Exception e) {
             return ApiResponse.error("获取课程考试失败：" + e.getMessage());
         }
@@ -1110,5 +1148,347 @@ public class StudentController {
             default:
                 return org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
+    }
+    
+    // ==================== 考试相关功能 ====================
+    
+    /**
+     * 获取考试详情（学生答题用）
+     */
+    @GetMapping("/exam/{examId}")
+    public ApiResponse<StudentExamDTO> getExamForStudent(@PathVariable Long examId, @RequestParam Long userId) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            Student student = studentOpt.get();
+            
+            // 获取考试信息
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ApiResponse.error("考试不存在");
+            }
+            Exam exam = examOpt.get();
+            
+            // 验证考试是否已发布
+            if (!exam.getIsPublished()) {
+                return ApiResponse.error("考试尚未发布");
+            }
+            
+            // 验证学生是否已加入该课程
+            if (!courseService.isStudentEnrolled(student.getId(), exam.getCourse().getId())) {
+                return ApiResponse.error("您尚未加入此课程");
+            }
+            
+            // 检查考试时间
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            if (exam.getStartTime() != null && now.isBefore(exam.getStartTime())) {
+                return ApiResponse.error("考试尚未开始");
+            }
+            if (exam.getEndTime() != null && now.isAfter(exam.getEndTime())) {
+                return ApiResponse.error("考试已结束");
+            }
+            
+            // 检查学生是否已提交
+            Optional<ExamResult> existingResult = examResultRepository.findByStudentIdAndExamId(student.getId(), examId);
+            if (existingResult.isPresent()) {
+                return ApiResponse.error("您已提交过此考试");
+            }
+            
+            // 构建考试DTO，包含题目但不显示答案
+            StudentExamDTO examDTO = new StudentExamDTO(exam, true, false);
+            examDTO.setHasSubmitted(false);
+            
+            // 计算剩余时间
+            if (exam.getEndTime() != null) {
+                java.time.Duration duration = java.time.Duration.between(now, exam.getEndTime());
+                examDTO.setRemainingMinutes((int) duration.toMinutes());
+            }
+            
+            return ApiResponse.success("获取考试详情成功", examDTO);
+            
+        } catch (Exception e) {
+            return ApiResponse.error("获取考试详情失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 开始考试（创建考试记录）
+     */
+    @PostMapping("/exam/{examId}/start")
+    public ApiResponse<Map<String, Object>> startExam(@PathVariable Long examId, @RequestParam Long userId) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            Student student = studentOpt.get();
+            
+            // 获取考试信息
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ApiResponse.error("考试不存在");
+            }
+            Exam exam = examOpt.get();
+            
+            // 验证考试状态
+            if (!exam.getIsPublished()) {
+                return ApiResponse.error("考试尚未发布");
+            }
+            
+            // 验证学生是否已加入该课程
+            if (!courseService.isStudentEnrolled(student.getId(), exam.getCourse().getId())) {
+                return ApiResponse.error("您尚未加入此课程");
+            }
+            
+            // 检查考试时间
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            if (exam.getStartTime() != null && now.isBefore(exam.getStartTime())) {
+                return ApiResponse.error("考试尚未开始");
+            }
+            if (exam.getEndTime() != null && now.isAfter(exam.getEndTime())) {
+                return ApiResponse.error("考试已结束");
+            }
+            
+            // 检查学生是否已开始考试
+            Optional<ExamResult> existingResult = examResultRepository.findByStudentIdAndExamId(student.getId(), examId);
+            if (existingResult.isPresent()) {
+                return ApiResponse.error("您已开始过此考试");
+            }
+            
+            // 创建考试结果记录
+            ExamResult examResult = new ExamResult();
+            examResult.setStudent(student);
+            examResult.setExam(exam);
+            examResult.setStartTime(now);
+            examResult.setTotalScore(exam.getTotalScore());
+            examResult.setGradeStatus("PENDING");
+            
+            examResult = examResultRepository.save(examResult);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("examResultId", examResult.getId());
+            response.put("startTime", examResult.getStartTime());
+            response.put("message", "考试已开始");
+            
+            return ApiResponse.success("开始考试成功", response);
+            
+        } catch (Exception e) {
+            return ApiResponse.error("开始考试失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 提交考试答案
+     */
+    @PostMapping("/exam/submit")
+    public ApiResponse<Map<String, Object>> submitExam(@RequestBody ExamSubmissionDTO submission) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(submission.getStudentId());
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            Student student = studentOpt.get();
+            
+            // 获取考试信息
+            Optional<Exam> examOpt = examRepository.findById(submission.getExamId());
+            if (!examOpt.isPresent()) {
+                return ApiResponse.error("考试不存在");
+            }
+            Exam exam = examOpt.get();
+            
+            // 获取考试结果记录
+            Optional<ExamResult> resultOpt = examResultRepository.findByStudentIdAndExamId(student.getId(), submission.getExamId());
+            if (!resultOpt.isPresent()) {
+                return ApiResponse.error("未找到考试记录，请先开始考试");
+            }
+            ExamResult examResult = resultOpt.get();
+            
+            // 检查是否已提交
+            if (examResult.getSubmitTime() != null) {
+                return ApiResponse.error("您已提交过此考试");
+            }
+            
+            // 检查考试时间
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            if (exam.getEndTime() != null && now.isAfter(exam.getEndTime())) {
+                return ApiResponse.error("考试已结束");
+            }
+            
+            // 保存学生答案
+            int totalScore = 0;
+            for (ExamSubmissionDTO.AnswerSubmission answer : submission.getAnswers()) {
+                Optional<Question> questionOpt = questionRepository.findById(answer.getQuestionId());
+                if (questionOpt.isPresent()) {
+                    Question question = questionOpt.get();
+                    
+                    StudentAnswer studentAnswer = new StudentAnswer();
+                    studentAnswer.setStudent(student);
+                    studentAnswer.setQuestion(question);
+                    studentAnswer.setExamResult(examResult);
+                    studentAnswer.setAnswer(answer.getAnswer());
+                    studentAnswer.setMaxScore(question.getScore());
+                    
+                    // 自动批改（简单比较答案）
+                    boolean isCorrect = checkAnswer(question, answer.getAnswer());
+                    studentAnswer.setIsCorrect(isCorrect);
+                    studentAnswer.setScore(isCorrect ? question.getScore() : 0);
+                    
+                    studentAnswerRepository.save(studentAnswer);
+                    totalScore += studentAnswer.getScore();
+                }
+            }
+            
+            // 更新考试结果
+            examResult.setSubmitTime(now);
+            examResult.setScore(totalScore);
+            examResult.setIsCorrected(true);
+            examResult.setGradeStatus("AI_GRADED");
+            
+            // 计算用时
+            if (examResult.getStartTime() != null) {
+                java.time.Duration duration = java.time.Duration.between(examResult.getStartTime(), now);
+                examResult.setDurationMinutes((int) duration.toMinutes());
+            }
+            
+            examResultRepository.save(examResult);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("examResultId", examResult.getId());
+            response.put("score", totalScore);
+            response.put("totalScore", exam.getTotalScore());
+            response.put("submitTime", examResult.getSubmitTime());
+            response.put("message", "考试提交成功");
+            
+            return ApiResponse.success("提交考试成功", response);
+            
+        } catch (Exception e) {
+            return ApiResponse.error("提交考试失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取考试结果详情（包含答案和解析）
+     */
+    @GetMapping("/exam-result/{examResultId}")
+    public ApiResponse<Map<String, Object>> getExamResult(@PathVariable Long examResultId, @RequestParam Long userId) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            Student student = studentOpt.get();
+            
+            // 获取考试结果
+            Optional<ExamResult> resultOpt = examResultRepository.findById(examResultId);
+            if (!resultOpt.isPresent()) {
+                return ApiResponse.error("考试结果不存在");
+            }
+            ExamResult examResult = resultOpt.get();
+            
+            // 验证权限
+            if (!examResult.getStudent().getId().equals(student.getId())) {
+                return ApiResponse.error("您没有权限查看此考试结果");
+            }
+            
+            // 检查是否已提交
+            if (examResult.getSubmitTime() == null) {
+                return ApiResponse.error("考试尚未提交");
+            }
+            
+            Exam exam = examResult.getExam();
+            
+            // 检查答案是否已发布
+            boolean showAnswers = exam.getIsAnswerPublished() != null && exam.getIsAnswerPublished();
+            
+            // 构建考试DTO
+            StudentExamDTO examDTO = new StudentExamDTO(exam, true, showAnswers);
+            examDTO.setHasSubmitted(true);
+            
+            // 获取学生答案
+            List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(examResultId);
+            Map<Long, StudentAnswer> answerMap = studentAnswers.stream()
+                .collect(java.util.stream.Collectors.toMap(sa -> sa.getQuestion().getId(), sa -> sa));
+            
+            // 设置学生答案到题目中
+            if (examDTO.getQuestions() != null) {
+                for (StudentQuestionDTO questionDTO : examDTO.getQuestions()) {
+                    StudentAnswer studentAnswer = answerMap.get(questionDTO.getId());
+                    if (studentAnswer != null) {
+                        questionDTO.setStudentAnswer(studentAnswer.getAnswer());
+                        questionDTO.setStudentScore(studentAnswer.getScore());
+                        questionDTO.setIsCorrect(studentAnswer.getIsCorrect());
+                    }
+                }
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("examResult", examResult);
+            response.put("exam", examDTO);
+            response.put("showAnswers", showAnswers);
+            response.put("score", examResult.getScore());
+            response.put("totalScore", examResult.getTotalScore());
+            response.put("durationMinutes", examResult.getDurationMinutes());
+            response.put("submitTime", examResult.getSubmitTime());
+            response.put("gradeStatus", examResult.getGradeStatus());
+            
+            return ApiResponse.success("获取考试结果成功", response);
+            
+        } catch (Exception e) {
+            return ApiResponse.error("获取考试结果失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 简单的答案检查方法
+     */
+    private boolean checkAnswer(Question question, String studentAnswer) {
+        if (question.getAnswer() == null || studentAnswer == null) {
+            return false;
+        }
+        
+        String correctAnswer = question.getAnswer().trim().toLowerCase();
+        String studentAnswerLower = studentAnswer.trim().toLowerCase();
+        
+        // 根据题型进行不同的比较
+        switch (question.getType().toLowerCase()) {
+            case "multiple-choice":
+            case "single-choice":
+                // 选择题：精确匹配
+                return correctAnswer.equals(studentAnswerLower);
+                
+            case "true-false":
+            case "判断题":
+                // 判断题：处理多种表达方式
+                return normalizeBoolean(correctAnswer).equals(normalizeBoolean(studentAnswerLower));
+                
+            case "fill-blank":
+            case "填空题":
+                // 填空题：去除空格后比较
+                return correctAnswer.replaceAll("\\s+", "").equals(studentAnswerLower.replaceAll("\\s+", ""));
+                
+            default:
+                // 其他题型：包含关键词即可
+                return studentAnswerLower.contains(correctAnswer) || correctAnswer.contains(studentAnswerLower);
+        }
+    }
+    
+    /**
+     * 标准化布尔值表达
+     */
+    private String normalizeBoolean(String answer) {
+        answer = answer.toLowerCase().trim();
+        if (answer.equals("true") || answer.equals("正确") || answer.equals("是") || answer.equals("对") || answer.equals("t") || answer.equals("√")) {
+            return "true";
+        }
+        if (answer.equals("false") || answer.equals("错误") || answer.equals("否") || answer.equals("错") || answer.equals("f") || answer.equals("×")) {
+            return "false";
+        }
+        return answer;
     }
 } 

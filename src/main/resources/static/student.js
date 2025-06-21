@@ -1,5 +1,7 @@
 // 全局变量定义
 let currentUser = null;
+let allExams = [];
+let allCourses = [];
 
 // 调试函数：检查currentUser状态
 window.checkCurrentUser = function() {
@@ -35,6 +37,10 @@ function showSection(sectionId) {
             break;
         case 'student-helper':
             initializeHelper();
+            break;
+        case 'practice-eval':
+            // 异步初始化考试页面
+            setTimeout(() => initializeExamPage(), 100);
             break;
     }
 }
@@ -1811,51 +1817,58 @@ async function loadCourseExams(courseId) {
 
 // 显示课程测评
 function displayCourseExams(exams) {
-    const container = document.getElementById('exams-list');
-    if (!container) return;
+    const examsEmpty = document.getElementById('exams-empty');
+    const examsContainer = document.getElementById('exams-container');
+    
+    if (!examsEmpty || !examsContainer) return;
     
     if (exams.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
-                <i class="fas fa-clipboard-check" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                <p>暂无测评考试</p>
-                <p>教师发布测评后会在这里显示</p>
-            </div>
-        `;
+        examsEmpty.style.display = 'block';
+        examsContainer.style.display = 'none';
         return;
     }
     
-    container.innerHTML = exams.map(exam => {
+    examsEmpty.style.display = 'none';
+    examsContainer.style.display = 'block';
+    
+    examsContainer.innerHTML = exams.map(exam => {
         const statusClass = getExamStatusClass(exam.status);
         const statusText = getExamStatusText(exam.status);
         
         return `
-            <div class="exam-item">
-                <div class="exam-header">
+            <div class="exam-item" style="background: #fff; border: 1px solid #e9ecef; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                <div class="exam-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                     <div>
-                        <h4 class="exam-title">${exam.title}</h4>
+                        <h4 class="exam-title" style="margin: 0; color: #2c3e50; font-size: 18px; font-weight: 600;">${exam.title}</h4>
+                        <p style="margin: 4px 0 0 0; color: #7f8c8d; font-size: 14px;">${exam.description || '暂无描述'}</p>
                     </div>
-                    <span class="exam-status ${statusClass}">${statusText}</span>
+                    <span class="exam-status ${statusClass}" style="padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;">${statusText}</span>
                 </div>
-                <div class="exam-meta">
-                    <div class="exam-meta-item">
-                        <i class="fas fa-clock"></i>
+                <div class="exam-meta" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
+                    <div class="exam-meta-item" style="display: flex; align-items: center; gap: 8px; color: #6c757d; font-size: 14px;">
+                        <i class="fas fa-clock" style="color: #3498db;"></i>
                         <span>时长: ${exam.duration || 0} 分钟</span>
                     </div>
-                    <div class="exam-meta-item">
-                        <i class="fas fa-question-circle"></i>
+                    <div class="exam-meta-item" style="display: flex; align-items: center; gap: 8px; color: #6c757d; font-size: 14px;">
+                        <i class="fas fa-question-circle" style="color: #9b59b6;"></i>
                         <span>题目数: ${exam.questionCount || 0} 题</span>
                     </div>
-                    <div class="exam-meta-item">
-                        <i class="fas fa-calendar-alt"></i>
-                        <span>开始时间: ${formatDateTime(exam.startTime)}</span>
+                    <div class="exam-meta-item" style="display: flex; align-items: center; gap: 8px; color: #6c757d; font-size: 14px;">
+                        <i class="fas fa-star" style="color: #f39c12;"></i>
+                        <span>总分: ${exam.totalScore || 100} 分</span>
                     </div>
-                    <div class="exam-meta-item">
-                        <i class="fas fa-calendar-times"></i>
-                        <span>结束时间: ${formatDateTime(exam.endTime)}</span>
+                    ${exam.remainingTime ? `
+                    <div class="exam-meta-item" style="display: flex; align-items: center; gap: 8px; color: #e74c3c; font-size: 14px; font-weight: 500;">
+                        <i class="fas fa-hourglass-half" style="color: #e74c3c;"></i>
+                        <span>剩余时间: ${exam.remainingTime}</span>
                     </div>
+                    ` : ''}
                 </div>
-                <div class="exam-actions">
+                <div class="exam-time-info" style="display: flex; gap: 20px; margin-bottom: 20px; font-size: 13px; color: #6c757d;">
+                    <span><i class="fas fa-calendar-alt" style="margin-right: 5px;"></i>开始: ${formatDateTime(exam.startTime)}</span>
+                    <span><i class="fas fa-calendar-times" style="margin-right: 5px;"></i>结束: ${formatDateTime(exam.endTime)}</span>
+                </div>
+                <div class="exam-actions" style="display: flex; justify-content: flex-end; gap: 12px;">
                     ${getExamActionButtons(exam)}
                 </div>
             </div>
@@ -2139,45 +2152,77 @@ function formatPushTime(dateString) {
 
 function getExamStatusClass(status) {
     const statusMap = {
-        'draft': 'draft',
-        'published': 'published',
-        'ongoing': 'ongoing',
-        'finished': 'finished'
+        'UPCOMING': 'upcoming',
+        'ONGOING': 'ongoing', 
+        'FINISHED': 'finished',
+        'EXPIRED': 'expired',
+        'SUBMITTED': 'submitted'
     };
-    return statusMap[status] || 'draft';
+    return statusMap[status] || 'upcoming';
 }
 
 function getExamStatusText(status) {
     const statusMap = {
-        'draft': '草稿',
-        'published': '已发布',
-        'ongoing': '进行中',
-        'finished': '已结束'
+        'UPCOMING': '即将开始',
+        'ONGOING': '进行中',
+        'FINISHED': '已完成',
+        'EXPIRED': '已过期',
+        'SUBMITTED': '已提交'
     };
     return statusMap[status] || '未知';
 }
 
 function getExamActionButtons(exam) {
-    const now = new Date();
-    const startTime = new Date(exam.startTime);
-    const endTime = new Date(exam.endTime);
+    const buttonStyle = 'padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; transition: all 0.2s;';
     
-    if (exam.status === 'published' && now >= startTime && now <= endTime) {
+    switch(exam.status) {
+        case 'ONGOING':
+            if (exam.hasStarted) {
         return `
-            <button class="btn btn-primary" onclick="startExam('${exam.id}')">
-                <i class="fas fa-play"></i> 开始考试
+                    <button class="btn" onclick="continueExam(${exam.id})" 
+                            style="${buttonStyle} background: #f39c12; color: white;">
+                        <i class="fas fa-play"></i> 继续考试
             </button>
         `;
-    } else if (exam.status === 'finished' || now > endTime) {
+            } else {
         return `
-            <button class="btn btn-secondary" onclick="viewExamResult('${exam.id}')">
-                <i class="fas fa-chart-bar"></i> 查看成绩
+                    <button class="btn" onclick="startExam(${exam.id})" 
+                            style="${buttonStyle} background: #27ae60; color: white;">
+                        <i class="fas fa-play"></i> 开始考试
             </button>
         `;
-    } else {
+            }
+        case 'FINISHED':
+        case 'SUBMITTED':
+            const buttons = [];
+            if (exam.examResultId) {
+                buttons.push(`
+                    <button class="btn" onclick="viewExamResult(${exam.examResultId})" 
+                            style="${buttonStyle} background: #3498db; color: white;">
+                        <i class="fas fa-chart-bar"></i> 查看成绩
+                    </button>
+                `);
+            }
+            return buttons.join('');
+        case 'UPCOMING':
         return `
-            <button class="btn btn-secondary" disabled>
+                <button class="btn" disabled 
+                        style="${buttonStyle} background: #95a5a6; color: white; cursor: not-allowed;">
                 <i class="fas fa-clock"></i> 未开始
+            </button>
+        `;
+        case 'EXPIRED':
+            return `
+                <button class="btn" disabled 
+                        style="${buttonStyle} background: #e74c3c; color: white; cursor: not-allowed;">
+                    <i class="fas fa-times"></i> 已过期
+                </button>
+            `;
+        default:
+            return `
+                <button class="btn" disabled 
+                        style="${buttonStyle} background: #bdc3c7; color: white; cursor: not-allowed;">
+                    <i class="fas fa-question"></i> 未知状态
             </button>
         `;
     }
@@ -2213,14 +2258,529 @@ async function downloadMaterial(materialId, fileName) {
     }
 }
 
+// 全局考试变量
+let currentExam = null;
+let examTimer = null;
+let examStartTime = null;
+let studentAnswers = {};
+
 // 开始考试
-function startExam(examId) {
-    showNotification('考试功能正在开发中...', 'info');
+async function startExam(examId) {
+    try {
+        showLoading('正在加载考试...');
+        
+        // 获取考试详情
+        const examResponse = await fetch(`/api/student/exam/${examId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const examResult = await examResponse.json();
+        hideLoading();
+        
+        if (!examResult.success) {
+            showNotification(examResult.message || '获取考试信息失败', 'error');
+            return;
+        }
+        
+        currentExam = examResult.data;
+        
+        // 确认开始考试
+        const confirmed = await showConfirmModal(
+            '开始考试',
+            `确定要开始考试"${currentExam.title}"吗？考试开始后将开始计时，请确保网络连接稳定。`,
+            'fas fa-play-circle',
+            'primary'
+        );
+        
+        if (!confirmed) return;
+        
+        // 调用开始考试API
+        showLoading('正在开始考试...');
+        const startResponse = await fetch(`/api/student/exam/${examId}/start`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        const startResult = await startResponse.json();
+        hideLoading();
+        
+        if (!startResult.success) {
+            showNotification(startResult.message || '开始考试失败', 'error');
+            return;
+        }
+        
+        // 开始考试界面
+        showExamModal();
+        startExamTimer();
+        
+    } catch (error) {
+        hideLoading();
+        console.error('开始考试失败:', error);
+        showNotification('开始考试失败，请重试', 'error');
+    }
+}
+
+// 继续考试
+async function continueExam(examId) {
+    try {
+        showLoading('正在加载考试...');
+        
+        const response = await fetch(`/api/student/exam/${examId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        hideLoading();
+        
+        if (!result.success) {
+            showNotification(result.message || '获取考试信息失败', 'error');
+            return;
+        }
+        
+        currentExam = result.data;
+        showExamModal();
+        startExamTimer();
+        
+    } catch (error) {
+        hideLoading();
+        console.error('继续考试失败:', error);
+        showNotification('继续考试失败，请重试', 'error');
+    }
+}
+
+// 显示考试模态框
+function showExamModal() {
+    const modal = document.getElementById('exam-modal');
+    const titleElement = document.getElementById('exam-modal-title');
+    const examTitleElement = document.getElementById('exam-title');
+    const examDescriptionElement = document.getElementById('exam-description');
+    const examTotalScoreElement = document.getElementById('exam-total-score');
+    const examDurationElement = document.getElementById('exam-duration');
+    const examQuestionCountElement = document.getElementById('exam-question-count');
+    const questionsContainer = document.getElementById('exam-questions');
+    const totalQuestionsElement = document.getElementById('total-questions');
+    
+    // 设置考试信息
+    titleElement.textContent = `在线考试 - ${currentExam.title}`;
+    examTitleElement.textContent = currentExam.title;
+    examDescriptionElement.textContent = currentExam.description || '请认真答题，祝您考试顺利！';
+    examTotalScoreElement.textContent = currentExam.totalScore || 100;
+    examDurationElement.textContent = currentExam.duration || 90;
+    examQuestionCountElement.textContent = currentExam.questions?.length || 0;
+    totalQuestionsElement.textContent = currentExam.questions?.length || 0;
+    
+    // 渲染题目
+    renderExamQuestions();
+    
+    // 显示模态框
+    modal.style.display = 'flex';
+    
+    // 设置事件监听器
+    setupExamEventListeners();
+}
+
+// 渲染考试题目
+function renderExamQuestions() {
+    const container = document.getElementById('exam-questions');
+    if (!currentExam.questions || currentExam.questions.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #7f8c8d;">暂无题目</div>';
+        return;
+    }
+    
+    container.innerHTML = currentExam.questions.map((question, index) => {
+        const questionNumber = index + 1;
+        return `
+            <div class="question-item" style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h5 style="margin: 0; color: #2c3e50; font-weight: 600;">第${questionNumber}题</h5>
+                    <span style="color: #7f8c8d; font-size: 14px;">${question.score || 10}分</span>
+                </div>
+                <div class="question-content" style="margin-bottom: 15px;">
+                    <p style="margin: 0; color: #34495e; line-height: 1.6; font-size: 15px;">${question.content}</p>
+                </div>
+                <div class="question-options">
+                    ${renderQuestionOptions(question, questionNumber)}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// 渲染题目选项
+function renderQuestionOptions(question, questionNumber) {
+    const savedAnswer = studentAnswers[question.id] || '';
+    
+    switch (question.type) {
+        case 'SINGLE_CHOICE':
+            const singleOptions = question.options ? question.options.split('\n') : [];
+            return singleOptions.map((option, optionIndex) => {
+                const optionLabel = String.fromCharCode(65 + optionIndex); // A, B, C, D
+                const isChecked = savedAnswer === optionLabel;
+                return `
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                        <input type="radio" name="question_${question.id}" value="${optionLabel}" 
+                               ${isChecked ? 'checked' : ''} 
+                               onchange="saveAnswer(${question.id}, this.value)" 
+                               style="margin-right: 8px;">
+                        <span style="color: #34495e;">${optionLabel}. ${option.trim()}</span>
+                    </label>
+                `;
+            }).join('');
+            
+        case 'MULTIPLE_CHOICE':
+            const multiOptions = question.options ? question.options.split('\n') : [];
+            const savedMultiAnswers = savedAnswer ? savedAnswer.split(',') : [];
+            return multiOptions.map((option, optionIndex) => {
+                const optionLabel = String.fromCharCode(65 + optionIndex);
+                const isChecked = savedMultiAnswers.includes(optionLabel);
+                return `
+                    <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                        <input type="checkbox" name="question_${question.id}" value="${optionLabel}" 
+                               ${isChecked ? 'checked' : ''} 
+                               onchange="saveMultipleAnswer(${question.id})" 
+                               style="margin-right: 8px;">
+                        <span style="color: #34495e;">${optionLabel}. ${option.trim()}</span>
+                    </label>
+                `;
+            }).join('');
+            
+        case 'TRUE_FALSE':
+            return `
+                <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                    <input type="radio" name="question_${question.id}" value="正确" 
+                           ${savedAnswer === '正确' ? 'checked' : ''} 
+                           onchange="saveAnswer(${question.id}, this.value)" 
+                           style="margin-right: 8px;">
+                    <span style="color: #34495e;">正确</span>
+                </label>
+                <label style="display: block; margin-bottom: 8px; cursor: pointer;">
+                    <input type="radio" name="question_${question.id}" value="错误" 
+                           ${savedAnswer === '错误' ? 'checked' : ''} 
+                           onchange="saveAnswer(${question.id}, this.value)" 
+                           style="margin-right: 8px;">
+                    <span style="color: #34495e;">错误</span>
+                </label>
+            `;
+            
+        case 'FILL_BLANK':
+        case 'SHORT_ANSWER':
+        case 'ESSAY':
+            const placeholder = question.type === 'FILL_BLANK' ? '请填入答案' : 
+                              question.type === 'SHORT_ANSWER' ? '请输入简答' : '请输入详细答案';
+            const rows = question.type === 'ESSAY' ? 6 : question.type === 'SHORT_ANSWER' ? 3 : 1;
+            return `
+                <textarea name="question_${question.id}" 
+                          placeholder="${placeholder}" 
+                          rows="${rows}" 
+                          onchange="saveAnswer(${question.id}, this.value)"
+                          style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;">${savedAnswer}</textarea>
+            `;
+            
+        default:
+            return '<div style="color: #e74c3c;">不支持的题目类型</div>';
+    }
+}
+
+// 保存单选答案
+function saveAnswer(questionId, answer) {
+    studentAnswers[questionId] = answer;
+    updateAnsweredCount();
+}
+
+// 保存多选答案
+function saveMultipleAnswer(questionId) {
+    const checkboxes = document.querySelectorAll(`input[name="question_${questionId}"]:checked`);
+    const answers = Array.from(checkboxes).map(cb => cb.value);
+    studentAnswers[questionId] = answers.join(',');
+    updateAnsweredCount();
+}
+
+// 更新已答题数量
+function updateAnsweredCount() {
+    const answeredCount = Object.keys(studentAnswers).filter(qId => {
+        const answer = studentAnswers[qId];
+        return answer && answer.trim() !== '';
+    }).length;
+    
+    document.getElementById('answered-count').textContent = answeredCount;
+}
+
+// 开始考试计时器
+function startExamTimer() {
+    if (!currentExam || !currentExam.duration) return;
+    
+    examStartTime = new Date();
+    const durationMs = currentExam.duration * 60 * 1000; // 转换为毫秒
+    const endTime = examStartTime.getTime() + durationMs;
+    
+    examTimer = setInterval(() => {
+        const now = new Date().getTime();
+        const remaining = endTime - now;
+        
+        if (remaining <= 0) {
+            clearInterval(examTimer);
+            showNotification('考试时间到，系统将自动提交', 'warning');
+            setTimeout(() => submitExam(true), 2000); // 2秒后自动提交
+            return;
+        }
+        
+        const hours = Math.floor(remaining / (1000 * 60 * 60));
+        const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+        
+        const timerElement = document.getElementById('exam-timer');
+        if (timerElement) {
+            timerElement.textContent = `剩余时间：${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // 最后5分钟变红色警告
+            if (remaining <= 5 * 60 * 1000) {
+                timerElement.style.color = '#e74c3c';
+                timerElement.style.fontWeight = 'bold';
+            }
+        }
+    }, 1000);
+}
+
+// 设置考试事件监听器
+function setupExamEventListeners() {
+    // 暂存答案按钮
+    document.getElementById('save-exam').onclick = () => saveExamAnswers();
+    
+    // 提交考试按钮
+    document.getElementById('submit-exam').onclick = () => confirmSubmitExam();
+    
+    // 防止意外关闭
+    window.addEventListener('beforeunload', (e) => {
+        if (currentExam) {
+            e.preventDefault();
+            e.returnValue = '考试正在进行中，确定要离开吗？';
+        }
+    });
+}
+
+// 暂存答案
+async function saveExamAnswers() {
+    try {
+        showLoading('正在保存答案...');
+        
+        const answers = Object.keys(studentAnswers).map(questionId => ({
+            questionId: parseInt(questionId),
+            answer: studentAnswers[questionId] || ''
+        }));
+        
+        const response = await fetch('/api/student/exam/save-answers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                examId: currentExam.id,
+                answers: answers
+            })
+        });
+        
+        const result = await response.json();
+        hideLoading();
+        
+        if (result.success) {
+            showNotification('答案已暂存', 'success');
+        } else {
+            showNotification(result.message || '保存失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('保存答案失败:', error);
+        showNotification('保存答案失败', 'error');
+    }
+}
+
+// 确认提交考试
+async function confirmSubmitExam() {
+    const totalQuestions = currentExam.questions?.length || 0;
+    const answeredCount = Object.keys(studentAnswers).filter(qId => {
+        const answer = studentAnswers[qId];
+        return answer && answer.trim() !== '';
+    }).length;
+    
+    const unansweredCount = totalQuestions - answeredCount;
+    let message = '确定要提交考试吗？提交后将无法修改答案。';
+    
+    if (unansweredCount > 0) {
+        message += `\n\n注意：还有 ${unansweredCount} 题未作答。`;
+    }
+    
+    const confirmed = await showConfirmModal(
+        '提交考试',
+        message,
+        'fas fa-paper-plane',
+        'warning'
+    );
+    
+    if (confirmed) {
+        submitExam(false);
+    }
+}
+
+// 提交考试
+async function submitExam(isAutoSubmit = false) {
+    try {
+        if (!isAutoSubmit) {
+            showLoading('正在提交考试...');
+        }
+        
+        // 清除计时器
+        if (examTimer) {
+            clearInterval(examTimer);
+            examTimer = null;
+        }
+        
+        const answers = Object.keys(studentAnswers).map(questionId => ({
+            questionId: parseInt(questionId),
+            answer: studentAnswers[questionId] || ''
+        }));
+        
+        const response = await fetch('/api/student/exam/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                examId: currentExam.id,
+                answers: answers
+            })
+        });
+        
+        const result = await response.json();
+        hideLoading();
+        
+        if (result.success) {
+            // 关闭考试模态框
+            document.getElementById('exam-modal').style.display = 'none';
+            
+            // 重置考试状态
+            currentExam = null;
+            studentAnswers = {};
+            
+            // 显示提交成功消息
+            showNotification(isAutoSubmit ? '考试已自动提交' : '考试提交成功', 'success');
+            
+            // 刷新考试列表
+            if (currentCourseDetail) {
+                loadCourseExams(currentCourseDetail.id);
+            }
+            
+        } else {
+            showNotification(result.message || '提交考试失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('提交考试失败:', error);
+        showNotification('提交考试失败，请重试', 'error');
+    }
 }
 
 // 查看考试成绩
-function viewExamResult(examId) {
-    showNotification('成绩查看功能正在开发中...', 'info');
+async function viewExamResult(examResultId) {
+    try {
+        showLoading('正在加载考试结果...');
+        
+        const response = await fetch(`/api/student/exam-result/${examResultId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        hideLoading();
+        
+        if (!result.success) {
+            showNotification(result.message || '获取考试结果失败', 'error');
+            return;
+        }
+        
+        showExamResultModal(result.data);
+        
+    } catch (error) {
+        hideLoading();
+        console.error('查看考试结果失败:', error);
+        showNotification('查看考试结果失败，请重试', 'error');
+    }
+}
+
+// 显示考试结果模态框
+function showExamResultModal(examResult) {
+    const modal = document.getElementById('exam-result-modal');
+    const examTitleElement = document.getElementById('result-exam-title');
+    const submitTimeElement = document.getElementById('result-submit-time');
+    const durationElement = document.getElementById('result-duration');
+    const scoreElement = document.getElementById('result-score');
+    const totalScoreElement = document.getElementById('result-total-score');
+    const questionsContainer = document.getElementById('result-questions');
+    
+    // 设置基本信息
+    examTitleElement.textContent = examResult.examTitle || '考试';
+    submitTimeElement.textContent = formatDateTime(examResult.submitTime);
+    durationElement.textContent = examResult.duration || '-';
+    scoreElement.textContent = examResult.score || 0;
+    totalScoreElement.textContent = examResult.totalScore || 100;
+    
+    // 渲染题目结果
+    if (examResult.questions && examResult.questions.length > 0) {
+        questionsContainer.innerHTML = examResult.questions.map((question, index) => {
+            const questionNumber = index + 1;
+            const isCorrect = question.isCorrect;
+            const showAnswer = examResult.isAnswerPublished;
+            
+            return `
+                <div class="result-question-item" style="background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                    <div class="result-question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题</h5>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="color: #7f8c8d; font-size: 14px;">${question.score || 10}分</span>
+                            <span class="result-status" style="padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; ${isCorrect ? 'background: #d4edda; color: #155724;' : 'background: #f8d7da; color: #721c24;'}">
+                                ${isCorrect ? '✓ 正确' : '✗ 错误'}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="result-question-content" style="margin-bottom: 15px;">
+                        <p style="margin: 0; color: #34495e; line-height: 1.6;">${question.content}</p>
+                    </div>
+                    <div class="result-answer-section">
+                        <div style="margin-bottom: 10px;">
+                            <strong style="color: #2c3e50;">您的答案：</strong>
+                            <span style="color: ${isCorrect ? '#27ae60' : '#e74c3c'};">${question.studentAnswer || '未作答'}</span>
+                        </div>
+                        ${showAnswer ? `
+                        <div style="margin-bottom: 10px;">
+                            <strong style="color: #2c3e50;">正确答案：</strong>
+                            <span style="color: #27ae60;">${question.correctAnswer || '-'}</span>
+                        </div>
+                        ${question.explanation ? `
+                        <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #3498db;">
+                            <strong style="color: #2c3e50;">解析：</strong>
+                            <p style="margin: 5px 0 0 0; color: #34495e; line-height: 1.5;">${question.explanation}</p>
+                        </div>
+                        ` : ''}
+                        ` : '<div style="color: #7f8c8d; font-style: italic;">答案暂未发布</div>'}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        questionsContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #7f8c8d;">暂无题目信息</div>';
+    }
+    
+    // 显示模态框
+    modal.style.display = 'flex';
+    
+    // 设置关闭按钮事件
+    document.getElementById('close-result-modal').onclick = () => {
+        modal.style.display = 'none';
+    };
+    document.getElementById('close-result').onclick = () => {
+        modal.style.display = 'none';
+    };
 }
 
 // 全局变量
@@ -2602,10 +3162,10 @@ function setupChatInput() {
                 return;
             } else {
                 // 单独Enter键发送消息
-                e.preventDefault();
+            e.preventDefault();
                 const message = this.value.trim();
                 if (message) {
-                    sendMessage();
+            sendMessage();
                 }
             }
         }
@@ -2889,3 +3449,337 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeHelper();
     }
 });
+
+// ==================== 考试功能相关函数 ====================
+
+// 初始化考试页面
+async function initializeExamPage() {
+    try {
+        // 等待用户信息加载完成
+        let retryCount = 0;
+        while (!currentUser && retryCount < 10) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            retryCount++;
+        }
+        
+        if (!currentUser) {
+            throw new Error('用户信息未加载完成');
+        }
+        
+        await loadAllExams();
+        await loadCourseFilter();
+        
+        // 添加事件监听器
+        setupExamPageEventListeners();
+    } catch (error) {
+        console.error('初始化考试页面失败:', error);
+        showNotification('初始化考试页面失败', 'error');
+    }
+}
+
+// 设置考试页面事件监听器
+function setupExamPageEventListeners() {
+    const courseFilter = document.getElementById('course-filter');
+    const statusFilter = document.getElementById('status-filter');
+    const searchInput = document.getElementById('exam-search-input');
+    
+    if (courseFilter) {
+        courseFilter.addEventListener('change', filterExams);
+    }
+    
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterExams);
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', filterExams);
+        searchInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                searchExams();
+            }
+        });
+    }
+}
+
+// 加载所有考试
+async function loadAllExams() {
+    try {
+        showLoading('加载考试列表中...');
+        
+        // 获取当前用户ID
+        if (!currentUser || !currentUser.userId) {
+            throw new Error('用户未登录');
+        }
+        
+        const response = await fetch(`/api/student/my-courses?userId=${currentUser.userId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const coursesResult = await response.json();
+        
+        if (coursesResult.success) {
+            allCourses = coursesResult.data;
+            
+            // 加载所有课程的考试
+            const examPromises = allCourses.map(course => 
+                fetch(`/api/student/courses/${course.id}/exams?userId=${currentUser.userId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }).then(res => res.json())
+            );
+            
+            const examResults = await Promise.all(examPromises);
+            
+            // 合并所有考试数据
+            allExams = [];
+            examResults.forEach((result, index) => {
+                if (result.success && result.data) {
+                    result.data.forEach(exam => {
+                        exam.courseName = allCourses[index].name;
+                        exam.courseCode = allCourses[index].courseCode;
+                        exam.courseId = allCourses[index].id;
+                        allExams.push(exam);
+                    });
+                }
+            });
+            
+            displayStudentExams(allExams);
+            updateExamCountBadge(allExams.length);
+        } else {
+            throw new Error(coursesResult.message || '加载课程失败');
+        }
+    } catch (error) {
+        console.error('加载考试失败:', error);
+        showNotification('加载考试列表失败', 'error');
+        showStudentExamsEmpty('加载考试失败', '请检查网络连接后重试');
+    } finally {
+        hideLoading();
+    }
+}
+
+// 加载课程筛选选项
+function loadCourseFilter() {
+    const courseFilter = document.getElementById('course-filter');
+    if (!courseFilter) return;
+    
+    // 清空现有选项（保留默认选项）
+    courseFilter.innerHTML = '<option value="">所有课程</option>';
+    
+    if (allCourses && allCourses.length > 0) {
+        allCourses.forEach(course => {
+            const option = document.createElement('option');
+            option.value = course.id;
+            option.textContent = `${course.name} (${course.courseCode})`;
+            courseFilter.appendChild(option);
+        });
+    }
+}
+
+// 刷新考试列表
+async function refreshExamList() {
+    await loadAllExams();
+    await loadCourseFilter();
+    
+    // 重置筛选条件
+    const searchInput = document.getElementById('exam-search-input');
+    const courseFilter = document.getElementById('course-filter');
+    const statusFilter = document.getElementById('status-filter');
+    
+    if (searchInput) searchInput.value = '';
+    if (courseFilter) courseFilter.value = '';
+    if (statusFilter) statusFilter.value = '';
+    
+    showNotification('考试列表已刷新', 'success');
+}
+
+// 搜索考试
+function searchExams() {
+    filterExams();
+}
+
+// 筛选考试
+function filterExams() {
+    const searchText = document.getElementById('exam-search-input')?.value.toLowerCase() || '';
+    const courseId = document.getElementById('course-filter')?.value || '';
+    const status = document.getElementById('status-filter')?.value || '';
+    
+    let filteredExams = allExams.filter(exam => {
+        // 搜索标题
+        const titleMatch = exam.title.toLowerCase().includes(searchText);
+        
+        // 筛选课程
+        const courseMatch = !courseId || exam.courseId.toString() === courseId;
+        
+        // 筛选状态
+        const examStatus = exam.examStatus || exam.status;
+        const statusMatch = !status || examStatus === status;
+        
+        return titleMatch && courseMatch && statusMatch;
+    });
+    
+    displayStudentExams(filteredExams);
+    updateExamCountBadge(filteredExams.length);
+}
+
+// 显示学生考试列表
+function displayStudentExams(exams) {
+    const emptyDiv = document.getElementById('student-exams-empty');
+    const tableBody = document.getElementById('exam-table-body');
+    const table = document.getElementById('exam-table');
+    
+    if (!tableBody) return;
+    
+    if (!exams || exams.length === 0) {
+        showStudentExamsEmpty('暂无考试', '教师发布考试后会在这里显示');
+        return;
+    }
+    
+    // 隐藏空状态，显示表格
+    if (emptyDiv) emptyDiv.style.display = 'none';
+    if (table) table.style.display = 'table';
+    
+    // 生成表格行HTML
+    tableBody.innerHTML = exams.map(exam => `
+        <tr data-exam-id="${exam.id}">
+            <td>
+                <div class="course-name">${escapeHtml(exam.courseName || '')}</div>
+                <div class="course-code">${escapeHtml(exam.courseCode || '')}</div>
+            </td>
+            <td>
+                <div class="exam-title">${escapeHtml(exam.title || '')}</div>
+                ${exam.description ? `<div class="exam-meta-info">${escapeHtml(exam.description)}</div>` : ''}
+            </td>
+            <td class="exam-meta-info">${exam.totalQuestions || 0} 题</td>
+            <td class="exam-meta-info">${exam.startTime ? formatDateTime(exam.startTime) : (exam.publishedAt ? formatDateTime(exam.publishedAt) : '立即开始')}</td>
+            <td class="exam-meta-info">${exam.duration || 0} 分钟</td>
+            <td class="exam-meta-info">${exam.totalScore || 0} 分</td>
+            <td>
+                <span class="exam-status-badge exam-status-${(exam.examStatus || exam.status || 'unknown').toLowerCase()}">
+                    ${getExamStatusText(exam.examStatus || exam.status)}
+                </span>
+            </td>
+            <td>
+                ${generateExamActionButtons(exam)}
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 生成考试操作按钮
+function generateExamActionButtons(exam) {
+    const status = exam.examStatus || exam.status || 'UNKNOWN';
+    switch (status) {
+        case 'UPCOMING':
+            return `
+                <button class="exam-action-btn btn-secondary" disabled>
+                    <i class="fas fa-clock"></i>
+                    等待开始
+                </button>
+            `;
+        case 'ONGOING':
+            if (exam.hasSubmitted) {
+                // 已经有考试记录，显示继续考试
+                return `
+                    <button class="exam-action-btn btn-warning" onclick="continueExam(${exam.id})">
+                        <i class="fas fa-play"></i>
+                        继续考试
+                    </button>
+                `;
+            } else {
+                // 没有考试记录，显示开始考试
+                return `
+                    <button class="exam-action-btn btn-primary" onclick="startExam(${exam.id})">
+                        <i class="fas fa-play"></i>
+                        开始考试
+                    </button>
+                `;
+            }
+        case 'FINISHED':
+            if (exam.hasSubmitted) {
+                return `
+                    <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResult ? exam.examResult.id : exam.id})">
+                        <i class="fas fa-eye"></i>
+                        查看结果
+                    </button>
+                `;
+            } else {
+                return `
+                    <button class="exam-action-btn btn-secondary" disabled>
+                        <i class="fas fa-times"></i>
+                        未参加
+                    </button>
+                `;
+            }
+        case 'EXPIRED':
+            if (exam.hasSubmitted) {
+                return `
+                    <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResult ? exam.examResult.id : exam.id})">
+                        <i class="fas fa-eye"></i>
+                        查看结果
+                    </button>
+                `;
+            } else {
+                return `
+                    <button class="exam-action-btn btn-secondary" disabled>
+                        <i class="fas fa-times"></i>
+                        已过期
+                    </button>
+                `;
+            }
+        case 'SUBMITTED':
+            return `
+                <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResult ? exam.examResult.id : exam.id})">
+                    <i class="fas fa-eye"></i>
+                    查看结果
+                </button>
+            `;
+        default:
+            return `
+                <button class="exam-action-btn btn-secondary" disabled>
+                    <i class="fas fa-question"></i>
+                    状态未知
+                </button>
+            `;
+    }
+}
+
+// 显示考试空状态
+function showStudentExamsEmpty(title, subtitle) {
+    const emptyDiv = document.getElementById('student-exams-empty');
+    const table = document.getElementById('exam-table');
+    
+    if (emptyDiv) {
+        emptyDiv.innerHTML = `
+            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-clipboard-check" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                <p>${escapeHtml(title)}</p>
+                <p>${escapeHtml(subtitle)}</p>
+            </div>
+        `;
+        emptyDiv.style.display = 'block';
+    }
+    
+    if (table) {
+        table.style.display = 'none';
+    }
+    
+    updateExamCountBadge(0);
+}
+
+// 更新考试数量徽章
+function updateExamCountBadge(count) {
+    const badge = document.getElementById('exam-count-badge');
+    if (badge) {
+        badge.textContent = `${count} 个考试`;
+        badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+}

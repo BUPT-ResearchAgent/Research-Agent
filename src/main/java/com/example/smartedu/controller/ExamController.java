@@ -90,6 +90,38 @@ public class ExamController {
     }
     
     /**
+     * 发布考试并设置时间
+     */
+    @PostMapping("/{examId}/publish-with-time")
+    public ApiResponse<String> publishExamWithTime(@PathVariable Long examId, @RequestBody Map<String, Object> request) {
+        try {
+            String startTimeStr = (String) request.get("startTime");
+            
+            java.time.LocalDateTime startTime = null;
+            java.time.LocalDateTime endTime = null;
+            
+            // 解析开始时间
+            if (startTimeStr != null && !startTimeStr.isEmpty()) {
+                startTime = java.time.LocalDateTime.parse(startTimeStr);
+            }
+            
+            // 如果设置了开始时间，根据考试时长自动计算结束时间
+            if (startTime != null) {
+                // 获取考试信息以获取考试时长
+                Exam exam = examService.getExamById(examId);
+                if (exam.getDuration() != null) {
+                    endTime = startTime.plusMinutes(exam.getDuration());
+                }
+            }
+            
+            examService.publishExamWithTime(examId, startTime, endTime);
+            return ApiResponse.success("考试发布成功，已设置考试时间");
+        } catch (Exception e) {
+            return ApiResponse.error("发布考试失败：" + e.getMessage());
+        }
+    }
+    
+    /**
      * 发布答案和解析
      */
     @PostMapping("/{examId}/publish-answers")

@@ -265,6 +265,25 @@ public class ExamService {
     }
     
     /**
+     * 发布考试并设置时间
+     */
+    public void publishExamWithTime(Long examId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
+        Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("考试不存在"));
+        
+        // 验证时间设置
+        if (startTime != null && endTime != null && startTime.isAfter(endTime)) {
+            throw new RuntimeException("开始时间不能晚于结束时间");
+        }
+        
+        exam.setIsPublished(true);
+        exam.setPublishedAt(java.time.LocalDateTime.now());
+        exam.setStartTime(startTime);
+        exam.setEndTime(endTime);
+        examRepository.save(exam);
+    }
+    
+    /**
      * 发布答案和解析
      */
     public void publishAnswers(Long examId) {

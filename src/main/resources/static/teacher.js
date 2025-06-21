@@ -6334,11 +6334,13 @@ function resetPublishExamForm() {
     document.getElementById('publish-immediately').checked = true;
     document.getElementById('schedule-publish').checked = false;
     
-    // 重置发布时间为明天
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0);
-    document.getElementById('publish-time').value = tomorrow.toISOString().slice(0, 16);
+    // 设置默认考试开始时间（明天上午9点）
+    const startTime = new Date();
+    startTime.setDate(startTime.getDate() + 1);
+    startTime.setHours(9, 0, 0, 0);
+    document.getElementById('exam-start-time').value = startTime.toISOString().slice(0, 16);
+    
+
     
     // 更新UI状态
     updatePublishOptionStates();
@@ -6361,8 +6363,11 @@ function setupPublishExamModalEvents() {
         immediatelyChk.addEventListener('change', function() {
             if (this.checked) {
                 document.getElementById('schedule-publish').checked = false;
-                updatePublishOptionStates();
+            } else {
+                // 如果取消选中立即发布，自动选中定时发布
+                document.getElementById('schedule-publish').checked = true;
             }
+            updatePublishOptionStates();
         });
     }
     
@@ -6370,8 +6375,11 @@ function setupPublishExamModalEvents() {
         scheduleChk.addEventListener('change', function() {
             if (this.checked) {
                 document.getElementById('publish-immediately').checked = false;
-                updatePublishOptionStates();
+            } else {
+                // 如果取消选中定时发布，自动选中立即发布
+                document.getElementById('publish-immediately').checked = true;
             }
+            updatePublishOptionStates();
         });
     }
     
@@ -6420,7 +6428,7 @@ function updatePublishOptionStates() {
     const immediately = document.getElementById('publish-immediately').checked;
     const schedule = document.getElementById('schedule-publish').checked;
     const scheduleSettings = document.getElementById('schedule-settings');
-    const publishTimeInput = document.getElementById('publish-time');
+    const examStartTimeInput = document.getElementById('exam-start-time');
     
     // 更新选项的视觉状态
     const immediatelyOption = document.getElementById('publish-immediately').closest('.publish-option');
@@ -6430,19 +6438,19 @@ function updatePublishOptionStates() {
         immediatelyOption.classList.add('selected');
         scheduleOption.classList.remove('selected');
         // 禁用时间选择
-        publishTimeInput.disabled = true;
+        examStartTimeInput.disabled = true;
         scheduleSettings.classList.add('disabled');
     } else if (schedule) {
         immediatelyOption.classList.remove('selected');
         scheduleOption.classList.add('selected');
         // 启用时间选择
-        publishTimeInput.disabled = false;
+        examStartTimeInput.disabled = false;
         scheduleSettings.classList.remove('disabled');
     } else {
         immediatelyOption.classList.remove('selected');
         scheduleOption.classList.remove('selected');
         // 禁用时间选择
-        publishTimeInput.disabled = true;
+        examStartTimeInput.disabled = true;
         scheduleSettings.classList.add('disabled');
     }
 }
@@ -6470,16 +6478,18 @@ async function handleConfirmPublish() {
         
         if (immediately) {
             publishData.publishType = 'IMMEDIATE';
+            // 立即发布时，考试也立即开始（不设置具体时间）
         } else if (schedule) {
-            const publishTime = document.getElementById('publish-time').value;
+            const examStartTime = document.getElementById('exam-start-time').value;
             
-            if (!publishTime) {
-                showNotification('请选择发布时间', 'warning');
+            if (!examStartTime) {
+                showNotification('请选择考试开始时间', 'warning');
                 return;
             }
             
             publishData.publishType = 'SCHEDULED';
-            publishData.publishTime = publishTime;
+            publishData.startTime = examStartTime;
+            // 结束时间由后端根据考试时长自动计算
         }
         
         showLoading('正在发布试卷...');

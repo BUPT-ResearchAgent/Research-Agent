@@ -568,10 +568,13 @@
                 <div id="course-exams" class="course-tab-content">
                     <div style="padding: 24px;">
                         <div id="exams-list">
-                            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                            <div id="exams-empty" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
                                 <i class="fas fa-clipboard-check" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
                                 <p>暂无测评考试</p>
                                 <p>教师发布测评后会在这里显示</p>
+                            </div>
+                            <div id="exams-container" style="display: none;">
+                                <!-- 考试列表将在这里动态生成 -->
                             </div>
                         </div>
                     </div>
@@ -652,16 +655,73 @@
         </section>
         
         <section id="practice-eval" class="main-section hidden-section">
-            <div class="content-header"><h1 class="page-title">实时练习评测</h1></div>
-            <div style="padding:2em;">
+            <div class="content-header">
+                <h1 class="page-title">在线考试</h1>
+                <div class="header-actions">
+                    <button class="btn btn-accent" onclick="refreshExamList()">
+                        <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <!-- 考试列表卡片 -->
                 <div class="content-card">
                     <div class="card-header">
-                        <i class="fas fa-chart-line"></i> 实时练习评测
+                        <i class="fas fa-clipboard-check"></i> 考试列表
+                        <div class="card-actions">
+                            <span id="exam-count-badge" class="status-badge" style="display: none;">0 个考试</span>
+                        </div>
                     </div>
-                    <div style="padding: 24px; text-align: center; color: #7f8c8d;">
-                        <i class="fas fa-clipboard-check" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                        <p>实时练习评测功能正在开发中...</p>
-                        <p>即将为您提供智能练习和评测服务</p>
+                    
+                    <!-- 搜索和筛选区域 -->
+                    <div class="search-filter-row">
+                        <select id="course-filter" class="form-select">
+                            <option value="">所有课程</option>
+                        </select>
+                        <select id="status-filter" class="form-select">
+                            <option value="">所有状态</option>
+                            <option value="UPCOMING">即将开始</option>
+                            <option value="ONGOING">进行中</option>
+                            <option value="FINISHED">已完成</option>
+                            <option value="EXPIRED">已过期</option>
+                            <option value="SUBMITTED">已提交</option>
+                        </select>
+                        <input type="text" id="exam-search-input" class="form-control" placeholder="搜索考试标题...">
+                        <button class="btn btn-primary" onclick="searchExams()">
+                            <i class="fas fa-search"></i>
+                            搜索
+                        </button>
+                    </div>
+                    
+                    <!-- 考试表格 -->
+                    <div class="exam-table-container">
+                        <table class="exam-table" id="exam-table">
+                            <thead>
+                                <tr>
+                                    <th>课程</th>
+                                    <th>试卷名称</th>
+                                    <th>题目数量</th>
+                                    <th>开始时间</th>
+                                    <th>考试时长</th>
+                                    <th>总分</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="exam-table-body">
+                                <!-- 考试数据将在这里动态生成 -->
+                            </tbody>
+                        </table>
+                        
+                        <!-- 空状态 -->
+                        <div id="student-exams-empty" style="display: none;">
+                            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                                <i class="fas fa-clipboard-check" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                                <p>暂无考试</p>
+                                <p>教师发布考试后会在这里显示</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -941,6 +1001,110 @@
                         <span>确定</span>
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 考试答题模态框 -->
+    <div id="exam-modal" class="course-modal-overlay" style="display: none;">
+        <div class="course-modal-container" style="max-width: 1200px; max-height: 90vh;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-clipboard-check"></i>
+                    </div>
+                    <h3 id="exam-modal-title">在线考试</h3>
+                </div>
+                <div class="exam-timer" id="exam-timer" style="font-size: 18px; font-weight: bold; color: #e74c3c;">
+                    剩余时间：00:00:00
+                </div>
+            </div>
+            
+            <div class="course-modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div id="exam-content">
+                    <div class="exam-info" style="background: #f8f9fa; padding: 20px; margin-bottom: 20px; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h4 id="exam-title" style="margin: 0; color: #2c3e50;">考试标题</h4>
+                            <div style="display: flex; gap: 20px; font-size: 14px; color: #7f8c8d;">
+                                <span><strong>总分：</strong><span id="exam-total-score">100</span>分</span>
+                                <span><strong>时长：</strong><span id="exam-duration">90</span>分钟</span>
+                                <span><strong>题目数：</strong><span id="exam-question-count">10</span>题</span>
+                            </div>
+                        </div>
+                        <p id="exam-description" style="margin: 0; color: #34495e; line-height: 1.5;">考试说明</p>
+                    </div>
+                    
+                    <div id="exam-questions" class="exam-questions">
+                        <!-- 考试题目将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div class="exam-progress">
+                        <span>已答题：<span id="answered-count">0</span>/<span id="total-questions">0</span></span>
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                        <button type="button" id="save-exam" class="btn btn-secondary">
+                            <i class="fas fa-save"></i> 暂存答案
+                        </button>
+                        <button type="button" id="submit-exam" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> 提交考试
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 考试结果模态框 -->
+    <div id="exam-result-modal" class="course-modal-overlay" style="display: none;">
+        <div class="course-modal-container" style="max-width: 1000px; max-height: 90vh;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>考试结果</h3>
+                </div>
+                <button id="close-result-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div id="exam-result-content">
+                    <!-- 成绩概览 -->
+                    <div class="result-summary" style="background: #f8f9fa; padding: 20px; margin-bottom: 20px; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h4 id="result-exam-title" style="margin: 0 0 10px 0; color: #2c3e50;">考试标题</h4>
+                                <div style="display: flex; gap: 20px; font-size: 14px; color: #7f8c8d;">
+                                    <span>提交时间：<span id="result-submit-time">-</span></span>
+                                    <span>用时：<span id="result-duration">-</span>分钟</span>
+                                </div>
+                            </div>
+                            <div class="score-display" style="text-align: center;">
+                                <div style="font-size: 36px; font-weight: bold; color: #27ae60;">
+                                    <span id="result-score">0</span>/<span id="result-total-score">100</span>
+                                </div>
+                                <div style="font-size: 14px; color: #7f8c8d;">得分</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 答题详情 -->
+                    <div id="result-questions" class="result-questions">
+                        <!-- 题目和答案详情将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer">
+                <button type="button" id="close-result" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> 关闭
+                </button>
             </div>
         </div>
     </div>
