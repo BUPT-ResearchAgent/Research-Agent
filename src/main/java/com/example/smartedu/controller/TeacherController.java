@@ -757,7 +757,8 @@ public class TeacherController {
                 return ApiResponse.error("课程不存在");
             }
             
-            courseRepository.deleteById(courseId);
+            // 使用完整删除方法，先删除所有相关数据再删除课程
+            courseService.deleteCourseCompletely(courseId);
             return ApiResponse.success("课程删除成功", null);
         } catch (Exception e) {
             return ApiResponse.error("删除课程失败：" + e.getMessage());

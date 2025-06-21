@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "student_courses", uniqueConstraints = {
+@Table(name = "STUDENT_COURSES", uniqueConstraints = {
     @UniqueConstraint(columnNames = {"student_id", "course_id"})
 })
 public class StudentCourse {
