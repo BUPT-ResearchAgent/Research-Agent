@@ -2543,8 +2543,8 @@ async function onRAGCourseChange() {
 
 
 
-// 加载课程资料
-async function loadCourseMaterials(courseId) {
+// 加载助手课程资料
+async function loadHelperCourseMaterials(courseId) {
     try {
         const response = await fetch(`http://localhost:8080/api/ai-helper/materials/${courseId}`, {
             method: 'GET',

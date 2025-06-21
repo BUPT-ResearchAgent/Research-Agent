@@ -301,8 +301,10 @@ public class CourseService {
                  System.out.println("额外删除了 " + deletedStudentCourses + " 条STUDENT_COURSES记录");
              }
              
-             // 第七步：检查并删除ENROLLMENTS表中的记录（如果存在）
-             System.out.println("检查ENROLLMENTS表中的记录");
+             // 第七步：检查并删除所有可能的选课记录表（ENROLLMENTS、STUDENT_ENROLLMENTS）
+             System.out.println("检查并删除所有选课记录表");
+             
+             // 删除ENROLLMENTS表（如果存在）
              try {
                  int remainingEnrollments = ((Number) entityManager.createNativeQuery("SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = :courseId")
                          .setParameter("courseId", courseId)
@@ -321,6 +323,27 @@ public class CourseService {
                  }
              } catch (Exception e) {
                  System.err.println("检查ENROLLMENTS表时出错（可能表不存在）: " + e.getMessage());
+             }
+             
+             // 删除STUDENT_ENROLLMENTS表（H2数据库可能使用的表名）
+             try {
+                 int remainingStudentEnrollments = ((Number) entityManager.createNativeQuery("SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = :courseId")
+                         .setParameter("courseId", courseId)
+                         .getSingleResult()).intValue();
+                 
+                 System.out.println("STUDENT_ENROLLMENTS表中剩余记录数: " + remainingStudentEnrollments);
+                 
+                 if (remainingStudentEnrollments > 0) {
+                     System.out.println("删除STUDENT_ENROLLMENTS表中的记录");
+                     int deletedStudentEnrollments = entityManager.createNativeQuery("DELETE FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = :courseId")
+                             .setParameter("courseId", courseId)
+                             .executeUpdate();
+                     System.out.println("成功删除 " + deletedStudentEnrollments + " 条STUDENT_ENROLLMENTS记录");
+                 } else {
+                     System.out.println("STUDENT_ENROLLMENTS表中没有相关记录");
+                 }
+             } catch (Exception e) {
+                 System.err.println("检查STUDENT_ENROLLMENTS表时出错（可能表不存在）: " + e.getMessage());
              }
              
              // 第八步：使用原生SQL删除课程，避免Hibernate的级联处理

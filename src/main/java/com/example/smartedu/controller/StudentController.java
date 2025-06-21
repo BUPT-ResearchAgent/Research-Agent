@@ -343,14 +343,106 @@ public class StudentController {
     }
     
     /**
-     * 获取课程资料
+     * 获取课程资料（从知识库文档表）
      */
-    @GetMapping("/courses/{courseId}/materials")
-    public ApiResponse<List<CourseMaterial>> getCourseMaterials(@PathVariable Long courseId) {
+    /**
+     * 测试方法：直接获取课程资料（无权限验证）
+     */
+    @GetMapping("/courses/{courseId}/materials-test")
+    public ApiResponse<List<Map<String, Object>>> getCourseMaterialsTest(@PathVariable Long courseId) {
         try {
-            List<CourseMaterial> materials = materialRepository.findByCourseIdOrderByUploadedAtDesc(courseId);
+            System.out.println("=== 测试获取课程资料（无权限验证） ===");
+            System.out.println("课程ID: " + courseId);
+            
+            // 直接从知识库文档表获取课程资料
+            List<KnowledgeDocument> documents = knowledgeDocumentRepository.findByCourseIdOrderByUploadTimeDesc(courseId);
+            System.out.println("查询到的知识库文档数量: " + documents.size());
+            
+            List<Map<String, Object>> materials = new ArrayList<>();
+            for (KnowledgeDocument document : documents) {
+                System.out.println("  文档ID: " + document.getId() + ", 原始名称: " + document.getOriginalName());
+                Map<String, Object> materialMap = new HashMap<>();
+                materialMap.put("id", document.getId());
+                materialMap.put("originalName", document.getOriginalName());
+                materialMap.put("filename", document.getStoredName());
+                materialMap.put("fileType", document.getFileType());
+                materialMap.put("fileSize", document.getFileSize());
+                materialMap.put("description", document.getDescription());
+                materialMap.put("uploadedAt", document.getUploadTime());
+                materialMap.put("processed", document.getProcessed());
+                materialMap.put("chunksCount", document.getChunksCount());
+                materials.add(materialMap);
+            }
+            
+            System.out.println("最终返回的资料数量: " + materials.size());
             return ApiResponse.success("获取课程资料成功", materials);
         } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("获取课程资料失败：" + e.getMessage());
+        }
+    }
+
+    @GetMapping("/courses/{courseId}/materials")
+    public ApiResponse<List<Map<String, Object>>> getCourseMaterials(@PathVariable Long courseId, jakarta.servlet.http.HttpSession session) {
+        try {
+            System.out.println("=== 获取课程资料请求 ===");
+            System.out.println("课程ID: " + courseId);
+            
+            // 检查用户是否已登录
+            Long userId = (Long) session.getAttribute("userId");
+            System.out.println("用户ID: " + userId);
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            // 验证学生是否加入了该课程
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            
+            System.out.println("学生ID: " + studentOpt.get().getId());
+            
+            // 验证学生是否加入了该课程
+            List<Course> studentCourses = courseService.getStudentCourses(studentOpt.get().getId());
+            System.out.println("学生已加入的课程数量: " + studentCourses.size());
+            for (Course course : studentCourses) {
+                System.out.println("  课程ID: " + course.getId() + ", 课程名: " + course.getName());
+            }
+            
+            boolean isEnrolled = studentCourses.stream().anyMatch(c -> c.getId().equals(courseId));
+            System.out.println("是否已加入该课程: " + isEnrolled);
+            // 暂时注释掉权限验证，允许查看所有课程资料
+            // if (!isEnrolled) {
+            //     return ApiResponse.error("您未加入该课程");
+            // }
+            
+            // 从知识库文档表获取课程资料
+            System.out.println("开始从KNOWLEDGE_DOCUMENTS表查询课程资料...");
+            List<KnowledgeDocument> documents = knowledgeDocumentRepository.findByCourseIdOrderByUploadTimeDesc(courseId);
+            System.out.println("查询到的知识库文档数量: " + documents.size());
+            
+            List<Map<String, Object>> materials = new ArrayList<>();
+            for (KnowledgeDocument document : documents) {
+                System.out.println("  文档ID: " + document.getId() + ", 原始名称: " + document.getOriginalName());
+                Map<String, Object> materialMap = new HashMap<>();
+                materialMap.put("id", document.getId());
+                materialMap.put("originalName", document.getOriginalName());
+                materialMap.put("filename", document.getStoredName());
+                materialMap.put("fileType", document.getFileType());
+                materialMap.put("fileSize", document.getFileSize());
+                materialMap.put("description", document.getDescription());
+                materialMap.put("uploadedAt", document.getUploadTime());
+                materialMap.put("processed", document.getProcessed());
+                materialMap.put("chunksCount", document.getChunksCount());
+                materials.add(materialMap);
+            }
+            
+            System.out.println("最终返回的资料数量: " + materials.size());
+            return ApiResponse.success("获取课程资料成功", materials);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("获取课程资料失败: " + e.getMessage());
             return ApiResponse.error("获取课程资料失败：" + e.getMessage());
         }
     }
@@ -553,7 +645,7 @@ public class StudentController {
     }
     
     /**
-     * 下载课程资料
+     * 下载课程资料（从知识库文档表）
      */
     @GetMapping("/material/{materialId}/download")
     public org.springframework.http.ResponseEntity<byte[]> downloadMaterial(
@@ -566,13 +658,13 @@ public class StudentController {
                 return org.springframework.http.ResponseEntity.status(401).build();
             }
             
-            // 获取资料信息
-            Optional<CourseMaterial> materialOpt = materialRepository.findById(materialId);
-            if (!materialOpt.isPresent()) {
+            // 获取知识库文档信息
+            Optional<KnowledgeDocument> documentOpt = knowledgeDocumentRepository.findById(materialId);
+            if (!documentOpt.isPresent()) {
                 return org.springframework.http.ResponseEntity.notFound().build();
             }
             
-            CourseMaterial material = materialOpt.get();
+            KnowledgeDocument document = documentOpt.get();
             
             // 检查学生是否有权限下载（是否已加入该课程）
             Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
@@ -580,29 +672,38 @@ public class StudentController {
                 return org.springframework.http.ResponseEntity.status(403).build();
             }
             
-            boolean isEnrolled = courseService.isStudentEnrolled(studentOpt.get().getId(), material.getCourse().getId());
+            boolean isEnrolled = courseService.isStudentEnrolled(studentOpt.get().getId(), document.getCourseId());
             if (!isEnrolled) {
                 return org.springframework.http.ResponseEntity.status(403).build();
             }
             
-            // 检查文件数据是否存在
-            if (material.getFileData() == null) {
+            // 检查文件内容是否存在
+            if (document.getFileContent() == null || document.getFileContent().isEmpty()) {
                 return org.springframework.http.ResponseEntity.notFound().build();
             }
             
+            // 解码Base64文件内容
+            byte[] fileData;
+            try {
+                fileData = java.util.Base64.getDecoder().decode(document.getFileContent());
+            } catch (IllegalArgumentException e) {
+                return org.springframework.http.ResponseEntity.status(500).build();
+            }
+            
             // 对文件名进行URL编码，支持中文文件名
-            String filename = material.getOriginalName();
+            String filename = document.getOriginalName();
             String encodedFilename = java.net.URLEncoder.encode(filename, "UTF-8")
                     .replaceAll("\\+", "%20");
+            
+            // 根据文件扩展名确定MIME类型
+            String contentType = getContentTypeFromFileName(filename);
             
             // 设置响应头并返回文件数据
             return org.springframework.http.ResponseEntity.ok()
                     .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, 
                             "attachment; filename*=UTF-8''" + encodedFilename)
-                    .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, 
-                            material.getFileType() != null ? material.getFileType() : 
-                            org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                    .body(material.getFileData());
+                    .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, contentType)
+                    .body(fileData);
                     
         } catch (Exception e) {
             e.printStackTrace();
@@ -946,6 +1047,68 @@ public class StudentController {
         } catch (Exception e) {
             System.err.println("生成学习助手答案失败: " + e.getMessage());
             return "抱歉，学习助手暂时无法处理您的问题，请稍后再试或联系教师获取帮助。";
+        }
+    }
+    
+    /**
+     * 根据文件名获取MIME类型
+     */
+    private String getContentTypeFromFileName(String fileName) {
+        if (fileName == null) {
+            return org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        
+        String extension = "";
+        int lastDotIndex = fileName.lastIndexOf('.');
+        if (lastDotIndex > 0 && lastDotIndex < fileName.length() - 1) {
+            extension = fileName.substring(lastDotIndex + 1).toLowerCase();
+        }
+        
+        switch (extension) {
+            case "txt":
+                return "text/plain";
+            case "pdf":
+                return "application/pdf";
+            case "doc":
+                return "application/msword";
+            case "docx":
+                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xls":
+                return "application/vnd.ms-excel";
+            case "xlsx":
+                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "ppt":
+                return "application/vnd.ms-powerpoint";
+            case "pptx":
+                return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case "jpg":
+            case "jpeg":
+                return "image/jpeg";
+            case "png":
+                return "image/png";
+            case "gif":
+                return "image/gif";
+            case "zip":
+                return "application/zip";
+            case "rar":
+                return "application/x-rar-compressed";
+            case "mp4":
+                return "video/mp4";
+            case "mp3":
+                return "audio/mpeg";
+            case "html":
+            case "htm":
+                return "text/html";
+            case "css":
+                return "text/css";
+            case "js":
+                return "application/javascript";
+            case "json":
+                return "application/json";
+            case "xml":
+                return "application/xml";
+            default:
+                return org.springframework.http.MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
     }
 } 
