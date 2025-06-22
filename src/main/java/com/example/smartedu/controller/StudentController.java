@@ -484,14 +484,70 @@ public class StudentController {
                     StudentExamDTO dto = new StudentExamDTO(exam);
                     // 检查学生是否已提交
                     Optional<ExamResult> result = examResultRepository.findByStudentIdAndExamId(student.getId(), exam.getId());
-                    dto.setHasSubmitted(result.isPresent() && result.get().getSubmitTime() != null);
+                    boolean hasSubmitted = result.isPresent() && result.get().getSubmitTime() != null;
+                    dto.setHasSubmitted(hasSubmitted);
                     
-                    // 计算剩余时间
-                    if (dto.getCanTakeExam() && dto.getEndTime() != null) {
+                    // 设置考试结果ID（如果有的话）
+                    if (result.isPresent()) {
+                        dto.setExamResultId(result.get().getId());
+                    }
+                    
+                    // 根据提交状态调整考试状态
+                    if (hasSubmitted) {
+                        // 如果已提交，状态设为已提交
+                        dto.setExamStatus("SUBMITTED");
+                    } else {
+                        // 如果未提交，需要根据时间判断状态
+                        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+                        
+                        if (exam.getStartTime() != null && exam.getEndTime() != null) {
+                            if (now.isBefore(exam.getStartTime())) {
+                                dto.setExamStatus("UPCOMING");
+                            } else if (now.isAfter(exam.getEndTime())) {
+                                dto.setExamStatus("EXPIRED");
+                            } else {
+                                dto.setExamStatus("ONGOING");
+                            }
+                        } else if (exam.getStartTime() != null) {
+                            if (now.isBefore(exam.getStartTime())) {
+                                dto.setExamStatus("UPCOMING");
+                            } else {
+                                dto.setExamStatus("ONGOING");
+                            }
+                        } else if (exam.getEndTime() != null) {
+                            if (now.isAfter(exam.getEndTime())) {
+                                dto.setExamStatus("EXPIRED");
+                            } else {
+                                dto.setExamStatus("ONGOING");
+                            }
+                        } else {
+                            // 没有时间限制，已发布即为进行中
+                            dto.setExamStatus("ONGOING");
+                        }
+                    }
+                    
+                    // 计算剩余时间（只有进行中的考试才计算）
+                    if ("ONGOING".equals(dto.getExamStatus()) && dto.getEndTime() != null) {
                         java.time.Duration duration = java.time.Duration.between(
                             java.time.LocalDateTime.now(), dto.getEndTime());
-                        dto.setRemainingMinutes((int) duration.toMinutes());
+                        long remainingMinutes = duration.toMinutes();
+                        if (remainingMinutes > 0) {
+                            dto.setRemainingMinutes((int) remainingMinutes);
+                        }
                     }
+                    
+                    // 设置是否可以参加考试
+                    dto.setCanTakeExam("ONGOING".equals(dto.getExamStatus()) && !hasSubmitted);
+                    
+                    // 设置是否可以查看试卷（考试结束后且已提交）
+                    boolean canViewPaper = false;
+                    if (hasSubmitted && exam.getEndTime() != null) {
+                        canViewPaper = java.time.LocalDateTime.now().isAfter(exam.getEndTime());
+                    } else if (hasSubmitted && exam.getEndTime() == null) {
+                        // 如果没有结束时间，已提交即可查看
+                        canViewPaper = true;
+                    }
+                    dto.setCanViewPaper(canViewPaper);
                     
                     return dto;
                 })
@@ -1282,47 +1338,167 @@ public class StudentController {
     }
     
     /**
-     * 提交考试答案
+     * 暂存考试答案
      */
-    @PostMapping("/exam/submit")
-    public ApiResponse<Map<String, Object>> submitExam(@RequestBody ExamSubmissionDTO submission) {
+    @PostMapping("/exam/save-answers")
+    public ApiResponse<String> saveExamAnswers(@RequestBody Map<String, Object> request, @RequestParam Long userId) {
         try {
             // 验证学生身份
-            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(submission.getStudentId());
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
             if (!studentOpt.isPresent()) {
                 return ApiResponse.error("学生信息不存在");
             }
             Student student = studentOpt.get();
             
+            // 获取请求参数
+            Long examId = Long.valueOf(request.get("examId").toString());
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> answers = (List<Map<String, Object>>) request.get("answers");
+            
             // 获取考试信息
-            Optional<Exam> examOpt = examRepository.findById(submission.getExamId());
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ApiResponse.error("考试不存在");
+            }
+            Exam exam = examOpt.get();
+            
+            // 验证考试状态
+            if (!exam.getIsPublished()) {
+                return ApiResponse.error("考试尚未发布");
+            }
+            
+            // 检查考试时间
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            if (exam.getStartTime() != null && now.isBefore(exam.getStartTime())) {
+                return ApiResponse.error("考试尚未开始");
+            }
+            if (exam.getEndTime() != null && now.isAfter(exam.getEndTime())) {
+                return ApiResponse.error("考试已结束");
+            }
+            
+            // 获取或创建考试结果记录
+            Optional<ExamResult> resultOpt = examResultRepository.findByStudentIdAndExamId(student.getId(), examId);
+            ExamResult examResult;
+            
+            if (!resultOpt.isPresent()) {
+                // 如果还没有考试记录，创建一个（开始考试）
+                examResult = new ExamResult();
+                examResult.setStudent(student);
+                examResult.setExam(exam);
+                examResult.setStartTime(now);
+                examResult.setTotalScore(exam.getTotalScore());
+                examResult.setGradeStatus("PENDING");
+                examResult = examResultRepository.save(examResult);
+            } else {
+                examResult = resultOpt.get();
+                // 检查是否已提交
+                if (examResult.getSubmitTime() != null) {
+                    return ApiResponse.error("考试已提交，无法再次保存答案");
+                }
+            }
+            
+            // 删除该学生在此考试中的旧答案（如果有的话）
+            List<StudentAnswer> existingAnswers = studentAnswerRepository.findByStudentIdAndExamResultId(student.getId(), examResult.getId());
+            if (!existingAnswers.isEmpty()) {
+                studentAnswerRepository.deleteAll(existingAnswers);
+            }
+            
+            // 保存新答案
+            for (Map<String, Object> answerData : answers) {
+                Long questionId = Long.valueOf(answerData.get("questionId").toString());
+                String answer = answerData.get("answer").toString();
+                
+                if (answer != null && !answer.trim().isEmpty()) {
+                    Optional<Question> questionOpt = questionRepository.findById(questionId);
+                    if (questionOpt.isPresent()) {
+                        Question question = questionOpt.get();
+                        
+                        StudentAnswer studentAnswer = new StudentAnswer();
+                        studentAnswer.setStudent(student);
+                        studentAnswer.setQuestion(question);
+                        studentAnswer.setExamResult(examResult);
+                        studentAnswer.setAnswer(answer);
+                        studentAnswer.setMaxScore(question.getScore());
+                        studentAnswer.setScore(0); // 暂存时不评分
+                        studentAnswer.setIsCorrect(false); // 暂存时不判断正误
+                        
+                        studentAnswerRepository.save(studentAnswer);
+                    }
+                }
+            }
+            
+            return ApiResponse.success("答案暂存成功");
+            
+        } catch (Exception e) {
+            return ApiResponse.error("暂存答案失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 提交考试答案
+     */
+    @PostMapping("/exam/submit")
+    public ApiResponse<Map<String, Object>> submitExam(@RequestBody Map<String, Object> request, @RequestParam Long userId) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            Student student = studentOpt.get();
+            
+            // 获取请求参数
+            Long examId = Long.valueOf(request.get("examId").toString());
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> answers = (List<Map<String, Object>>) request.get("answers");
+            
+            // 获取考试信息
+            Optional<Exam> examOpt = examRepository.findById(examId);
             if (!examOpt.isPresent()) {
                 return ApiResponse.error("考试不存在");
             }
             Exam exam = examOpt.get();
             
             // 获取考试结果记录
-            Optional<ExamResult> resultOpt = examResultRepository.findByStudentIdAndExamId(student.getId(), submission.getExamId());
+            Optional<ExamResult> resultOpt = examResultRepository.findByStudentIdAndExamId(student.getId(), examId);
+            ExamResult examResult;
+            
             if (!resultOpt.isPresent()) {
-                return ApiResponse.error("未找到考试记录，请先开始考试");
+                // 如果还没有考试记录，创建一个
+                examResult = new ExamResult();
+                examResult.setStudent(student);
+                examResult.setExam(exam);
+                examResult.setStartTime(java.time.LocalDateTime.now());
+                examResult.setTotalScore(exam.getTotalScore());
+                examResult.setGradeStatus("PENDING");
+                examResult = examResultRepository.save(examResult);
+            } else {
+                examResult = resultOpt.get();
+                // 检查是否已提交
+                if (examResult.getSubmitTime() != null) {
+                    return ApiResponse.error("您已提交过此考试");
+                }
             }
-            ExamResult examResult = resultOpt.get();
             
-            // 检查是否已提交
-            if (examResult.getSubmitTime() != null) {
-                return ApiResponse.error("您已提交过此考试");
-            }
-            
-            // 检查考试时间
+            // 检查考试时间（允许稍微超时提交）
             java.time.LocalDateTime now = java.time.LocalDateTime.now();
-            if (exam.getEndTime() != null && now.isAfter(exam.getEndTime())) {
-                return ApiResponse.error("考试已结束");
+            if (exam.getEndTime() != null && now.isAfter(exam.getEndTime().plusMinutes(5))) {
+                return ApiResponse.error("考试已结束超过5分钟，无法提交");
             }
             
-            // 保存学生答案
+            // 删除该学生在此考试中的旧答案
+            List<StudentAnswer> existingAnswers = studentAnswerRepository.findByStudentIdAndExamResultId(student.getId(), examResult.getId());
+            if (!existingAnswers.isEmpty()) {
+                studentAnswerRepository.deleteAll(existingAnswers);
+            }
+            
+            // 保存学生答案并评分
             int totalScore = 0;
-            for (ExamSubmissionDTO.AnswerSubmission answer : submission.getAnswers()) {
-                Optional<Question> questionOpt = questionRepository.findById(answer.getQuestionId());
+            for (Map<String, Object> answerData : answers) {
+                Long questionId = Long.valueOf(answerData.get("questionId").toString());
+                String answer = answerData.get("answer") != null ? answerData.get("answer").toString() : "";
+                
+                Optional<Question> questionOpt = questionRepository.findById(questionId);
                 if (questionOpt.isPresent()) {
                     Question question = questionOpt.get();
                     
@@ -1330,11 +1506,11 @@ public class StudentController {
                     studentAnswer.setStudent(student);
                     studentAnswer.setQuestion(question);
                     studentAnswer.setExamResult(examResult);
-                    studentAnswer.setAnswer(answer.getAnswer());
+                    studentAnswer.setAnswer(answer);
                     studentAnswer.setMaxScore(question.getScore());
                     
                     // 自动批改（简单比较答案）
-                    boolean isCorrect = checkAnswer(question, answer.getAnswer());
+                    boolean isCorrect = checkAnswer(question, answer);
                     studentAnswer.setIsCorrect(isCorrect);
                     studentAnswer.setScore(isCorrect ? question.getScore() : 0);
                     
@@ -1403,12 +1579,36 @@ public class StudentController {
             
             Exam exam = examResult.getExam();
             
-            // 检查答案是否已发布
-            boolean showAnswers = exam.getIsAnswerPublished() != null && exam.getIsAnswerPublished();
+            // 检查是否可以查看试卷（只有考试结束后才能查看）
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            boolean canViewPaper = false;
+            String viewMessage = "";
+            
+            if (exam.getEndTime() != null) {
+                if (now.isAfter(exam.getEndTime())) {
+                    canViewPaper = true;
+                } else {
+                    java.time.Duration remaining = java.time.Duration.between(now, exam.getEndTime());
+                    long hours = remaining.toHours();
+                    long minutes = remaining.toMinutes() % 60;
+                    viewMessage = String.format("考试结束后方可查看试卷详情，剩余时间：%d小时%d分钟", hours, minutes);
+                }
+            } else {
+                // 如果没有设置结束时间，检查是否有其他学生还在考试
+                // 简化处理：如果没有结束时间，则立即可以查看
+                canViewPaper = true;
+            }
+            
+            // 检查答案是否已发布（管理员可以控制是否显示答案和解析）
+            boolean showAnswers = canViewPaper && (exam.getIsAnswerPublished() == null || exam.getIsAnswerPublished());
+            
+            // 检查成绩是否已发布（教师控制是否显示最终成绩）
+            boolean showFinalScore = exam.getIsAnswerPublished() != null && exam.getIsAnswerPublished();
             
             // 构建考试DTO
-            StudentExamDTO examDTO = new StudentExamDTO(exam, true, showAnswers);
+            StudentExamDTO examDTO = new StudentExamDTO(exam, canViewPaper, showAnswers);
             examDTO.setHasSubmitted(true);
+            examDTO.setExamResultId(examResultId);
             
             // 获取学生答案
             List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(examResultId);
@@ -1416,7 +1616,7 @@ public class StudentController {
                 .collect(java.util.stream.Collectors.toMap(sa -> sa.getQuestion().getId(), sa -> sa));
             
             // 设置学生答案到题目中
-            if (examDTO.getQuestions() != null) {
+            if (canViewPaper && examDTO.getQuestions() != null) {
                 for (StudentQuestionDTO questionDTO : examDTO.getQuestions()) {
                     StudentAnswer studentAnswer = answerMap.get(questionDTO.getId());
                     if (studentAnswer != null) {
@@ -1427,11 +1627,23 @@ public class StudentController {
                 }
             }
             
+            // 根据成绩发布状态决定显示的分数
+            Double displayScore = null;
+            if (showFinalScore) {
+                // 如果成绩已发布，显示最终得分（如果有的话），否则显示AI评分
+                displayScore = examResult.getFinalScore() != null ? examResult.getFinalScore() : examResult.getScore().doubleValue();
+            }
+            
             Map<String, Object> response = new HashMap<>();
             response.put("examResult", examResult);
             response.put("exam", examDTO);
+            response.put("canViewPaper", canViewPaper);
+            response.put("viewMessage", viewMessage);
             response.put("showAnswers", showAnswers);
-            response.put("score", examResult.getScore());
+            response.put("showFinalScore", showFinalScore);
+            response.put("score", displayScore); // 根据发布状态显示分数
+            response.put("aiScore", examResult.getScore()); // 保留AI评分用于调试
+            response.put("finalScore", examResult.getFinalScore()); // 保留最终得分用于调试
             response.put("totalScore", examResult.getTotalScore());
             response.put("durationMinutes", examResult.getDurationMinutes());
             response.put("submitTime", examResult.getSubmitTime());

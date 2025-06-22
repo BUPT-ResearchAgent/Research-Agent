@@ -2267,6 +2267,11 @@ input[type="checkbox"].checkbox-sm {
     animation: modalFadeIn 0.3s ease-out;
 }
 
+/* 确认弹窗需要更高的层级 */
+#confirm-modal.course-modal-overlay {
+    z-index: 99999;
+}
+
 .course-modal-overlay.show {
     display: flex;
 }
@@ -7647,5 +7652,51 @@ section#gen-test .main-content {
     .exam-table td {
         padding: 10px 8px;
         font-size: 13px;
+    }
+}
+
+/* 成绩批改页面特定样式 */
+#grade-mark .main-content {
+    display: block !important; /* 覆盖网格布局 */
+    grid-template-columns: none !important;
+}
+
+#grade-mark .content-card {
+    margin: 0 auto 24px auto;
+    max-width: none;
+}
+
+#grade-mark .content-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+#grade-mark .content-card .card-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+#grade-mark .content-card .card-actions .form-select {
+    min-width: 120px;
+}
+
+@media (max-width: 768px) {
+    #grade-mark .content-card .card-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #grade-mark .content-card .card-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    
+    #grade-mark .content-card .card-actions .form-select {
+        min-width: 100px;
+        flex: 1;
     }
 }

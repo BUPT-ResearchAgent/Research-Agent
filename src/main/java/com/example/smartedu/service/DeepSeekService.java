@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -416,14 +417,24 @@ public class DeepSeekService {
     }
     
     /**
-     * 获取题型中文名称
+     * 获取题型中文名称 - 使用标准化的题型映射
      */
     private String getQuestionTypeName(String type) {
         switch (type) {
-            case "multiple-choice": return "单项选择题";
+            case "multiple-choice": return "选择题";
+            case "choice": return "选择题";
             case "fill-blank": return "填空题";
+            case "fill_blank": return "填空题";
             case "true-false": return "判断题";
+            case "true_false": return "判断题";
             case "answer": return "解答题";
+            case "essay": return "解答题";
+            case "short-answer": return "简答题";
+            case "short_answer": return "简答题";
+            case "programming": return "编程题";
+            case "calculation": return "计算题";
+            case "case-analysis": return "案例分析题";
+            case "case_analysis": return "案例分析题";
             default: return type;
         }
     }
@@ -434,6 +445,279 @@ public class DeepSeekService {
      */
     public String generateLearningAssistantResponse(String prompt) {
         return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 智能评分 - 针对非选择题和判断题
+     * @param questionContent 题目内容
+     * @param questionType 题目类型
+     * @param studentAnswer 学生答案
+     * @param standardAnswer 标准答案
+     * @param explanation 题目解析
+     * @param maxScore 题目满分
+     * @return 评分结果（包含分数、评语和建议）
+     */
+    public Map<String, Object> intelligentGrading(String questionContent, String questionType, 
+                                                String studentAnswer, String standardAnswer, 
+                                                String explanation, int maxScore) {
+        String prompt = String.format(
+            "**智能评分任务**\n\n" +
+            "请作为一名专业的教师，对学生的答案进行客观、公正的评分。\n\n" +
+            "**题目信息：**\n" +
+            "- 题目类型：%s\n" +
+            "- 题目内容：%s\n" +
+            "- 满分：%d分\n" +
+            "- 标准答案：%s\n" +
+            "- 题目解析：%s\n\n" +
+            "**学生答案：**\n" +
+            "%s\n\n" +
+            "**评分要求：**\n" +
+            "1. 请仔细比较学生答案与标准答案的相似度和正确性\n" +
+            "2. 考虑答案的完整性、准确性、逻辑性\n" +
+            "3. 对于主观题，要考虑多种合理的表达方式\n" +
+            "4. 评分要客观公正，既不过于严苛也不过于宽松\n" +
+            "5. 提供具体的评分理由和改进建议\n\n" +
+            "**输出格式（严格按此格式）：**\n" +
+            "```json\n" +
+            "{\n" +
+            "  \"score\": 实际得分（0-%d之间的整数）,\n" +
+            "  \"feedback\": \"详细的评分理由和建议\",\n" +
+            "  \"correctness\": \"correct/partial/incorrect\",\n" +
+            "  \"keyPoints\": [\"答对的要点1\", \"答对的要点2\"],\n" +
+            "  \"missingPoints\": [\"遗漏的要点1\", \"遗漏的要点2\"],\n" +
+            "  \"suggestions\": [\"改进建议1\", \"改进建议2\"]\n" +
+            "}\n" +
+            "```\n\n" +
+            "请确保输出的JSON格式正确，可以被程序解析。",
+            questionType, questionContent, maxScore, standardAnswer, 
+            explanation != null ? explanation : "无", 
+            studentAnswer != null ? studentAnswer : "未作答",
+            maxScore
+        );
+        
+        try {
+            String response = callDeepSeekAPI(prompt);
+            return parseGradingResponse(response, maxScore);
+        } catch (Exception e) {
+            System.err.println("智能评分失败: " + e.getMessage());
+            // 返回默认评分结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("score", 0);
+            result.put("feedback", "智能评分服务暂时不可用，请手动评分");
+            result.put("correctness", "unknown");
+            result.put("keyPoints", List.of());
+            result.put("missingPoints", List.of());
+            result.put("suggestions", List.of("请联系教师进行人工评分"));
+            return result;
+        }
+    }
+    
+    /**
+     * 单题智能评分 - 只返回分数
+     * @param questionContent 题目内容
+     * @param questionType 题目类型
+     * @param studentAnswer 学生答案
+     * @param standardAnswer 标准答案
+     * @param explanation 题目解析
+     * @param maxScore 满分
+     * @return AI评分结果（只返回分数）
+     */
+    public Integer singleQuestionGrading(String questionContent, String questionType, 
+                                       String studentAnswer, String standardAnswer, 
+                                       String explanation, Integer maxScore) {
+        String prompt = String.format(
+            "**单题AI评分任务**\n\n" +
+            "请作为一名专业的教师，对学生的答案进行客观、公正的评分，只需要返回分数。\n\n" +
+            "**题目信息：**\n" +
+            "- 题目类型：%s\n" +
+            "- 题目内容：%s\n" +
+            "- 满分：%d分\n" +
+            "- 标准答案：%s\n" +
+            "- 题目解析：%s\n\n" +
+            "**学生答案：**\n" +
+            "%s\n\n" +
+            "**评分要求：**\n" +
+            "1. 请仔细比较学生答案与标准答案的相似度和正确性\n" +
+            "2. 考虑答案的完整性、准确性、逻辑性\n" +
+            "3. 对于主观题，要考虑多种合理的表达方式\n" +
+            "4. 评分要客观公正，既不过于严苛也不过于宽松\n\n" +
+            "**输出要求：**\n" +
+            "请直接返回一个0-%d之间的整数分数，不需要其他内容。\n" +
+            "例如：8",
+            questionType, questionContent, maxScore, standardAnswer, 
+            explanation != null ? explanation : "无", 
+            studentAnswer != null ? studentAnswer : "未作答",
+            maxScore
+        );
+        
+        try {
+            String response = callDeepSeekAPI(prompt);
+            return parseSingleScore(response, maxScore);
+        } catch (Exception e) {
+            System.err.println("单题智能评分失败: " + e.getMessage());
+            // 返回0分作为默认值
+            return 0;
+        }
+    }
+
+    /**
+     * 批量智能评分 - 处理多道题目
+     * @param gradingRequests 评分请求列表
+     * @return 评分结果列表
+     */
+    public List<Map<String, Object>> batchIntelligentGrading(List<Map<String, Object>> gradingRequests) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        
+        for (Map<String, Object> request : gradingRequests) {
+            String questionContent = (String) request.get("questionContent");
+            String questionType = (String) request.get("questionType");
+            String studentAnswer = (String) request.get("studentAnswer");
+            String standardAnswer = (String) request.get("standardAnswer");
+            String explanation = (String) request.get("explanation");
+            Integer maxScore = (Integer) request.get("maxScore");
+            Long questionId = (Long) request.get("questionId");
+            
+            Map<String, Object> result = intelligentGrading(
+                questionContent, questionType, studentAnswer, 
+                standardAnswer, explanation, maxScore
+            );
+            result.put("questionId", questionId);
+            results.add(result);
+        }
+        
+        return results;
+    }
+    
+    /**
+     * 解析DeepSeek返回的评分结果
+     */
+    private Map<String, Object> parseGradingResponse(String response, int maxScore) {
+        try {
+            // 提取JSON部分
+            String jsonStr = extractJsonFromResponse(response);
+            if (jsonStr != null) {
+                JsonNode jsonNode = objectMapper.readTree(jsonStr);
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("score", Math.min(jsonNode.get("score").asInt(), maxScore));
+                result.put("feedback", jsonNode.get("feedback").asText());
+                result.put("correctness", jsonNode.get("correctness").asText());
+                
+                // 解析数组字段
+                List<String> keyPoints = new ArrayList<>();
+                JsonNode keyPointsNode = jsonNode.get("keyPoints");
+                if (keyPointsNode != null && keyPointsNode.isArray()) {
+                    for (JsonNode point : keyPointsNode) {
+                        keyPoints.add(point.asText());
+                    }
+                }
+                result.put("keyPoints", keyPoints);
+                
+                List<String> missingPoints = new ArrayList<>();
+                JsonNode missingPointsNode = jsonNode.get("missingPoints");
+                if (missingPointsNode != null && missingPointsNode.isArray()) {
+                    for (JsonNode point : missingPointsNode) {
+                        missingPoints.add(point.asText());
+                    }
+                }
+                result.put("missingPoints", missingPoints);
+                
+                List<String> suggestions = new ArrayList<>();
+                JsonNode suggestionsNode = jsonNode.get("suggestions");
+                if (suggestionsNode != null && suggestionsNode.isArray()) {
+                    for (JsonNode suggestion : suggestionsNode) {
+                        suggestions.add(suggestion.asText());
+                    }
+                }
+                result.put("suggestions", suggestions);
+                
+                return result;
+            }
+        } catch (Exception e) {
+            System.err.println("解析评分结果失败: " + e.getMessage());
+        }
+        
+        // 解析失败时返回默认结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("score", 0);
+        result.put("feedback", "评分结果解析失败，请手动评分");
+        result.put("correctness", "unknown");
+        result.put("keyPoints", List.of());
+        result.put("missingPoints", List.of());
+        result.put("suggestions", List.of("请联系教师进行人工评分"));
+        return result;
+    }
+    
+    /**
+     * 解析单题评分响应，只提取分数
+     */
+    private Integer parseSingleScore(String response, Integer maxScore) {
+        if (response == null || response.trim().isEmpty()) {
+            return 0;
+        }
+        
+        try {
+            // 尝试直接解析数字
+            String cleanResponse = response.trim();
+            
+            // 移除可能的前缀文字，只保留数字
+            String[] lines = cleanResponse.split("\n");
+            for (String line : lines) {
+                line = line.trim();
+                // 查找纯数字
+                if (line.matches("\\d+")) {
+                    int score = Integer.parseInt(line);
+                    return Math.min(Math.max(score, 0), maxScore); // 确保分数在0-maxScore范围内
+                }
+                // 查找包含数字的行，如"分数：8"或"8分"
+                if (line.matches(".*\\d+.*")) {
+                    String numberStr = line.replaceAll("\\D", ""); // 移除所有非数字字符
+                    if (!numberStr.isEmpty()) {
+                        int score = Integer.parseInt(numberStr);
+                        return Math.min(Math.max(score, 0), maxScore);
+                    }
+                }
+            }
+            
+            // 如果没有找到明确的数字，尝试从整个响应中提取第一个数字
+            String numberStr = response.replaceAll("\\D", "");
+            if (!numberStr.isEmpty()) {
+                int score = Integer.parseInt(numberStr.substring(0, Math.min(2, numberStr.length())));
+                return Math.min(Math.max(score, 0), maxScore);
+            }
+            
+        } catch (Exception e) {
+            System.err.println("解析单题评分失败: " + e.getMessage());
+        }
+        
+        // 解析失败，返回0分
+        return 0;
+    }
+
+    /**
+     * 从响应中提取JSON字符串
+     */
+    private String extractJsonFromResponse(String response) {
+        if (response == null) return null;
+        
+        // 查找JSON代码块
+        int startIndex = response.indexOf("```json");
+        if (startIndex != -1) {
+            startIndex += 7; // 跳过 "```json"
+            int endIndex = response.indexOf("```", startIndex);
+            if (endIndex != -1) {
+                return response.substring(startIndex, endIndex).trim();
+            }
+        }
+        
+        // 如果没有代码块，尝试查找直接的JSON
+        int braceStart = response.indexOf("{");
+        int braceEnd = response.lastIndexOf("}");
+        if (braceStart != -1 && braceEnd != -1 && braceEnd > braceStart) {
+            return response.substring(braceStart, braceEnd + 1);
+        }
+        
+        return null;
     }
     
     /**
@@ -475,21 +759,27 @@ public class DeepSeekService {
                     JsonNode content = message.get("content");
                     if (content != null) {
                         String result = content.asText();
-                        System.out.println("生成成功，内容长度: " + result.length());
+                        System.out.println("API调用成功，内容长度: " + result.length());
                         return result;
                     }
                 }
             }
             
             System.out.println("解析响应失败");
-            return "生成失败：无法解析API响应";
+            throw new RuntimeException("无法解析API响应");
             
         } catch (Exception e) {
             System.err.println("调用DeepSeek API失败: " + e.getMessage());
             e.printStackTrace();
             
-            // 返回一个模拟的教学大纲，确保功能能够演示
-            return generateMockOutline();
+            // 判断是否为智能评分请求
+            if (prompt.contains("智能评分任务")) {
+                // 智能评分失败时，抛出异常让上层处理
+                throw new RuntimeException("智能评分API调用失败: " + e.getMessage());
+            } else {
+                // 其他请求（如教学大纲生成）返回模拟内容
+                return generateMockOutline();
+            }
         }
     }
     

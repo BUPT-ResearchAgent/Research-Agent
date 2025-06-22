@@ -30,6 +30,8 @@ public class StudentExamDTO {
     private Boolean hasSubmitted; // 是否已提交
     private Integer remainingMinutes; // 剩余时间（分钟）
     private Integer totalQuestions; // 总题数
+    private Long examResultId; // 考试结果ID
+    private Boolean canViewPaper; // 是否可以查看试卷详情
     
     public StudentExamDTO() {}
     
@@ -182,4 +184,10 @@ public class StudentExamDTO {
     
     public Integer getTotalQuestions() { return totalQuestions; }
     public void setTotalQuestions(Integer totalQuestions) { this.totalQuestions = totalQuestions; }
+    
+    public Long getExamResultId() { return examResultId; }
+    public void setExamResultId(Long examResultId) { this.examResultId = examResultId; }
+    
+    public Boolean getCanViewPaper() { return canViewPaper; }
+    public void setCanViewPaper(Boolean canViewPaper) { this.canViewPaper = canViewPaper; }
 } 

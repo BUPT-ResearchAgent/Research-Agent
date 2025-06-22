@@ -65,6 +65,11 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
     List<ExamResult> findByExamOrderByFinalScoreDesc(Exam exam);
     
     /**
+     * 根据考试查找考试结果并按提交时间排序
+     */
+    List<ExamResult> findByExamOrderBySubmitTimeDesc(Exam exam);
+    
+    /**
      * 统计考试的参与人数
      */
     @Query("SELECT COUNT(er) FROM ExamResult er WHERE er.exam = :exam")

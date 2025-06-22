@@ -253,14 +253,23 @@ public class ExamService {
     }
     
     /**
-     * 发布考试
+     * 发布考试（立即发布）
      */
     public void publishExam(Long examId) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
         
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        
         exam.setIsPublished(true);
-        exam.setPublishedAt(java.time.LocalDateTime.now()); // 设置发布时间
+        exam.setPublishedAt(now); // 设置发布时间
+        exam.setStartTime(now); // 立即发布时，开始时间就是发布时间
+        
+        // 根据考试时长设置结束时间
+        if (exam.getDuration() != null) {
+            exam.setEndTime(now.plusMinutes(exam.getDuration()));
+        }
+        
         examRepository.save(exam);
     }
     
@@ -323,11 +332,14 @@ public class ExamService {
             System.out.println("原始内容长度: " + examContent.length());
             System.out.println("原始内容前800字符: " + examContent.substring(0, Math.min(800, examContent.length())));
             
-            // 计算期望的题目数量
+            // 构建题目类型顺序列表
+            List<String> questionTypeOrder = new ArrayList<>();
             int expectedQuestions = 0;
+            
             if (request != null && request.getQuestionTypes() != null) {
                 Map<String, Object> questionTypesMap = (Map<String, Object>) request.getQuestionTypes();
                 for (Map.Entry<String, Object> entry : questionTypesMap.entrySet()) {
+                    String questionType = entry.getKey();
                     Object value = entry.getValue();
                     Integer count = null;
                     
@@ -341,18 +353,28 @@ public class ExamService {
                         if (countValue instanceof Number) {
                             count = ((Number) countValue).intValue();
                         }
+                        // 对于自定义题型，使用requirement作为题型名称
+                        String requirement = (String) customType.get("requirement");
+                        if (requirement != null && !requirement.trim().isEmpty()) {
+                            questionType = "custom"; // 保持为custom，但后续会特殊处理
+                        }
                     }
                     
                     if (count != null && count > 0) {
+                        // 根据数量添加题目类型到顺序列表
+                        for (int i = 0; i < count; i++) {
+                            questionTypeOrder.add(questionType);
+                        }
                         expectedQuestions += count;
                     }
                 }
             }
             
             System.out.println("期望题目数量: " + expectedQuestions);
+            System.out.println("题目类型顺序: " + questionTypeOrder);
             
-            // 尝试解析AI生成的内容
-            boolean parseSuccess = parseAIGeneratedQuestions(exam, examContent, expectedQuestions);
+            // 尝试解析AI生成的内容，传递题目类型顺序
+            boolean parseSuccess = parseAIGeneratedQuestions(exam, examContent, expectedQuestions, questionTypeOrder);
             
             if (!parseSuccess) {
                 System.out.println("AI内容解析失败，使用备用题目生成");
@@ -369,9 +391,16 @@ public class ExamService {
     }
     
     /**
-     * 解析AI生成的题目内容
+     * 解析AI生成的题目内容（兼容旧版本）
      */
     private boolean parseAIGeneratedQuestions(Exam exam, String content, int expectedQuestions) {
+        return parseAIGeneratedQuestions(exam, content, expectedQuestions, null);
+    }
+    
+    /**
+     * 解析AI生成的题目内容（支持题目类型顺序）
+     */
+    private boolean parseAIGeneratedQuestions(Exam exam, String content, int expectedQuestions, List<String> questionTypeOrder) {
         try {
             List<Question> questions = new ArrayList<>();
             
@@ -460,7 +489,7 @@ public class ExamService {
                 System.out.println("题目块内容长度: " + block.length());
                 System.out.println("题目块前300字符: " + block.substring(0, Math.min(300, block.length())));
                 
-                Question question = parseQuestionBlock(exam, block, i);
+                Question question = parseQuestionBlock(exam, block, i, questionTypeOrder);
                 if (question != null) {
                     questions.add(question);
                     System.out.println("成功解析题目" + i + ": " + question.getContent().substring(0, Math.min(50, question.getContent().length())) + "... (分值: " + question.getScore() + ")");
@@ -735,17 +764,31 @@ public class ExamService {
      * 解析单个题目块
      */
     private Question parseQuestionBlock(Exam exam, String block, int questionIndex) {
+        return parseQuestionBlock(exam, block, questionIndex, null);
+    }
+    
+    private Question parseQuestionBlock(Exam exam, String block, int questionIndex, List<String> questionTypeOrder) {
         try {
             Question question = new Question();
             question.setExam(exam);
             
-            // 通用题型提取（支持任何自定义题型）
-            String extractedType = extractQuestionType(block, questionIndex);
-            question.setType(extractedType);
-            System.out.println("题目" + questionIndex + "类型识别为: " + extractedType);
+            // 根据题目类型顺序分配题目类型
+            String questionType;
+            if (questionTypeOrder != null && !questionTypeOrder.isEmpty() && questionIndex <= questionTypeOrder.size()) {
+                // 使用预设的题目类型顺序（questionIndex从1开始，所以要减1）
+                String originalType = questionTypeOrder.get(questionIndex - 1);
+                questionType = normalizeQuestionType(originalType);
+                System.out.println("题目" + questionIndex + "使用预设类型: " + originalType + " -> " + questionType);
+            } else {
+                // 如果没有预设顺序，使用原来的推断逻辑
+                questionType = extractQuestionType(block, questionIndex);
+                System.out.println("题目" + questionIndex + "使用推断类型: " + questionType);
+            }
+            
+            question.setType(questionType);
             
             // 智能提取题目内容（根据题型自适应）
-            String content = extractQuestionContentSmartly(block, question.getType());
+            String content = extractQuestionContentSmartly(block, questionType);
             if (content != null && !content.trim().isEmpty()) {
                 question.setContent(content.trim());
             } else {
@@ -754,7 +797,7 @@ public class ExamService {
             }
             
             // 智能提取选项（自动判断是否需要选项）
-            List<String> options = extractOptionsSmartly(block, question.getType());
+            List<String> options = extractOptionsSmartly(block, questionType);
             if (!options.isEmpty()) {
                 question.setOptions(objectMapper.writeValueAsString(options));
             } else {
@@ -762,12 +805,12 @@ public class ExamService {
             }
             
             // 智能提取答案（根据题型自适应）
-            String answer = extractAnswerSmartly(block, question.getType());
+            String answer = extractAnswerSmartly(block, questionType);
             if (answer != null && !answer.trim().isEmpty()) {
                 question.setAnswer(answer.trim());
             } else {
                 // 根据题型设置默认答案
-                question.setAnswer(getDefaultAnswerForType(question.getType()));
+                question.setAnswer(getDefaultAnswerForType(questionType));
                 System.out.println("题目" + questionIndex + "答案提取失败，使用默认答案: " + question.getAnswer());
             }
             
@@ -828,55 +871,71 @@ public class ExamService {
     }
     
     /**
-     * 标准化题型名称（但保留原始特征）
+     * 标准化题型名称 - 统一映射到标准题型
      */
     private String normalizeQuestionType(String originalType) {
-        String lowerType = originalType.toLowerCase();
-        
-        // 保留原始题型名称，但转换为合适的标识符格式
-        // 移除特殊字符，用下划线连接
-        String normalized = originalType
-            .replaceAll("[\\s\\-]+", "_")  // 空格和破折号替换为下划线
-            .replaceAll("[^\\u4e00-\\u9fa5a-zA-Z0-9_]", "")  // 保留中文、英文、数字、下划线
-            .toLowerCase();
-        
-        // 如果是空的，使用推断逻辑
-        if (normalized.isEmpty()) {
-            return "unknown_type";
+        if (originalType == null || originalType.trim().isEmpty()) {
+            return "essay"; // 默认为解答题
         }
         
-        return normalized;
+        String lowerType = originalType.toLowerCase().trim();
+        
+        // 统一映射到标准题型
+        if (lowerType.contains("选择") || lowerType.contains("choice") || lowerType.contains("单选") || lowerType.contains("多选")) {
+            return "choice";
+        } else if (lowerType.contains("判断") || lowerType.contains("true") || lowerType.contains("false") || lowerType.contains("对错")) {
+            return "true_false";
+        } else if (lowerType.contains("填空") || lowerType.contains("fill") || lowerType.contains("blank")) {
+            return "fill_blank";
+        } else if (lowerType.contains("编程") || lowerType.contains("program") || lowerType.contains("代码") || lowerType.contains("code")) {
+            return "programming";
+        } else if (lowerType.contains("简答") || lowerType.contains("short")) {
+            return "short_answer";
+        } else if (lowerType.contains("计算") || lowerType.contains("calculation") || lowerType.contains("计算题")) {
+            return "calculation";
+        } else if (lowerType.contains("案例") || lowerType.contains("case") || lowerType.contains("分析")) {
+            return "case_analysis";
+        } else if (lowerType.contains("解答") || lowerType.contains("论述") || lowerType.contains("essay") || lowerType.contains("answer")) {
+            return "essay";
+        } else {
+            // 如果无法识别，根据内容推断
+            return "essay"; // 默认为解答题
+        }
     }
     
     /**
-     * 从题目内容推断题型
+     * 从题目内容推断题型 - 与标准化方法保持一致
      */
     private String inferQuestionTypeFromContent(String block) {
         String lowerBlock = block.toLowerCase();
         
-        // 按优先级判断题型
-        if (lowerBlock.contains("编程") || lowerBlock.contains("程序") || lowerBlock.contains("代码") ||
-            lowerBlock.contains("```") || lowerBlock.contains("python") || lowerBlock.contains("java") ||
-            lowerBlock.contains("编写代码") || lowerBlock.contains("实现")) {
-            return "programming";
-        } else if (lowerBlock.contains("案例") || lowerBlock.contains("情景") || lowerBlock.contains("情况") ||
-                   lowerBlock.contains("场景") || lowerBlock.contains("实例")) {
-            return "case_analysis";
-        } else if (lowerBlock.contains("a.") || lowerBlock.contains("a）") || lowerBlock.contains("a)") ||
-                   (lowerBlock.contains("b.") && lowerBlock.contains("c.") && lowerBlock.contains("d."))) {
-            return "multiple_choice";
+        // 按优先级判断题型，使用标准题型名称
+        // 优先检查选项格式来识别选择题
+        if (lowerBlock.contains("**选项**") || lowerBlock.contains("选项：") ||
+            (lowerBlock.contains("a.") && lowerBlock.contains("b.") && lowerBlock.contains("c.") && lowerBlock.contains("d."))) {
+            return "choice";
+        } else if (lowerBlock.contains("填空") || lowerBlock.contains("____") || lowerBlock.contains("___") ||
+                   lowerBlock.contains("______")) {
+            return "fill_blank";
         } else if (lowerBlock.contains("判断") || lowerBlock.contains("正确") || lowerBlock.contains("错误") ||
                    lowerBlock.contains("true") || lowerBlock.contains("false")) {
             return "true_false";
-        } else if (lowerBlock.contains("填空") || lowerBlock.contains("____") || lowerBlock.contains("___")) {
-            return "fill_blank";
+        } else if (lowerBlock.contains("编程") || lowerBlock.contains("程序") || lowerBlock.contains("代码") ||
+                   lowerBlock.contains("```") || lowerBlock.contains("python") || lowerBlock.contains("java") ||
+                   lowerBlock.contains("编写代码") || lowerBlock.contains("实现")) {
+            return "programming";
         } else if (lowerBlock.contains("计算") || lowerBlock.contains("求解") || lowerBlock.contains("求")) {
             return "calculation";
-        } else if (lowerBlock.contains("论述") || lowerBlock.contains("简述") || lowerBlock.contains("分析") ||
+        } else if (lowerBlock.contains("案例") || lowerBlock.contains("情景") || lowerBlock.contains("情况") ||
+                   lowerBlock.contains("场景") || lowerBlock.contains("实例")) {
+            return "case_analysis";
+        } else if (lowerBlock.contains("简述") || lowerBlock.contains("简答")) {
+            return "short_answer";
+        } else if (lowerBlock.contains("论述") || lowerBlock.contains("分析") ||
                    lowerBlock.contains("解答") || lowerBlock.contains("说明") || lowerBlock.contains("阐述")) {
             return "essay";
         } else {
-            return "comprehensive"; // 综合题作为默认类型
+            return "essay"; // 默认为解答题
         }
     }
     
@@ -1307,31 +1366,80 @@ public class ExamService {
                               questionType.contains("判断") || questionType.contains("true_false");
         
         if (!needsOptions) {
+            System.out.println("题型 " + questionType + " 不需要选项");
             return options; // 不需要选项的题型直接返回空列表
         }
         
-        // 提取选项的多种格式
+        System.out.println("开始为题型 " + questionType + " 提取选项");
+        System.out.println("题目块前500字符: " + block.substring(0, Math.min(500, block.length())));
+        
+        // 首先尝试查找选项区域
+        boolean inOptionsSection = false;
         String[] lines = block.split("\n");
-        for (String line : lines) {
-            line = line.trim();
+        
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
             
-            // 匹配各种选项格式
-            if (line.matches("^[A-Za-z][.）)].*") || line.matches("^[A-Za-z]\\s*[.）)].*")) {
-                // A. 选项内容 或 A) 选项内容 或 A） 选项内容
-                options.add(line);
-            } else if (line.matches("^\\([A-Za-z]\\).*")) {
-                // (A) 选项内容
-                options.add(line);
-            } else if (line.matches("^[①②③④⑤⑥⑦⑧⑨⑩].*")) {
-                // 圆圈数字格式
-                options.add(line);
-            } else if (line.matches("^[1-9][0-9]*[.）)].*")) {
-                // 数字格式：1. 2. 3.
-                options.add(line);
+            // 检查是否进入选项区域
+            if (line.contains("**选项**") || line.contains("选项：") || 
+                line.equals("选项:") || line.startsWith("**选项")) {
+                inOptionsSection = true;
+                System.out.println("找到选项标记: " + line);
+                continue;
+            }
+            
+            // 检查是否离开选项区域
+            if (inOptionsSection && (line.startsWith("**正确答案") || line.startsWith("**答案") || 
+                line.startsWith("**解析") || line.startsWith("**分值"))) {
+                System.out.println("选项区域结束: " + line);
+                break;
+            }
+            
+            // 如果在选项区域内，提取选项
+            if (inOptionsSection && !line.isEmpty()) {
+                // 匹配各种选项格式
+                if (line.matches("^[A-Za-z][.）)].*") || line.matches("^[A-Za-z]\\s*[.）)].*")) {
+                    // A. 选项内容 或 A) 选项内容 或 A） 选项内容
+                    options.add(line);
+                    System.out.println("提取选项: " + line);
+                } else if (line.matches("^\\([A-Za-z]\\).*")) {
+                    // (A) 选项内容
+                    options.add(line);
+                    System.out.println("提取选项: " + line);
+                } else if (line.matches("^[①②③④⑤⑥⑦⑧⑨⑩].*")) {
+                    // 圆圈数字格式
+                    options.add(line);
+                    System.out.println("提取选项: " + line);
+                } else if (line.matches("^[1-9][0-9]*[.）)].*")) {
+                    // 数字格式：1. 2. 3.
+                    options.add(line);
+                    System.out.println("提取选项: " + line);
+                } else {
+                    System.out.println("跳过非选项行: " + line);
+                }
             }
         }
         
-        System.out.println("题型 " + questionType + " 提取到 " + options.size() + " 个选项");
+        // 如果没有找到选项区域，尝试全文搜索选项
+        if (options.isEmpty()) {
+            System.out.println("未找到选项区域，尝试全文搜索选项");
+            for (String line : lines) {
+                line = line.trim();
+                if (line.matches("^[A-Za-z][.）)].*") || line.matches("^[A-Za-z]\\s*[.）)].*")) {
+                    options.add(line);
+                    System.out.println("全文搜索提取选项: " + line);
+                }
+            }
+        }
+        
+        // 如果是判断题但没有找到选项，创建默认选项
+        if (options.isEmpty() && (questionType.contains("判断") || questionType.contains("true_false"))) {
+            options.add("A. 正确");
+            options.add("B. 错误");
+            System.out.println("为判断题创建默认选项");
+        }
+        
+        System.out.println("题型 " + questionType + " 最终提取到 " + options.size() + " 个选项: " + options);
         return options;
     }
     
@@ -1573,43 +1681,82 @@ public class ExamService {
         };
         
         for (String pattern : answerPatterns) {
-            // 先尝试提取到下一个**标记的内容
-            String answer = extractContent(block, pattern, "**");
-            if (answer != null && !answer.trim().isEmpty()) {
-                return answer;
-            }
-            
-            // 如果没有找到，尝试提取到解析部分
             int answerStart = block.indexOf(pattern);
             if (answerStart != -1) {
                 answerStart += pattern.length();
                 
-                // 查找解析部分的开始位置
-                int analysisStart = block.indexOf("**解析**：", answerStart);
-                if (analysisStart != -1) {
-                    answer = block.substring(answerStart, analysisStart).trim();
-                    if (!answer.isEmpty()) {
-                        return answer;
+                // 查找答案结束位置的多种标记
+                String[] endMarkers = {"**解析**：", "**分值建议**：", "**评分标准**：", "**难度**："};
+                int answerEnd = block.length(); // 默认到文档结尾
+                
+                // 找到最近的结束标记
+                for (String endMarker : endMarkers) {
+                    int endPos = block.indexOf(endMarker, answerStart);
+                    if (endPos != -1 && endPos < answerEnd) {
+                        answerEnd = endPos;
                     }
-                } else {
-                    // 查找分值建议的位置
-                    int scoreStart = block.indexOf("**分值建议**：", answerStart);
-                    if (scoreStart != -1) {
-                        answer = block.substring(answerStart, scoreStart).trim();
-                        if (!answer.isEmpty()) {
-                            return answer;
-                        }
+                }
+                
+                if (answerEnd > answerStart) {
+                    String answer = block.substring(answerStart, answerEnd).trim();
+                    if (!answer.isEmpty()) {
+                        System.out.println("提取到答案，长度: " + answer.length() + " 字符");
+                        System.out.println("答案前100字符: " + answer.substring(0, Math.min(100, answer.length())));
+                        return answer;
                     }
                 }
             }
+        }
+        
+        // 如果标准格式提取失败，尝试智能提取
+        System.out.println("标准格式提取失败，尝试智能提取答案");
+        return extractAnswerIntelligently(block);
+    }
+    
+    /**
+     * 智能提取答案（当标准格式失败时使用）
+     */
+    private String extractAnswerIntelligently(String block) {
+        String[] lines = block.split("\n");
+        StringBuilder answerBuilder = new StringBuilder();
+        boolean inAnswerSection = false;
+        boolean foundAnswerStart = false;
+        
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
             
-            // 最后尝试以换行为结束符（适用于简短答案）
-            answer = extractContent(block, pattern, "\n");
-            if (answer != null && !answer.trim().isEmpty()) {
-                return answer;
+            // 检查是否进入答案区域
+            if (!foundAnswerStart && (line.contains("答案") || line.contains("解答") || 
+                line.contains("参考") || line.startsWith("1.") || line.startsWith("（1）"))) {
+                inAnswerSection = true;
+                foundAnswerStart = true;
+                
+                // 如果这行本身就包含答案内容，加入答案
+                if (!line.startsWith("**") && line.length() > 3) {
+                    answerBuilder.append(line).append("\n");
+                }
+                continue;
+            }
+            
+            // 检查是否离开答案区域
+            if (inAnswerSection && (line.startsWith("**解析") || line.startsWith("**分值") || 
+                line.startsWith("**评分") || line.startsWith("**难度"))) {
+                break;
+            }
+            
+            // 如果在答案区域内，收集内容
+            if (inAnswerSection && !line.isEmpty() && !line.startsWith("**")) {
+                answerBuilder.append(line).append("\n");
             }
         }
         
+        String result = answerBuilder.toString().trim();
+        if (!result.isEmpty()) {
+            System.out.println("智能提取到答案，长度: " + result.length() + " 字符");
+            return result;
+        }
+        
+        System.out.println("智能提取也失败，返回null");
         return null;
     }
     

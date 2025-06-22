@@ -2264,9 +2264,180 @@ async function loadGradeData() {
         if (!currentCourses || currentCourses.length === 0) {
             await loadCourseList();
         }
+        await loadGradeList();
+        await loadExamsForGradeFilter();
         console.log('成绩批改页面数据加载完成');
     } catch (error) {
         console.error('加载成绩批改页面数据失败:', error);
+    }
+}
+
+// 加载待批改试卷列表
+async function loadGradeList() {
+    try {
+        showLoading('正在加载待批改试卷...');
+        const response = await TeacherAPI.getGradeList();
+        hideLoading();
+        
+        if (response.success) {
+            displayGradeList(response.data);
+        } else {
+            showNotification('加载失败：' + response.message, 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('加载待批改试卷失败:', error);
+        showNotification('加载失败，请重试', 'error');
+    }
+}
+
+// 显示待批改试卷列表
+function displayGradeList(grades) {
+    const tbody = document.querySelector('#grades-table tbody');
+    if (!tbody) return;
+    
+    if (!grades || grades.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <i class="fas fa-clipboard-list" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                    暂无待批改试卷
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = grades.map(grade => {
+        const statusClass = getGradeStatusClass(grade.gradeStatus);
+        const statusText = getGradeStatusText(grade.gradeStatus);
+        
+        // 检查考试是否已发布成绩
+        const isPublished = grade.isAnswerPublished || false;
+        const publishButtonClass = isPublished ? 'btn-warning' : 'btn-success';
+        const publishButtonIcon = isPublished ? 'fas fa-undo' : 'fas fa-share';
+        const publishButtonTitle = isPublished ? '取消发布' : '发布成绩';
+        const publishButtonText = isPublished ? '已发布' : '发布';
+        
+        return `
+            <tr>
+                <td>${grade.studentName || '-'}</td>
+                <td>${grade.examTitle || '-'}</td>
+                <td>${formatDateTime(grade.submitTime)}</td>
+                <td>${grade.aiScore || '-'}</td>
+                <td>${grade.finalScore || '-'}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn btn-sm btn-primary" onclick="gradeExam(${grade.id})" title="批改">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-info" onclick="viewGradeDetail(${grade.id})" title="查看详情">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm ${publishButtonClass}" onclick="publishSingleGrade(${grade.examId}, ${grade.id}, ${isPublished})" title="${publishButtonTitle}">
+                            <i class="${publishButtonIcon}"></i>
+                            <span style="margin-left: 4px;">${publishButtonText}</span>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// 获取批改状态样式
+function getGradeStatusClass(status) {
+    const statusMap = {
+        'PENDING': 'status-warning',
+        'AI_GRADED': 'status-info',
+        'MANUAL_GRADED': 'status-success'
+    };
+    return statusMap[status] || 'status-secondary';
+}
+
+// 获取批改状态文本
+function getGradeStatusText(status) {
+    const statusMap = {
+        'PENDING': '待批改',
+        'AI_GRADED': 'AI已批改',
+        'MANUAL_GRADED': '人工已批改'
+    };
+    return statusMap[status] || '未知状态';
+}
+
+// 加载考试列表用于筛选
+async function loadExamsForGradeFilter() {
+    try {
+        const examFilter = document.getElementById('grade-exam-filter');
+        if (!examFilter) return;
+        
+        if (!currentCourses || currentCourses.length === 0) {
+            await loadCourseList();
+        }
+        
+        // 获取所有考试
+        let allExams = [];
+        for (const course of currentCourses) {
+            const response = await TeacherAPI.getCourseExams(course.id);
+            if (response.success && response.data) {
+                allExams = allExams.concat(response.data.map(exam => ({
+                    ...exam,
+                    courseName: course.name
+                })));
+            }
+        }
+        
+        // 填充筛选下拉框
+        examFilter.innerHTML = '<option value="">所有考试</option>' + 
+            allExams.map(exam => `<option value="${exam.id}">${exam.title} (${exam.courseName})</option>`).join('');
+            
+    } catch (error) {
+        console.error('加载考试筛选列表失败:', error);
+    }
+}
+
+// 筛选成绩
+function filterGrades() {
+    // 这里可以实现前端筛选逻辑，或者重新调用API
+    loadGradeList();
+}
+
+// 批改考试
+async function gradeExam(resultId) {
+    try {
+        showLoading('正在加载考试详情...');
+        const response = await TeacherAPI.getGradeDetail(resultId);
+        hideLoading();
+        
+        if (response.success) {
+            showGradeModal(response.data);
+        } else {
+            showNotification('加载失败：' + response.message, 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('加载考试详情失败:', error);
+        showNotification('加载失败，请重试', 'error');
+    }
+}
+
+// 查看成绩详情
+async function viewGradeDetail(resultId) {
+    try {
+        showLoading('正在加载成绩详情...');
+        const response = await TeacherAPI.getGradeDetail(resultId);
+        hideLoading();
+        
+        if (response.success) {
+            showGradeDetailModal(response.data);
+        } else {
+            showNotification('加载失败：' + response.message, 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('加载成绩详情失败:', error);
+        showNotification('加载失败，请重试', 'error');
     }
 }
 
@@ -2275,10 +2446,194 @@ async function loadAnalysisData() {
         if (!currentCourses || currentCourses.length === 0) {
             await loadCourseList();
         }
+        await loadExamsForAnalysis();
         console.log('成绩分析页面数据加载完成');
     } catch (error) {
         console.error('加载成绩分析页面数据失败:', error);
     }
+}
+
+// 加载考试列表用于分析
+async function loadExamsForAnalysis() {
+    try {
+        const examSelect = document.getElementById('analysis-exam-select');
+        if (!examSelect) return;
+        
+        if (!currentCourses || currentCourses.length === 0) {
+            await loadCourseList();
+        }
+        
+        // 获取所有考试
+        let allExams = [];
+        for (const course of currentCourses) {
+            const response = await TeacherAPI.getCourseExams(course.id);
+            if (response.success && response.data) {
+                allExams = allExams.concat(response.data.map(exam => ({
+                    ...exam,
+                    courseName: course.name
+                })));
+            }
+        }
+        
+        // 只显示已发布的考试
+        const publishedExams = allExams.filter(exam => exam.status === 'PUBLISHED');
+        
+        // 填充下拉框
+        examSelect.innerHTML = '<option value="">选择考试</option>' + 
+            publishedExams.map(exam => `<option value="${exam.id}">${exam.title} (${exam.courseName})</option>`).join('');
+            
+    } catch (error) {
+        console.error('加载考试分析列表失败:', error);
+    }
+}
+
+// 加载选中考试的分析数据
+async function loadSelectedExamAnalysis() {
+    const examSelect = document.getElementById('analysis-exam-select');
+    const selectedExamId = examSelect?.value;
+    
+    if (!selectedExamId) {
+        clearAnalysisData();
+        return;
+    }
+    
+    try {
+        showLoading('正在加载分析数据...');
+        const response = await TeacherAPI.getGradeAnalysis(selectedExamId);
+        hideLoading();
+        
+        if (response.success) {
+            displayAnalysisData(response.data);
+        } else {
+            showNotification('加载分析数据失败：' + response.message, 'error');
+            clearAnalysisData();
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('加载分析数据失败:', error);
+        showNotification('加载分析数据失败，请重试', 'error');
+        clearAnalysisData();
+    }
+}
+
+// 显示分析数据
+function displayAnalysisData(data) {
+    // 更新统计卡片
+    document.getElementById('analysis-participant-count').textContent = data.participantCount || '0';
+    document.getElementById('analysis-avg-score').textContent = data.averageScore || '0';
+    document.getElementById('analysis-max-score').textContent = data.maxScore || '0';
+    document.getElementById('analysis-min-score').textContent = data.minScore || '0';
+    document.getElementById('analysis-std-dev').textContent = data.standardDeviation || '0';
+    
+    // 显示分数分布图表
+    displayScoreDistributionChart(data.scoreDistribution);
+    
+    // 显示错误率分析表格
+    displayErrorAnalysisTable(data.errorAnalysis);
+}
+
+// 清空分析数据
+function clearAnalysisData() {
+    document.getElementById('analysis-participant-count').textContent = '--';
+    document.getElementById('analysis-avg-score').textContent = '--';
+    document.getElementById('analysis-max-score').textContent = '--';
+    document.getElementById('analysis-min-score').textContent = '--';
+    document.getElementById('analysis-std-dev').textContent = '--';
+    
+    // 清空图表
+    const chartContainer = document.getElementById('score-distribution-chart');
+    if (chartContainer) {
+        chartContainer.innerHTML = '选择考试后显示成绩分布图表';
+        chartContainer.style.display = 'flex';
+        chartContainer.style.alignItems = 'center';
+        chartContainer.style.justifyContent = 'center';
+        chartContainer.style.color = '#7f8c8d';
+    }
+    
+    // 清空错误率分析表格
+    const errorTable = document.querySelector('#error-analysis-table tbody');
+    if (errorTable) {
+        errorTable.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    选择考试后显示错误率分析
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// 显示分数分布图表
+function displayScoreDistributionChart(distribution) {
+    const chartContainer = document.getElementById('score-distribution-chart');
+    if (!chartContainer || !distribution) return;
+    
+    const ranges = ['90-100', '80-89', '70-79', '60-69', '0-59'];
+    const colors = ['#27ae60', '#2ecc71', '#f39c12', '#e67e22', '#e74c3c'];
+    
+    let chartHtml = '<div style="padding: 20px;">';
+    chartHtml += '<h4 style="text-align: center; margin-bottom: 20px; color: #2c3e50;">成绩分布图</h4>';
+    chartHtml += '<div style="display: flex; align-items: end; justify-content: space-around; height: 200px; border-bottom: 2px solid #34495e; padding: 0 20px;">';
+    
+    const maxCount = Math.max(...ranges.map(range => distribution[range] || 0));
+    
+    ranges.forEach((range, index) => {
+        const count = distribution[range] || 0;
+        const height = maxCount > 0 ? (count / maxCount) * 160 : 0;
+        
+        chartHtml += `
+            <div style="display: flex; flex-direction: column; align-items: center; margin: 0 10px;">
+                <div style="font-size: 12px; margin-bottom: 5px; color: #2c3e50; font-weight: bold;">${count}</div>
+                <div style="width: 40px; background: ${colors[index]}; height: ${height}px; border-radius: 4px 4px 0 0; transition: all 0.3s ease;"></div>
+                <div style="font-size: 11px; margin-top: 8px; color: #7f8c8d; text-align: center;">${range}</div>
+            </div>
+        `;
+    });
+    
+    chartHtml += '</div>';
+    chartHtml += '<div style="text-align: center; margin-top: 15px; font-size: 12px; color: #7f8c8d;">分数区间</div>';
+    chartHtml += '</div>';
+    
+    chartContainer.innerHTML = chartHtml;
+    chartContainer.style.display = 'block';
+    chartContainer.style.alignItems = 'initial';
+    chartContainer.style.justifyContent = 'initial';
+    chartContainer.style.color = 'initial';
+}
+
+// 显示错误率分析表格
+function displayErrorAnalysisTable(errorAnalysis) {
+    const tbody = document.querySelector('#error-analysis-table tbody');
+    if (!tbody) return;
+    
+    if (!errorAnalysis || errorAnalysis.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    暂无错误率分析数据
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = errorAnalysis.map((item, index) => `
+        <tr>
+            <td>第${index + 1}题</td>
+            <td>${item.questionType || '选择题'}</td>
+            <td>${item.knowledgePoint || '未分类'}</td>
+            <td>
+                <div style="display: flex; align-items: center;">
+                    <div style="flex: 1; background: #ecf0f1; height: 8px; border-radius: 4px; margin-right: 8px;">
+                        <div style="width: ${item.errorRate || 0}%; height: 100%; background: ${(item.errorRate || 0) > 50 ? '#e74c3c' : (item.errorRate || 0) > 30 ? '#f39c12' : '#27ae60'}; border-radius: 4px;"></div>
+                    </div>
+                    <span style="font-weight: bold; color: #2c3e50;">${item.errorRate || 0}%</span>
+                </div>
+            </td>
+            <td>${item.commonErrors || '无'}</td>
+            <td>${item.suggestions || '无'}</td>
+        </tr>
+    `).join('');
 }
 
 async function loadImprovementData() {
@@ -7851,12 +8206,60 @@ function loadAnswersList() {
     showNotification('答案列表功能待实现', 'info');
 }
 
-function autoGradeAll() {
-    showNotification('自动批改功能待实现', 'info');
+async function autoGradeAll() {
+    try {
+        const examFilter = document.getElementById('grade-exam-filter');
+        const selectedExamId = examFilter?.value;
+        
+        if (!selectedExamId) {
+            showNotification('请先选择要批改的考试', 'warning');
+            return;
+        }
+        
+        const confirmed = await showConfirmDialog(
+            'DeepSeek智能评分', 
+            '确定要使用DeepSeek对所选考试的非选择题进行智能评分吗？\n\n智能评分将：\n• 分析学生答案的完整性和准确性\n• 提供详细的评分理由和建议\n• 自动计算合理的得分\n• 生成个性化反馈', 
+            '开始智能评分'
+        );
+        if (!confirmed) return;
+        
+        showLoading('正在使用DeepSeek进行智能评分...');
+        const response = await TeacherAPI.batchAutoGrade(selectedExamId);
+        hideLoading();
+        
+        if (response.success) {
+            showNotification(response.message, 'success');
+            loadGradeList(); // 刷新列表
+        } else {
+            showNotification('批改失败：' + response.message, 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('批量批改失败:', error);
+        showNotification('批改失败，请重试', 'error');
+    }
 }
 
-function exportAnalysisReport() {
-    showNotification('导出分析报告功能待实现', 'info');
+async function exportAnalysisReport() {
+    try {
+        const examSelect = document.getElementById('analysis-exam-select');
+        const selectedExamId = examSelect?.value;
+        
+        if (!selectedExamId) {
+            showNotification('请先选择要导出分析报告的考试', 'warning');
+            return;
+        }
+        
+        showLoading('正在生成分析报告...');
+        await TeacherAPI.exportAnalysisReport(selectedExamId);
+        hideLoading();
+        
+        showNotification('分析报告导出成功', 'success');
+    } catch (error) {
+        hideLoading();
+        console.error('导出分析报告失败:', error);
+        showNotification('导出失败，请重试', 'error');
+    }
 }
 
 function generateImprovements() {
@@ -8737,6 +9140,538 @@ function setupExamEditModalEvents() {
     };
 }
 
+// 成绩批改相关函数
+
+// 显示批改弹窗
+function showGradeModal(gradeData) {
+    const modal = document.getElementById('grade-modal');
+    if (!modal) return;
+    
+    // 填充基本信息
+    document.getElementById('grade-student-name').textContent = gradeData.student.realName || '未知学生';
+    document.getElementById('grade-exam-info').textContent = `${gradeData.exam.title} - ${gradeData.exam.course.name}`;
+    document.getElementById('grade-ai-score').textContent = gradeData.examResult.score || '--';
+    document.getElementById('grade-manual-score').textContent = gradeData.examResult.finalScore || '--';
+    
+    // 填充评分表单
+    document.getElementById('grade-final-score').value = gradeData.examResult.finalScore || gradeData.examResult.score || '';
+    document.getElementById('grade-teacher-comments').value = gradeData.examResult.teacherComments || '';
+    
+    // 为最终得分输入框添加事件监听器
+    const finalScoreInput = document.getElementById('grade-final-score');
+    if (finalScoreInput) {
+        finalScoreInput.addEventListener('input', function() {
+            const manualScoreDisplay = document.getElementById('grade-manual-score');
+            if (manualScoreDisplay) {
+                manualScoreDisplay.textContent = this.value || '--';
+            }
+        });
+    }
+    
+    // 显示试卷内容
+    displayGradeQuestions(gradeData.questions, gradeData.studentAnswers);
+    
+    // 保存当前批改数据
+    window.currentGradeData = gradeData;
+    
+    // 显示弹窗
+    modal.style.display = 'flex';
+    
+    // 绑定关闭事件
+    document.getElementById('close-grade-modal').onclick = hideGradeModal;
+}
+
+// 隐藏批改弹窗
+function hideGradeModal() {
+    const modal = document.getElementById('grade-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    window.currentGradeData = null;
+}
+
+// 显示试卷题目和学生答案
+function displayGradeQuestions(questions, studentAnswers) {
+    const container = document.getElementById('grade-questions-container');
+    if (!container || !questions) return;
+    
+    // 创建学生答案映射
+    const answerMap = {};
+    if (studentAnswers) {
+        studentAnswers.forEach(answer => {
+            answerMap[answer.questionId] = answer;
+        });
+    }
+    
+    let questionsHtml = '';
+    questions.forEach((question, index) => {
+        const questionNumber = index + 1;
+        const studentAnswer = answerMap[question.id];
+        
+        // 解析选项
+        let options = [];
+        if (question.options) {
+            try {
+                options = typeof question.options === 'string' ? 
+                    JSON.parse(question.options) : question.options;
+            } catch (e) {
+                console.error('解析选项失败:', e);
+            }
+        }
+        
+        questionsHtml += `
+            <div class="grade-question-item" style="margin-bottom: 30px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: white;">
+                <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${question.score || 10}分)</h5>
+                    <span class="question-type" style="padding: 4px 8px; background: #3498db; color: white; border-radius: 4px; font-size: 12px;">
+                        ${question.type || '选择题'}
+                    </span>
+                </div>
+                
+                <div class="question-content" style="margin-bottom: 15px; line-height: 1.6;">
+                    ${formatTeacherMarkdown(question.content || question.questionText || '')}
+                </div>
+                
+                ${options.length > 0 ? `
+                    <div class="question-options" style="margin-bottom: 15px;">
+                        ${options.map((option, i) => {
+                            const optionLabel = String.fromCharCode(65 + i);
+                            const isSelected = studentAnswer && studentAnswer.answer === optionLabel;
+                            return `
+                                <div style="padding: 8px; margin: 4px 0; border-radius: 4px; ${isSelected ? 'background: #e3f2fd; border: 1px solid #2196f3;' : 'background: #f8f9fa;'}">
+                                    <span style="font-weight: 500; color: #3498db; margin-right: 8px;">${optionLabel}.</span>
+                                    ${formatTeacherMarkdown(option)}
+                                    ${isSelected ? '<span style="color: #2196f3; margin-left: 8px;"><i class="fas fa-check"></i> 学生选择</span>' : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                ` : ''}
+                
+                <div class="student-answer-section" style="margin-bottom: 15px; padding: 12px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px;">
+                    <h6 style="margin: 0 0 8px 0; color: #856404;">
+                        <i class="fas fa-user"></i> 学生答案
+                    </h6>
+                    <div style="color: #856404;">
+                        ${studentAnswer ? formatTeacherMarkdown(studentAnswer.answer || '未作答') : '未作答'}
+                    </div>
+                </div>
+                
+                <div class="correct-answer-section" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px;">
+                    <h6 style="margin: 0 0 8px 0; color: #155724;">
+                        <i class="fas fa-check-circle"></i> 参考答案
+                    </h6>
+                    <div style="color: #155724;">
+                        ${formatTeacherMarkdown(question.answer || question.correctAnswer || 'N/A')}
+                    </div>
+                </div>
+                
+                ${question.explanation ? `
+                    <div class="explanation-section" style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px;">
+                        <h6 style="margin: 0 0 8px 0; color: #0c5460;">
+                            <i class="fas fa-lightbulb"></i> 解析
+                        </h6>
+                        <div style="color: #0c5460; line-height: 1.6;">
+                            ${formatTeacherMarkdown(question.explanation)}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <div class="question-grading-section" style="padding: 15px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; margin-top: 15px;">
+                    <h6 style="margin: 0 0 12px 0; color: #495057;">
+                        <i class="fas fa-clipboard-check"></i> 单题评分
+                    </h6>
+                    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="margin: 0; font-weight: 500; color: #495057;">得分：</label>
+                            <input type="number" 
+                                   id="question-score-${question.id}" 
+                                   class="question-score-input"
+                                   min="0" 
+                                   max="${question.score || 10}" 
+                                   value="${studentAnswer && studentAnswer.score !== null ? studentAnswer.score : ''}"
+                                   style="width: 80px; padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px; text-align: center;"
+                                   placeholder="0"
+                                   onchange="updateTotalScore()">
+                            <span style="color: #6c757d;">/ ${question.score || 10}分</span>
+                        </div>
+                        
+                        ${!['multiple-choice', 'choice', 'true-false', 'true_false'].includes(question.type) ? `
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <button type="button" 
+                                    class="btn-ai-grade" 
+                                    onclick="aiGradeQuestion(${question.id}, ${studentAnswer ? studentAnswer.id : 'null'})"
+                                    style="padding: 6px 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.3s ease;"
+                                    onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'"
+                                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                                <i class="fas fa-brain"></i>
+                                <span>AI批改</span>
+                            </button>
+                            <span id="ai-score-display-${question.id}" style="font-size: 12px; color: #666; font-weight: 500; display: none;"></span>
+                        </div>
+                        ` : ''}
+                        
+                        <div style="flex: 1; min-width: 200px; display: flex; align-items: center; gap: 8px;">
+                            <label style="margin: 0; font-weight: 500; color: #495057; white-space: nowrap;">评语：</label>
+                            <input type="text" 
+                                   id="question-feedback-${question.id}" 
+                                   class="question-feedback-input"
+                                   value="${studentAnswer && studentAnswer.teacherFeedback ? studentAnswer.teacherFeedback : ''}"
+                                   placeholder="可选：对此题的评语或建议"
+                                   style="flex: 1; padding: 6px 12px; border: 1px solid #ced4da; border-radius: 4px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = questionsHtml;
+}
+
+// 更新总分
+function updateTotalScore() {
+    if (!window.currentGradeData) return;
+    
+    const scoreInputs = document.querySelectorAll('.question-score-input');
+    let totalScore = 0;
+    
+    scoreInputs.forEach(input => {
+        const score = parseInt(input.value) || 0;
+        totalScore += score;
+    });
+    
+    // 更新最终得分输入框
+    const finalScoreInput = document.getElementById('grade-final-score');
+    if (finalScoreInput) {
+        finalScoreInput.value = totalScore;
+    }
+    
+    // 更新右上角的人工评分显示
+    const manualScoreDisplay = document.getElementById('grade-manual-score');
+    if (manualScoreDisplay) {
+        manualScoreDisplay.textContent = totalScore;
+    }
+}
+
+// 保存评分
+async function saveGrade() {
+    if (!window.currentGradeData) {
+        showNotification('数据异常，请重新打开批改页面', 'error');
+        return;
+    }
+    
+    const finalScore = document.getElementById('grade-final-score').value;
+    const teacherComments = document.getElementById('grade-teacher-comments').value;
+    
+    // 移除强制最终得分校验，因为可以通过单题评分自动计算
+    
+    try {
+        showLoading('正在保存评分...');
+        
+        // 收集单题评分数据
+        const questionScores = [];
+        const scoreInputs = document.querySelectorAll('.question-score-input');
+        const feedbackInputs = document.querySelectorAll('.question-feedback-input');
+        
+        scoreInputs.forEach((scoreInput, index) => {
+            const questionId = scoreInput.id.replace('question-score-', '');
+            const score = scoreInput.value ? parseInt(scoreInput.value) : null;
+            const feedback = feedbackInputs[index] ? feedbackInputs[index].value : '';
+            
+            questionScores.push({
+                questionId: questionId,
+                score: score,
+                feedback: feedback
+            });
+        });
+        
+        const gradeData = {
+            finalScore: finalScore ? parseFloat(finalScore) : null,
+            teacherComments: teacherComments,
+            questionScores: questionScores
+        };
+        
+        const response = await TeacherAPI.manualGrade(window.currentGradeData.examResult.id, gradeData);
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('评分保存成功', 'success');
+            hideGradeModal();
+            loadGradeList(); // 刷新列表
+        } else {
+            showNotification('保存失败：' + response.message, 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('保存评分失败:', error);
+        showNotification('保存失败，请重试', 'error');
+    }
+}
+
+// 显示成绩详情弹窗
+function showGradeDetailModal(gradeData) {
+    const modal = document.getElementById('grade-detail-modal');
+    if (!modal) return;
+    
+    // 填充基本信息
+    document.getElementById('detail-student-name').textContent = gradeData.student.realName || '未知学生';
+    document.getElementById('detail-exam-info').textContent = `${gradeData.exam.title} - ${gradeData.exam.course.name}`;
+    document.getElementById('detail-final-score').textContent = gradeData.examResult.finalScore || '--';
+    document.getElementById('detail-ai-score').textContent = gradeData.examResult.score || '--';
+    document.getElementById('detail-submit-time').textContent = formatDateTime(gradeData.examResult.submitTime);
+    document.getElementById('detail-grade-status').textContent = getGradeStatusText(gradeData.examResult.gradeStatus);
+    
+    // 显示教师评语
+    const commentsDiv = document.getElementById('detail-teacher-comments');
+    const commentsText = document.getElementById('detail-comments-text');
+    if (gradeData.examResult.teacherComments) {
+        commentsText.textContent = gradeData.examResult.teacherComments;
+        commentsDiv.style.display = 'block';
+    } else {
+        commentsDiv.style.display = 'none';
+    }
+    
+    // 显示试卷详情
+    displayGradeDetailQuestions(gradeData.questions, gradeData.studentAnswers);
+    
+    // 保存当前数据
+    window.currentGradeDetailData = gradeData;
+    
+    // 显示弹窗
+    modal.style.display = 'flex';
+    
+    // 绑定关闭事件
+    document.getElementById('close-grade-detail-modal').onclick = hideGradeDetailModal;
+}
+
+// 隐藏成绩详情弹窗
+function hideGradeDetailModal() {
+    const modal = document.getElementById('grade-detail-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    window.currentGradeDetailData = null;
+}
+
+// 显示成绩详情的试卷内容
+function displayGradeDetailQuestions(questions, studentAnswers) {
+    const container = document.getElementById('detail-questions-container');
+    if (!container || !questions) return;
+    
+    // 创建学生答案映射
+    const answerMap = {};
+    if (studentAnswers) {
+        studentAnswers.forEach(answer => {
+            answerMap[answer.questionId] = answer;
+        });
+    }
+    
+    let questionsHtml = '';
+    questions.forEach((question, index) => {
+        const questionNumber = index + 1;
+        const studentAnswer = answerMap[question.id];
+        
+        // 解析选项
+        let options = [];
+        if (question.options) {
+            try {
+                options = typeof question.options === 'string' ? 
+                    JSON.parse(question.options) : question.options;
+            } catch (e) {
+                console.error('解析选项失败:', e);
+            }
+        }
+        
+        // 判断答案是否正确
+        const isCorrect = studentAnswer && 
+            (studentAnswer.answer === question.answer || 
+             studentAnswer.answer === question.correctAnswer);
+        
+        questionsHtml += `
+            <div class="detail-question-item" style="margin-bottom: 25px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: white;">
+                <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${question.score || 10}分)</h5>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="question-type" style="padding: 4px 8px; background: #3498db; color: white; border-radius: 4px; font-size: 12px;">
+                            ${question.type || '选择题'}
+                        </span>
+                        <span class="answer-status" style="padding: 4px 8px; border-radius: 4px; font-size: 12px; ${isCorrect ? 'background: #27ae60; color: white;' : 'background: #e74c3c; color: white;'}">
+                            ${isCorrect ? '正确' : '错误'}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="question-content" style="margin-bottom: 15px; line-height: 1.6;">
+                    ${formatTeacherMarkdown(question.content || question.questionText || '')}
+                </div>
+                
+                ${options.length > 0 ? `
+                    <div class="question-options" style="margin-bottom: 15px;">
+                        ${options.map((option, i) => {
+                            const optionLabel = String.fromCharCode(65 + i);
+                            const isSelected = studentAnswer && studentAnswer.answer === optionLabel;
+                            const isCorrectOption = question.answer === optionLabel || question.correctAnswer === optionLabel;
+                            
+                            let optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #f8f9fa;';
+                            if (isSelected && isCorrectOption) {
+                                optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #d4edda; border: 1px solid #c3e6cb;';
+                            } else if (isSelected) {
+                                optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #f8d7da; border: 1px solid #f5c6cb;';
+                            } else if (isCorrectOption) {
+                                optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #d1ecf1; border: 1px solid #bee5eb;';
+                            }
+                            
+                            return `
+                                <div style="${optionStyle}">
+                                    <span style="font-weight: 500; color: #3498db; margin-right: 8px;">${optionLabel}.</span>
+                                    ${formatTeacherMarkdown(option)}
+                                    ${isSelected ? '<span style="color: #e74c3c; margin-left: 8px;"><i class="fas fa-user"></i> 学生选择</span>' : ''}
+                                    ${isCorrectOption ? '<span style="color: #27ae60; margin-left: 8px;"><i class="fas fa-check"></i> 正确答案</span>' : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                ` : `
+                    <div style="margin-bottom: 15px;">
+                        <div style="padding: 8px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 8px;">
+                            <strong>学生答案：</strong> ${studentAnswer ? formatTeacherMarkdown(studentAnswer.answer) : '未作答'}
+                        </div>
+                        <div style="padding: 8px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px;">
+                            <strong>参考答案：</strong> ${formatTeacherMarkdown(question.answer || question.correctAnswer || 'N/A')}
+                        </div>
+                    </div>
+                `}
+                
+                ${question.explanation ? `
+                    <div class="explanation-section" style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px;">
+                        <h6 style="margin: 0 0 8px 0; color: #0c5460;">
+                            <i class="fas fa-lightbulb"></i> 解析
+                        </h6>
+                        <div style="color: #0c5460; line-height: 1.6;">
+                            ${formatTeacherMarkdown(question.explanation)}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    });
+    
+    container.innerHTML = questionsHtml;
+}
+
+// 从详情页面重新批改
+function editGradeFromDetail() {
+    if (window.currentGradeDetailData) {
+        hideGradeDetailModal();
+        showGradeModal(window.currentGradeDetailData);
+    }
+}
+
+// 格式化日期时间
+function formatDateTime(dateTime) {
+    if (!dateTime) return '--';
+    
+    try {
+        const date = new Date(dateTime);
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return dateTime;
+    }
+}
+
+// 发布选中考试的成绩
+async function publishSelectedExamGrades() {
+    try {
+        const examFilter = document.getElementById('grade-exam-filter');
+        const selectedExamId = examFilter?.value;
+        
+        if (!selectedExamId) {
+            showNotification('请先选择要发布成绩的考试', 'warning');
+            return;
+        }
+        
+        const confirmed = confirm('确定要发布所选考试的成绩吗？发布后学生将能够查看成绩。');
+        if (!confirmed) return;
+        
+        showLoading('正在发布成绩...');
+        const response = await TeacherAPI.publishGrades(selectedExamId, true);
+        hideLoading();
+        
+        if (response.success) {
+            showNotification(response.message, 'success');
+            loadGradeList(); // 刷新列表
+        } else {
+            showNotification('发布失败：' + response.message, 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('发布成绩失败:', error);
+        showNotification('发布失败，请重试', 'error');
+    }
+}
+
+// 发布或取消发布单个考试的成绩
+async function publishSingleGrade(examId, resultId, isCurrentlyPublished) {
+    try {
+        const action = isCurrentlyPublished ? '取消发布' : '发布';
+        const actionDescription = isCurrentlyPublished ? 
+            '取消发布后，该考试的所有学生将无法查看成绩。' : 
+            '发布后，该考试的所有学生将能够查看成绩。';
+        
+        const confirmed = await showConfirmDialog(
+            `${action}考试成绩`,
+            `确定要${action}此考试的成绩吗？\n\n${actionDescription}`,
+            action
+        );
+        if (!confirmed) return;
+        
+        showLoading(`正在${action}成绩...`);
+        const response = await TeacherAPI.publishGrades(examId, !isCurrentlyPublished);
+        hideLoading();
+        
+        if (response.success) {
+            showNotification(`成绩${action}成功`, 'success');
+            loadGradeList(); // 刷新列表
+        } else {
+            showNotification(`${action}失败：` + response.message, 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error(`${isCurrentlyPublished ? '取消发布' : '发布'}成绩失败:`, error);
+        showNotification(`${isCurrentlyPublished ? '取消发布' : '发布'}失败，请重试`, 'error');
+    }
+}
+
+// 取消发布成绩
+async function unpublishExamGrades(examId) {
+    try {
+        const confirmed = confirm('确定要取消发布此考试的成绩吗？');
+        if (!confirmed) return;
+        
+        showLoading('正在取消发布...');
+        const response = await TeacherAPI.publishGrades(examId, false);
+        hideLoading();
+        
+        if (response.success) {
+            showNotification(response.message, 'success');
+            loadGradeList(); // 刷新列表
+        } else {
+            showNotification('操作失败：' + response.message, 'error');
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('取消发布失败:', error);
+        showNotification('操作失败，请重试', 'error');
+    }
+}
+
 // 更新编辑预览
 function updateExamPreview() {
     const editor = document.getElementById('exam-markdown-editor');
@@ -8937,6 +9872,142 @@ async function saveExamEdit() {
         console.error('保存试卷编辑失败:', error);
         hideLoading();
         showNotification('保存试卷失败: ' + error.message, 'error');
+    }
+}
+
+// AI单题批改功能
+async function aiGradeQuestion(questionId, studentAnswerId) {
+    if (!questionId || !studentAnswerId) {
+        showNotification('题目信息不完整，无法进行AI批改', 'error');
+        return;
+    }
+    
+    try {
+        // 更新按钮状态
+        const button = document.querySelector(`button[onclick="aiGradeQuestion(${questionId}, ${studentAnswerId})"]`);
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI批改中...';
+            button.style.background = '#95a5a6';
+        }
+        
+        console.log('开始AI批改 - 题目ID:', questionId, '学生答案ID:', studentAnswerId);
+        
+        // 调用AI批改API
+        const response = await fetch('/api/teacher/grades/ai-grade-question', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                questionId: questionId,
+                studentAnswerId: studentAnswerId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const aiScore = result.data.aiScore;
+            const maxScore = result.data.maxScore;
+            
+            // 显示AI评分结果
+            const scoreDisplay = document.getElementById(`ai-score-display-${questionId}`);
+            if (scoreDisplay) {
+                scoreDisplay.textContent = `AI评分: ${aiScore}/${maxScore}分`;
+                scoreDisplay.style.display = 'inline';
+                scoreDisplay.style.color = '#27ae60';
+                scoreDisplay.style.fontWeight = 'bold';
+            }
+            
+            // 显示应用按钮
+            if (button) {
+                button.innerHTML = `
+                    <i class="fas fa-check"></i>
+                    <span>应用此分数</span>
+                `;
+                button.style.background = 'linear-gradient(135deg, #27ae60 0%, #2ecc71 100%)';
+                button.disabled = false;
+                button.onclick = () => applyAiScore(questionId, studentAnswerId, aiScore);
+            }
+            
+            showNotification(`AI批改完成：${aiScore}/${maxScore}分`, 'success');
+            
+        } else {
+            throw new Error(result.message || 'AI批改失败');
+        }
+        
+    } catch (error) {
+        console.error('AI批改失败:', error);
+        showNotification('AI批改失败：' + error.message, 'error');
+        
+        // 恢复按钮状态
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-brain"></i> <span>AI批改</span>';
+            button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        }
+    }
+}
+
+// 应用AI评分
+async function applyAiScore(questionId, studentAnswerId, aiScore) {
+    try {
+        showLoading('正在应用AI评分...');
+        
+        // 调用应用AI评分API
+        const response = await fetch('/api/teacher/grades/apply-ai-score', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                studentAnswerId: studentAnswerId,
+                aiScore: aiScore
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // 更新分数输入框
+            const scoreInput = document.getElementById(`question-score-${questionId}`);
+            if (scoreInput) {
+                scoreInput.value = aiScore;
+                // 触发change事件以更新总分
+                scoreInput.dispatchEvent(new Event('change'));
+            }
+            
+            // 更新反馈输入框
+            const feedbackInput = document.getElementById(`question-feedback-${questionId}`);
+            if (feedbackInput) {
+                feedbackInput.value = 'AI智能评分';
+            }
+            
+            // 隐藏AI评分显示和按钮
+            const scoreDisplay = document.getElementById(`ai-score-display-${questionId}`);
+            if (scoreDisplay) {
+                scoreDisplay.style.display = 'none';
+            }
+            
+            const button = document.querySelector(`button[onclick*="applyAiScore(${questionId}"]`);
+            if (button) {
+                button.innerHTML = '<i class="fas fa-check-circle"></i> <span>已应用</span>';
+                button.style.background = '#95a5a6';
+                button.disabled = true;
+            }
+            
+            hideLoading();
+            showNotification('AI评分已应用', 'success');
+            
+        } else {
+            throw new Error(result.message || '应用AI评分失败');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('应用AI评分失败:', error);
+        showNotification('应用AI评分失败：' + error.message, 'error');
     }
 }
 

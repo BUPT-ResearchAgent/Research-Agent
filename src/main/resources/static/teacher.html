@@ -1164,7 +1164,10 @@
                         <i class="fas fa-sync-alt"></i> 刷新
                     </button>
                     <button class="btn btn-accent" onclick="autoGradeAll()">
-                        <i class="fas fa-magic"></i> 批量AI批改
+                        <i class="fas fa-brain"></i> DeepSeek智能评分
+                    </button>
+                    <button class="btn btn-success" onclick="publishSelectedExamGrades()">
+                        <i class="fas fa-paper-plane"></i> 发布成绩
                     </button>
                 </div>
             </div>
@@ -1190,10 +1193,9 @@
                             <thead>
                                 <tr>
                                     <th>学生姓名</th>
-                                    <th>学号</th>
                                     <th>考试名称</th>
                                     <th>提交时间</th>
-                                    <th>AI预分</th>
+                                    <th>AI评分</th>
                                     <th>最终得分</th>
                                     <th>批改状态</th>
                                     <th>操作</th>
@@ -1212,7 +1214,7 @@
             <div class="content-header">
                 <h1 class="page-title">成绩分析</h1>
                 <div class="header-actions">
-                    <select id="analysis-exam-select" class="form-select" onchange="loadAnalysisData()">
+                    <select id="analysis-exam-select" class="form-select" onchange="loadSelectedExamAnalysis()">
                         <option value="">选择考试</option>
                     </select>
                     <button class="btn btn-accent" onclick="exportAnalysisReport()">
@@ -1353,6 +1355,166 @@
             <p>© 2023 智教SmartEdu - 教学实训智能体软件 | 基于DeepSeek大模型</p>
         </div>
     </main>
+
+    <!-- 成绩批改模态框 -->
+    <div id="grade-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="width: 1200px; height: 800px; max-width: 95vw; max-height: 95vh; display: flex; flex-direction: column;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(230, 126, 34, 0.1);">
+                        <i class="fas fa-edit" style="color: #e67e22;"></i>
+                    </div>
+                    <h3><i class="fas fa-marker"></i> 成绩批改</h3>
+                </div>
+                <button id="close-grade-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 0;">
+                <div class="grade-info-header" style="background: #f8f9fa; padding: 20px; border-bottom: 1px solid #e9ecef;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 id="grade-student-name" style="margin: 0; color: #2c3e50;">学生姓名</h4>
+                            <p id="grade-exam-info" style="margin: 5px 0 0 0; color: #7f8c8d; font-size: 14px;">考试信息</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="display: flex; gap: 30px; align-items: center;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 14px; color: #7f8c8d;">AI评分</div>
+                                    <div id="grade-ai-score" style="font-size: 24px; font-weight: bold; color: #3498db;">--</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 14px; color: #7f8c8d;">人工评分</div>
+                                    <div id="grade-manual-score" style="font-size: 24px; font-weight: bold; color: #27ae60;">--</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grade-content" style="flex: 1; display: flex; overflow: hidden;">
+                    <!-- 左侧：试卷内容 -->
+                    <div class="grade-paper-panel" style="flex: 2; overflow-y: auto; padding: 20px; background: white; border-right: 1px solid #e9ecef;">
+                        <div id="grade-questions-container">
+                            <!-- 动态加载试卷内容 -->
+                        </div>
+                    </div>
+                    
+                    <!-- 右侧：评分面板 -->
+                    <div class="grade-scoring-panel" style="flex: 1; display: flex; flex-direction: column; background: #f8f9fa;">
+                        <div style="padding: 20px; border-bottom: 1px solid #e9ecef;">
+                            <h5 style="margin: 0 0 15px 0; color: #2c3e50;">
+                                <i class="fas fa-calculator"></i> 评分面板
+                            </h5>
+                            
+                            <div class="form-group">
+                                <label class="course-form-label">最终得分：</label>
+                                <input type="number" id="grade-final-score" class="course-form-input" min="0" max="100" step="0.5" placeholder="请输入最终得分">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="course-form-label">教师评语：</label>
+                                <textarea id="grade-teacher-comments" class="course-form-input" rows="4" placeholder="请输入教师评语（可选）..."></textarea>
+                            </div>
+                            
+
+                        </div>
+                        
+                        <div style="flex: 1; padding: 20px;">
+                            <h6 style="margin: 0 0 15px 0; color: #2c3e50;">
+                                <i class="fas fa-info-circle"></i> 评分说明
+                            </h6>
+                            <ul style="margin: 0; padding-left: 20px; color: #7f8c8d; font-size: 14px; line-height: 1.6;">
+                                <li>AI已根据标准答案进行初步评分</li>
+                                <li>您可以根据学生答案的实际情况调整分数</li>
+                                <li>建议为学生提供详细的评语和改进建议</li>
+                                <li>可对每道题进行单独评分和评语</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: flex; gap: 12px; justify-content: center; padding: 15px 20px; border-top: 1px solid #e9ecef;">
+                <button type="button" class="btn btn-secondary" onclick="hideGradeModal()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button type="button" class="btn btn-success" onclick="saveGrade()">
+                    <i class="fas fa-save"></i> 保存评分
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 成绩详情查看模态框 -->
+    <div id="grade-detail-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="width: 1000px; height: 700px; max-width: 95vw; max-height: 95vh; display: flex; flex-direction: column;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(52, 152, 219, 0.1);">
+                        <i class="fas fa-eye" style="color: #3498db;"></i>
+                    </div>
+                    <h3><i class="fas fa-file-alt"></i> 成绩详情</h3>
+                </div>
+                <button id="close-grade-detail-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body" style="flex: 1; overflow-y: auto; padding: 20px;">
+                <div class="grade-detail-header" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 id="detail-student-name" style="margin: 0; color: #2c3e50;">学生姓名</h4>
+                            <p id="detail-exam-info" style="margin: 5px 0 0 0; color: #7f8c8d; font-size: 14px;">考试信息</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 14px; color: #7f8c8d;">最终得分</div>
+                            <div id="detail-final-score" style="font-size: 24px; font-weight: bold; color: #27ae60;">--</div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e9ecef;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; font-size: 14px;">
+                            <div>
+                                <span style="color: #7f8c8d;">AI评分：</span>
+                                <span id="detail-ai-score" style="font-weight: bold;">--</span>
+                            </div>
+                            <div>
+                                <span style="color: #7f8c8d;">提交时间：</span>
+                                <span id="detail-submit-time" style="font-weight: bold;">--</span>
+                            </div>
+                            <div>
+                                <span style="color: #7f8c8d;">批改状态：</span>
+                                <span id="detail-grade-status" style="font-weight: bold;">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="detail-teacher-comments" style="display: none; background: #e8f5e8; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h6 style="margin: 0 0 10px 0; color: #27ae60;">
+                        <i class="fas fa-comment"></i> 教师评语
+                    </h6>
+                    <p id="detail-comments-text" style="margin: 0; line-height: 1.6;"></p>
+                </div>
+                
+                <div id="detail-questions-container">
+                    <!-- 动态加载试卷详情 -->
+                </div>
+            </div>
+            
+            <div class="course-modal-footer" style="display: flex; gap: 12px; justify-content: center; padding: 15px 20px; border-top: 1px solid #e9ecef;">
+                <button type="button" class="btn btn-secondary" onclick="hideGradeDetailModal()">
+                    <i class="fas fa-arrow-left"></i> 返回
+                </button>
+                <button type="button" class="btn btn-primary" onclick="editGradeFromDetail()">
+                    <i class="fas fa-edit"></i> 重新批改
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- 知识库文档上传模态框 -->
     <div id="knowledge-upload-modal" class="course-modal-overlay">

@@ -139,9 +139,9 @@ class TeacherAPI {
         // 如果有时间设置，使用带时间的发布接口
         if (publishData && (publishData.startTime !== undefined)) {
             return this.request(`/api/exam/${examId}/publish-with-time`, {
-                method: 'POST',
-                body: JSON.stringify(publishData)
-            });
+            method: 'POST',
+            body: JSON.stringify(publishData)
+        });
         } else {
             // 否则使用普通发布接口
             return this.request(`/api/exam/${examId}/publish`, {
@@ -262,6 +262,14 @@ class TeacherAPI {
         return this.request(`/api/teacher/grades/batch-auto-grade`, {
             method: 'POST',
             body: JSON.stringify({ examId })
+        });
+    }
+
+    // 发布/取消发布成绩
+    static async publishGrades(examId, isPublished) {
+        return this.request('/api/teacher/grades/publish', {
+            method: 'POST',
+            body: JSON.stringify({ examId, isPublished })
         });
     }
 

@@ -23,6 +23,11 @@ public interface StudentAnswerRepository extends JpaRepository<StudentAnswer, Lo
     List<StudentAnswer> findByExamResultId(Long examResultId);
     
     /**
+     * 根据学生ID和考试结果ID查找所有答案
+     */
+    List<StudentAnswer> findByStudentIdAndExamResultId(Long studentId, Long examResultId);
+    
+    /**
      * 根据学生ID和考试ID查找所有答案
      */
     @Query("SELECT sa FROM StudentAnswer sa JOIN sa.question q WHERE sa.studentId = :studentId AND q.exam.id = :examId")
@@ -32,6 +37,11 @@ public interface StudentAnswerRepository extends JpaRepository<StudentAnswer, Lo
      * 根据题目ID查找所有学生答案
      */
     List<StudentAnswer> findByQuestionId(Long questionId);
+    
+    /**
+     * 根据考试结果ID和题目ID查找学生答案
+     */
+    List<StudentAnswer> findByExamResultIdAndQuestionId(Long examResultId, Long questionId);
     
     /**
      * 检查学生是否已经回答了某个题目

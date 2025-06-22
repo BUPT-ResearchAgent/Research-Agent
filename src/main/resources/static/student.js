@@ -1832,8 +1832,9 @@ function displayCourseExams(exams) {
     examsContainer.style.display = 'block';
     
     examsContainer.innerHTML = exams.map(exam => {
-        const statusClass = getExamStatusClass(exam.status);
-        const statusText = getExamStatusText(exam.status);
+        const status = exam.examStatus || exam.status || 'UNKNOWN';
+        const statusClass = getExamStatusClass(status);
+        const statusText = getExamStatusText(status);
         
         return `
             <div class="exam-item" style="background: #fff; border: 1px solid #e9ecef; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
@@ -1851,16 +1852,16 @@ function displayCourseExams(exams) {
                     </div>
                     <div class="exam-meta-item" style="display: flex; align-items: center; gap: 8px; color: #6c757d; font-size: 14px;">
                         <i class="fas fa-question-circle" style="color: #9b59b6;"></i>
-                        <span>题目数: ${exam.questionCount || 0} 题</span>
+                        <span>题目数: ${exam.totalQuestions || exam.questionCount || 0} 题</span>
                     </div>
                     <div class="exam-meta-item" style="display: flex; align-items: center; gap: 8px; color: #6c757d; font-size: 14px;">
                         <i class="fas fa-star" style="color: #f39c12;"></i>
                         <span>总分: ${exam.totalScore || 100} 分</span>
                     </div>
-                    ${exam.remainingTime ? `
+                    ${exam.remainingMinutes && exam.remainingMinutes > 0 ? `
                     <div class="exam-meta-item" style="display: flex; align-items: center; gap: 8px; color: #e74c3c; font-size: 14px; font-weight: 500;">
                         <i class="fas fa-hourglass-half" style="color: #e74c3c;"></i>
-                        <span>剩余时间: ${exam.remainingTime}</span>
+                        <span>剩余时间: ${Math.floor(exam.remainingMinutes / 60)}小时${exam.remainingMinutes % 60}分钟</span>
                     </div>
                     ` : ''}
                 </div>
@@ -2174,36 +2175,32 @@ function getExamStatusText(status) {
 
 function getExamActionButtons(exam) {
     const buttonStyle = 'padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; transition: all 0.2s;';
+    const status = exam.examStatus || exam.status || 'UNKNOWN';
     
-    switch(exam.status) {
+    switch(status) {
         case 'ONGOING':
-            if (exam.hasStarted) {
+            if (exam.hasSubmitted) {
         return `
                     <button class="btn" onclick="continueExam(${exam.id})" 
                             style="${buttonStyle} background: #f39c12; color: white;">
                         <i class="fas fa-play"></i> 继续考试
-            </button>
-        `;
+                    </button>
+                `;
             } else {
-        return `
+                return `
                     <button class="btn" onclick="startExam(${exam.id})" 
                             style="${buttonStyle} background: #27ae60; color: white;">
-                        <i class="fas fa-play"></i> 开始考试
+                <i class="fas fa-play"></i> 开始考试
             </button>
         `;
             }
-        case 'FINISHED':
-        case 'SUBMITTED':
-            const buttons = [];
-            if (exam.examResultId) {
-                buttons.push(`
-                    <button class="btn" onclick="viewExamResult(${exam.examResultId})" 
-                            style="${buttonStyle} background: #3498db; color: white;">
-                        <i class="fas fa-chart-bar"></i> 查看成绩
-                    </button>
-                `);
-            }
-            return buttons.join('');
+                case 'SUBMITTED':
+        return `
+                <button class="btn" onclick="viewExamResult(${exam.examResultId || exam.id})" 
+                        style="${buttonStyle} background: #3498db; color: white;">
+                    <i class="fas fa-file-alt"></i> 查看试卷
+            </button>
+        `;
         case 'UPCOMING':
         return `
                 <button class="btn" disabled 
@@ -2212,12 +2209,21 @@ function getExamActionButtons(exam) {
             </button>
         `;
         case 'EXPIRED':
-            return `
-                <button class="btn" disabled 
-                        style="${buttonStyle} background: #e74c3c; color: white; cursor: not-allowed;">
-                    <i class="fas fa-times"></i> 已过期
-                </button>
-            `;
+            if (exam.hasSubmitted) {
+                return `
+                    <button class="btn" onclick="viewExamResult(${exam.examResultId || exam.id})" 
+                            style="${buttonStyle} background: #3498db; color: white;">
+                        <i class="fas fa-file-alt"></i> 查看试卷
+                    </button>
+                `;
+            } else {
+                return `
+                    <button class="btn" disabled 
+                            style="${buttonStyle} background: #e74c3c; color: white; cursor: not-allowed;">
+                        <i class="fas fa-times"></i> 已过期
+                    </button>
+                `;
+            }
         default:
             return `
                 <button class="btn" disabled 
@@ -2267,10 +2273,17 @@ let studentAnswers = {};
 // 开始考试
 async function startExam(examId) {
     try {
+        // 获取当前用户ID
+        const userId = await getCurrentUserId();
+        if (!userId) {
+            showNotification('未获取到用户信息，请重新登录', 'error');
+            return;
+        }
+        
         showLoading('正在加载考试...');
         
         // 获取考试详情
-        const examResponse = await fetch(`/api/student/exam/${examId}`, {
+        const examResponse = await fetch(`/api/student/exam/${examId}?userId=${userId}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -2297,7 +2310,7 @@ async function startExam(examId) {
         
         // 调用开始考试API
         showLoading('正在开始考试...');
-        const startResponse = await fetch(`/api/student/exam/${examId}/start`, {
+        const startResponse = await fetch(`/api/student/exam/${examId}/start?userId=${userId}`, {
             method: 'POST',
             credentials: 'include'
         });
@@ -2324,9 +2337,16 @@ async function startExam(examId) {
 // 继续考试
 async function continueExam(examId) {
     try {
+        // 获取当前用户ID
+        const userId = await getCurrentUserId();
+        if (!userId) {
+            showNotification('未获取到用户信息，请重新登录', 'error');
+            return;
+        }
+        
         showLoading('正在加载考试...');
         
-        const response = await fetch(`/api/student/exam/${examId}`, {
+        const response = await fetch(`/api/student/exam/${examId}?userId=${userId}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -2391,10 +2411,14 @@ function renderExamQuestions() {
     
     container.innerHTML = currentExam.questions.map((question, index) => {
         const questionNumber = index + 1;
+        const questionTypeInfo = getQuestionTypeInfo(question);
         return `
             <div class="question-item" style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                 <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h5 style="margin: 0; color: #2c3e50; font-weight: 600;">第${questionNumber}题</h5>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <h5 style="margin: 0; color: #2c3e50; font-weight: 600;">第${questionNumber}题</h5>
+                        <div style="padding: 4px 8px; background-color: #e8f4fd; border-radius: 4px; font-size: 12px; color: #2c5aa0;">${questionTypeInfo.displayName}</div>
+                    </div>
                     <span style="color: #7f8c8d; font-size: 14px;">${question.score || 10}分</span>
                 </div>
                 <div class="question-content" style="margin-bottom: 15px;">
@@ -2408,14 +2432,149 @@ function renderExamQuestions() {
     }).join('');
 }
 
+// 获取题目类型信息 - 与后端保持一致的标准化映射
+function getQuestionTypeInfo(question) {
+    const questionType = question.type ? question.type.toLowerCase() : '';
+    const questionContent = question.content || '';
+    const hasOptions = question.options && typeof question.options === 'string' && question.options.trim() !== '';
+    
+    console.log('题目类型分析:', {
+        原始类型: question.type,
+        题目内容: questionContent.substring(0, 50) + '...',
+        有选项: hasOptions,
+        选项内容: question.options ? (typeof question.options === 'string' ? question.options.substring(0, 100) + '...' : JSON.stringify(question.options)) : '无'
+    });
+    
+    // 使用与后端一致的标准化映射
+    let actualType = '';
+    let displayName = '';
+    
+    // 统一映射到标准题型
+    if (questionType.includes('choice') || questionType.includes('选择') || questionType.includes('单选') || questionType.includes('多选') || hasOptions) {
+        actualType = 'choice';
+        displayName = '选择题';
+    } else if (questionType.includes('true_false') || questionType.includes('判断') || questionType.includes('true') || questionType.includes('false') || questionType.includes('对错')) {
+        actualType = 'true_false';
+        displayName = '判断题';
+    } else if (questionType.includes('fill_blank') || questionType.includes('填空') || questionType.includes('fill') || questionType.includes('blank') || 
+               questionContent.includes('___') || questionContent.includes('____')) {
+        actualType = 'fill_blank';
+        displayName = '填空题';
+    } else if (questionType.includes('programming') || questionType.includes('编程') || questionType.includes('program') || questionType.includes('代码') || questionType.includes('code')) {
+        actualType = 'programming';
+        displayName = '编程题';
+    } else if (questionType.includes('short_answer') || questionType.includes('简答') || questionType.includes('short')) {
+        actualType = 'short_answer';
+        displayName = '简答题';
+    } else if (questionType.includes('calculation') || questionType.includes('计算') || questionType.includes('计算题')) {
+        actualType = 'calculation';
+        displayName = '计算题';
+    } else if (questionType.includes('case_analysis') || questionType.includes('案例') || questionType.includes('case') || questionType.includes('分析')) {
+        actualType = 'case_analysis';
+        displayName = '案例分析题';
+    } else if (questionType.includes('essay') || questionType.includes('解答') || questionType.includes('论述') || questionType.includes('answer')) {
+        actualType = 'essay';
+        displayName = '解答题';
+    } else {
+        // 默认判断
+        actualType = 'essay';
+        displayName = '解答题';
+    }
+    
+    return {
+        actualType: actualType,
+        displayName: displayName
+    };
+}
+
+// 渲染填空题
+function renderFillBlankQuestion(question, savedAnswer) {
+    // 检测题目中的空位标记（如 ___、____、_____等）
+    const content = question.content || '';
+    const blanks = content.match(/_{2,}/g) || []; // 匹配两个或更多下划线
+    const blankCount = blanks.length;
+    
+    if (blankCount === 0) {
+        // 如果没有检测到空位标记，提供一个通用输入框
+        return `
+            <input type="text" 
+                   name="question_${question.id}" 
+                   placeholder="请填入答案" 
+                   value="${savedAnswer}"
+                   onchange="saveAnswer(${question.id}, this.value)"
+                   style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+        `;
+    }
+    
+    // 如果有多个空位，为每个空位生成输入框
+    const savedAnswers = savedAnswer ? savedAnswer.split('|') : [];
+    let html = '<div style="display: flex; flex-direction: column; gap: 10px;">';
+    
+    for (let i = 0; i < blankCount; i++) {
+        const blankAnswer = savedAnswers[i] || '';
+        html += `
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label style="min-width: 60px; color: #34495e; font-weight: 500;">第${i + 1}空:</label>
+                <input type="text" 
+                       name="question_${question.id}_blank_${i}" 
+                       placeholder="请填入答案" 
+                       value="${blankAnswer}"
+                       onchange="saveFillBlankAnswer(${question.id}, ${i}, this.value)"
+                       style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
 // 渲染题目选项
 function renderQuestionOptions(question, questionNumber) {
     const savedAnswer = studentAnswers[question.id] || '';
+    const typeInfo = getQuestionTypeInfo(question);
+    const actualType = typeInfo.actualType;
     
-    switch (question.type) {
-        case 'SINGLE_CHOICE':
-            const singleOptions = question.options ? question.options.split('\n') : [];
-            return singleOptions.map((option, optionIndex) => {
+    switch (actualType) {
+        case 'choice':
+            // 选择题处理
+            console.log('处理选择题选项，原始数据:', question.options, '类型:', typeof question.options);
+            
+            let optionsArray = [];
+            
+            // 处理不同格式的选项数据
+            if (question.options) {
+                if (typeof question.options === 'string') {
+                    try {
+                        // 尝试解析JSON
+                        optionsArray = JSON.parse(question.options);
+                        console.log('JSON解析成功:', optionsArray);
+                    } catch (e) {
+                        // 如果不是JSON，按换行符分割
+                        optionsArray = question.options.split('\n').filter(opt => opt.trim() !== '');
+                        console.log('按换行符分割:', optionsArray);
+                    }
+                } else if (Array.isArray(question.options)) {
+                    optionsArray = question.options;
+                    console.log('直接使用数组:', optionsArray);
+                }
+            }
+            
+            // 检查是否有有效选项
+            if (!optionsArray || optionsArray.length === 0) {
+                console.log('没有找到有效选项');
+                return `<div style="color: #f39c12;">该选择题缺少选项数据</div>`;
+            }
+            
+            console.log('最终选项数组:', optionsArray);
+            
+            return optionsArray.map((option, optionIndex) => {
+                // 清理选项文本，移除可能的A. B. C. D.前缀
+                let cleanOption = option.trim();
+                if (cleanOption.match(/^[A-Za-z][.）)]\s*/)) {
+                    cleanOption = cleanOption.replace(/^[A-Za-z][.）)]\s*/, '');
+                }
+                
                 const optionLabel = String.fromCharCode(65 + optionIndex); // A, B, C, D
                 const isChecked = savedAnswer === optionLabel;
                 return `
@@ -2424,29 +2583,13 @@ function renderQuestionOptions(question, questionNumber) {
                                ${isChecked ? 'checked' : ''} 
                                onchange="saveAnswer(${question.id}, this.value)" 
                                style="margin-right: 8px;">
-                        <span style="color: #34495e;">${optionLabel}. ${option.trim()}</span>
+                        <span style="color: #34495e;">${optionLabel}. ${cleanOption}</span>
                     </label>
                 `;
             }).join('');
             
-        case 'MULTIPLE_CHOICE':
-            const multiOptions = question.options ? question.options.split('\n') : [];
-            const savedMultiAnswers = savedAnswer ? savedAnswer.split(',') : [];
-            return multiOptions.map((option, optionIndex) => {
-                const optionLabel = String.fromCharCode(65 + optionIndex);
-                const isChecked = savedMultiAnswers.includes(optionLabel);
-                return `
-                    <label style="display: block; margin-bottom: 8px; cursor: pointer;">
-                        <input type="checkbox" name="question_${question.id}" value="${optionLabel}" 
-                               ${isChecked ? 'checked' : ''} 
-                               onchange="saveMultipleAnswer(${question.id})" 
-                               style="margin-right: 8px;">
-                        <span style="color: #34495e;">${optionLabel}. ${option.trim()}</span>
-                    </label>
-                `;
-            }).join('');
-            
-        case 'TRUE_FALSE':
+        case 'true_false':
+            // 判断题处理
             return `
                 <label style="display: block; margin-bottom: 8px; cursor: pointer;">
                     <input type="radio" name="question_${question.id}" value="正确" 
@@ -2464,22 +2607,42 @@ function renderQuestionOptions(question, questionNumber) {
                 </label>
             `;
             
-        case 'FILL_BLANK':
-        case 'SHORT_ANSWER':
-        case 'ESSAY':
-            const placeholder = question.type === 'FILL_BLANK' ? '请填入答案' : 
-                              question.type === 'SHORT_ANSWER' ? '请输入简答' : '请输入详细答案';
-            const rows = question.type === 'ESSAY' ? 6 : question.type === 'SHORT_ANSWER' ? 3 : 1;
+        case 'fill_blank':
+            // 填空题处理
+            return renderFillBlankQuestion(question, savedAnswer);
+            
+        case 'short_answer':
+        case 'programming':
+        case 'calculation':
+        case 'case_analysis':
+        case 'essay':
+        default:
+            // 所有文本输入题型都使用统一的"请输入答案"提示
+            let rows;
+            switch (actualType) {
+                case 'programming':
+                    rows = 8;
+                    break;
+                case 'short_answer':
+                    rows = 3;
+                    break;
+                case 'calculation':
+                    rows = 4;
+                    break;
+                case 'case_analysis':
+                    rows = 8;
+                    break;
+                default:
+                    rows = 6;
+            }
+            
             return `
                 <textarea name="question_${question.id}" 
-                          placeholder="${placeholder}" 
+                          placeholder="请输入答案" 
                           rows="${rows}" 
                           onchange="saveAnswer(${question.id}, this.value)"
                           style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; resize: vertical;">${savedAnswer}</textarea>
             `;
-            
-        default:
-            return '<div style="color: #e74c3c;">不支持的题目类型</div>';
     }
 }
 
@@ -2497,6 +2660,25 @@ function saveMultipleAnswer(questionId) {
     updateAnsweredCount();
 }
 
+// 保存填空题答案
+function saveFillBlankAnswer(questionId, blankIndex, answer) {
+    // 获取当前题目的所有空位答案
+    const currentAnswer = studentAnswers[questionId] || '';
+    const answers = currentAnswer ? currentAnswer.split('|') : [];
+    
+    // 确保数组长度足够
+    while (answers.length <= blankIndex) {
+        answers.push('');
+    }
+    
+    // 更新指定空位的答案
+    answers[blankIndex] = answer;
+    
+    // 保存更新后的答案（用|分隔多个空位的答案）
+    studentAnswers[questionId] = answers.join('|');
+    updateAnsweredCount();
+}
+
 // 更新已答题数量
 function updateAnsweredCount() {
     const answeredCount = Object.keys(studentAnswers).filter(qId => {
@@ -2509,11 +2691,21 @@ function updateAnsweredCount() {
 
 // 开始考试计时器
 function startExamTimer() {
-    if (!currentExam || !currentExam.duration) return;
+    if (!currentExam) return;
     
-    examStartTime = new Date();
-    const durationMs = currentExam.duration * 60 * 1000; // 转换为毫秒
-    const endTime = examStartTime.getTime() + durationMs;
+    // 计算考试结束时间
+    let endTime;
+    if (currentExam.endTime) {
+        // 如果有明确的结束时间，使用结束时间
+        endTime = new Date(currentExam.endTime).getTime();
+    } else if (currentExam.startTime && currentExam.duration) {
+        // 如果有开始时间和时长，计算结束时间
+        const startTime = new Date(currentExam.startTime).getTime();
+        endTime = startTime + (currentExam.duration * 60 * 1000);
+    } else {
+        // 兜底：从当前时间开始计算
+        endTime = new Date().getTime() + (currentExam.duration * 60 * 1000);
+    }
     
     examTimer = setInterval(() => {
         const now = new Date().getTime();
@@ -2563,6 +2755,13 @@ function setupExamEventListeners() {
 // 暂存答案
 async function saveExamAnswers() {
     try {
+        // 获取当前用户ID
+        const userId = await getCurrentUserId();
+        if (!userId) {
+            showNotification('未获取到用户信息，请重新登录', 'error');
+            return;
+        }
+        
         showLoading('正在保存答案...');
         
         const answers = Object.keys(studentAnswers).map(questionId => ({
@@ -2570,7 +2769,7 @@ async function saveExamAnswers() {
             answer: studentAnswers[questionId] || ''
         }));
         
-        const response = await fetch('/api/student/exam/save-answers', {
+        const response = await fetch(`/api/student/exam/save-answers?userId=${userId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -2626,6 +2825,13 @@ async function confirmSubmitExam() {
 // 提交考试
 async function submitExam(isAutoSubmit = false) {
     try {
+        // 获取当前用户ID
+        const userId = await getCurrentUserId();
+        if (!userId) {
+            showNotification('未获取到用户信息，请重新登录', 'error');
+            return;
+        }
+        
         if (!isAutoSubmit) {
             showLoading('正在提交考试...');
         }
@@ -2641,7 +2847,7 @@ async function submitExam(isAutoSubmit = false) {
             answer: studentAnswers[questionId] || ''
         }));
         
-        const response = await fetch('/api/student/exam/submit', {
+        const response = await fetch(`/api/student/exam/submit?userId=${userId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -2684,9 +2890,16 @@ async function submitExam(isAutoSubmit = false) {
 // 查看考试成绩
 async function viewExamResult(examResultId) {
     try {
+        // 获取当前用户ID
+        const userId = await getCurrentUserId();
+        if (!userId) {
+            showNotification('未获取到用户信息，请重新登录', 'error');
+            return;
+        }
+        
         showLoading('正在加载考试结果...');
         
-        const response = await fetch(`/api/student/exam-result/${examResultId}`, {
+        const response = await fetch(`/api/student/exam-result/${examResultId}?userId=${userId}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -2709,7 +2922,7 @@ async function viewExamResult(examResultId) {
 }
 
 // 显示考试结果模态框
-function showExamResultModal(examResult) {
+function showExamResultModal(data) {
     const modal = document.getElementById('exam-result-modal');
     const examTitleElement = document.getElementById('result-exam-title');
     const submitTimeElement = document.getElementById('result-submit-time');
@@ -2718,57 +2931,122 @@ function showExamResultModal(examResult) {
     const totalScoreElement = document.getElementById('result-total-score');
     const questionsContainer = document.getElementById('result-questions');
     
+    const examResult = data.examResult;
+    const exam = data.exam;
+    const canViewPaper = data.canViewPaper;
+    const viewMessage = data.viewMessage;
+    const showAnswers = data.showAnswers;
+    
     // 设置基本信息
-    examTitleElement.textContent = examResult.examTitle || '考试';
+    examTitleElement.textContent = exam.title || '考试';
     submitTimeElement.textContent = formatDateTime(examResult.submitTime);
-    durationElement.textContent = examResult.duration || '-';
-    scoreElement.textContent = examResult.score || 0;
+    durationElement.textContent = examResult.durationMinutes || '-';
+    // 根据成绩发布状态显示分数
+    if (data.showFinalScore && data.score !== null) {
+        scoreElement.textContent = data.score;
+    } else {
+        scoreElement.textContent = '待发布';
+    }
     totalScoreElement.textContent = examResult.totalScore || 100;
     
-    // 渲染题目结果
-    if (examResult.questions && examResult.questions.length > 0) {
-        questionsContainer.innerHTML = examResult.questions.map((question, index) => {
+    // 检查是否可以查看试卷详情
+    if (!canViewPaper) {
+        questionsContainer.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; background: #f8f9fa; border-radius: 8px; margin: 20px 0;">
+                <i class="fas fa-clock" style="font-size: 48px; color: #6c757d; margin-bottom: 20px;"></i>
+                <h4 style="color: #495057; margin-bottom: 15px;">试卷暂未开放查看</h4>
+                <p style="color: #6c757d; margin: 0; font-size: 16px;">${viewMessage}</p>
+            </div>
+        `;
+    } else if (exam.questions && exam.questions.length > 0) {
+        // 渲染题目结果
+        questionsContainer.innerHTML = exam.questions.map((question, index) => {
             const questionNumber = index + 1;
             const isCorrect = question.isCorrect;
-            const showAnswer = examResult.isAnswerPublished;
+            const studentAnswer = question.studentAnswer || '未作答';
+            const studentScore = question.studentScore || 0;
+            const maxScore = question.score || 10;
+            
+            // 根据题目类型渲染选项
+            let optionsHtml = '';
+            if (question.options && question.options.length > 0) {
+                optionsHtml = `
+                    <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                        <strong style="color: #495057; display: block; margin-bottom: 10px;">选项：</strong>
+                        ${question.options.map((option, idx) => {
+                            const optionLetter = String.fromCharCode(65 + idx); // A, B, C, D
+                            const isSelected = studentAnswer.includes(optionLetter) || studentAnswer.includes(option);
+                            const isCorrectOption = showAnswers && question.answer && (question.answer.includes(optionLetter) || question.answer.includes(option));
+                            
+                            let optionStyle = 'padding: 8px 12px; margin: 5px 0; border-radius: 4px; display: block;';
+                            if (isSelected && isCorrectOption) {
+                                optionStyle += ' background: #d4edda; border: 1px solid #c3e6cb; color: #155724;';
+                            } else if (isSelected && !isCorrectOption) {
+                                optionStyle += ' background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24;';
+                            } else if (!isSelected && isCorrectOption && showAnswers) {
+                                optionStyle += ' background: #cce5ff; border: 1px solid #99d1ff; color: #004085;';
+                            } else {
+                                optionStyle += ' background: #fff; border: 1px solid #dee2e6; color: #495057;';
+                            }
+                            
+                            return `
+                                <div style="${optionStyle}">
+                                    ${optionLetter}. ${option}
+                                    ${isSelected ? ' <i class="fas fa-check" style="color: #28a745;"></i>' : ''}
+                                    ${!isSelected && isCorrectOption && showAnswers ? ' <i class="fas fa-star" style="color: #ffc107;"></i>' : ''}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
             
             return `
                 <div class="result-question-item" style="background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                     <div class="result-question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题</h5>
+                        <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${getQuestionTypeDisplayName(question.type)})</h5>
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="color: #7f8c8d; font-size: 14px;">${question.score || 10}分</span>
+                            <span style="color: #7f8c8d; font-size: 14px;">得分：${studentScore}/${maxScore}分</span>
                             <span class="result-status" style="padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; ${isCorrect ? 'background: #d4edda; color: #155724;' : 'background: #f8d7da; color: #721c24;'}">
                                 ${isCorrect ? '✓ 正确' : '✗ 错误'}
                             </span>
                         </div>
                     </div>
                     <div class="result-question-content" style="margin-bottom: 15px;">
+                        <strong style="color: #495057; display: block; margin-bottom: 10px;">题目：</strong>
                         <p style="margin: 0; color: #34495e; line-height: 1.6;">${question.content}</p>
                     </div>
-                    <div class="result-answer-section">
-                        <div style="margin-bottom: 10px;">
+                    
+                    ${optionsHtml}
+                    
+                    <div class="result-answer-section" style="margin-top: 15px;">
+                        <div style="margin-bottom: 10px; padding: 10px; background: ${isCorrect ? '#f8fff8' : '#fff8f8'}; border-radius: 6px;">
                             <strong style="color: #2c3e50;">您的答案：</strong>
-                            <span style="color: ${isCorrect ? '#27ae60' : '#e74c3c'};">${question.studentAnswer || '未作答'}</span>
+                            <span style="color: ${isCorrect ? '#27ae60' : '#e74c3c'}; font-weight: 500;">${studentAnswer}</span>
                         </div>
-                        ${showAnswer ? `
-                        <div style="margin-bottom: 10px;">
+                        ${showAnswers && question.answer ? `
+                        <div style="margin-bottom: 10px; padding: 10px; background: #e8f4fd; border-radius: 6px;">
                             <strong style="color: #2c3e50;">正确答案：</strong>
-                            <span style="color: #27ae60;">${question.correctAnswer || '-'}</span>
-                        </div>
-                        ${question.explanation ? `
-                        <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 4px solid #3498db;">
-                            <strong style="color: #2c3e50;">解析：</strong>
-                            <p style="margin: 5px 0 0 0; color: #34495e; line-height: 1.5;">${question.explanation}</p>
+                            <span style="color: #0056b3; font-weight: 500;">${question.answer}</span>
                         </div>
                         ` : ''}
-                        ` : '<div style="color: #7f8c8d; font-style: italic;">答案暂未发布</div>'}
+                        ${showAnswers && question.explanation ? `
+                        <div style="padding: 10px; background: #f0f9ff; border-radius: 6px;">
+                            <strong style="color: #2c3e50;">解析：</strong>
+                            <p style="margin: 5px 0 0 0; color: #374151; line-height: 1.6;">${question.explanation}</p>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
         }).join('');
     } else {
-        questionsContainer.innerHTML = '<div style="text-align: center; padding: 40px; color: #7f8c8d;">暂无题目信息</div>';
+        questionsContainer.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #6c757d;">
+                <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 15px;"></i>
+                <p>暂无题目信息</p>
+            </div>
+        `;
     }
     
     // 显示模态框
@@ -2778,9 +3056,23 @@ function showExamResultModal(examResult) {
     document.getElementById('close-result-modal').onclick = () => {
         modal.style.display = 'none';
     };
-    document.getElementById('close-result').onclick = () => {
-        modal.style.display = 'none';
+}
+
+// 获取题目类型显示名称
+function getQuestionTypeDisplayName(type) {
+    const typeMap = {
+        'choice': '选择题',
+        'single_choice': '单选题',
+        'multiple_choice': '多选题',
+        'true_false': '判断题',
+        'fill_blank': '填空题',
+        'short_answer': '简答题',
+        'essay': '论述题',
+        'calculation': '计算题',
+        'case_analysis': '案例分析题',
+        'programming': '编程题'
     };
+    return typeMap[type] || type || '未知题型';
 }
 
 // 全局变量
@@ -3442,6 +3734,30 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// 获取当前学生用户ID
+async function getCurrentUserId() {
+    try {
+        const response = await fetch('/api/auth/current-user', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const userData = result.data;
+            if (userData.role === 'student') {
+                // 后端API需要的是userId（User表的ID），不是studentId
+                return userData.userId;
+            }
+        }
+        throw new Error('未获取到有效的学生用户ID');
+    } catch (error) {
+        console.error('获取用户ID失败:', error);
+        return null;
+    }
+}
+
 // 页面加载时初始化学习助手
 document.addEventListener('DOMContentLoaded', function() {
     // 检查是否在学习助手页面
@@ -3703,28 +4019,19 @@ function generateExamActionButtons(exam) {
                     </button>
                 `;
             }
-        case 'FINISHED':
-            if (exam.hasSubmitted) {
-                return `
-                    <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResult ? exam.examResult.id : exam.id})">
-                        <i class="fas fa-eye"></i>
-                        查看结果
-                    </button>
-                `;
-            } else {
-                return `
-                    <button class="exam-action-btn btn-secondary" disabled>
-                        <i class="fas fa-times"></i>
-                        未参加
-                    </button>
-                `;
-            }
+        case 'SUBMITTED':
+            return `
+                <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResultId || exam.id})">
+                    <i class="fas fa-file-alt"></i>
+                    查看试卷
+                </button>
+            `;
         case 'EXPIRED':
             if (exam.hasSubmitted) {
                 return `
-                    <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResult ? exam.examResult.id : exam.id})">
-                        <i class="fas fa-eye"></i>
-                        查看结果
+                    <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResultId || exam.id})">
+                        <i class="fas fa-file-alt"></i>
+                        查看试卷
                     </button>
                 `;
             } else {
@@ -3735,13 +4042,6 @@ function generateExamActionButtons(exam) {
                     </button>
                 `;
             }
-        case 'SUBMITTED':
-            return `
-                <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResult ? exam.examResult.id : exam.id})">
-                    <i class="fas fa-eye"></i>
-                    查看结果
-                </button>
-            `;
         default:
             return `
                 <button class="exam-action-btn btn-secondary" disabled>
