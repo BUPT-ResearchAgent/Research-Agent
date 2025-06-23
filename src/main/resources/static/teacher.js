@@ -2335,6 +2335,9 @@ function displayGradeList(grades) {
                         <button class="btn btn-sm btn-info" onclick="viewGradeDetail(${grade.id})" title="查看详情">
                             <i class="fas fa-eye"></i>
                         </button>
+                        <button class="btn btn-sm btn-accent" onclick="aiGradeExam(${grade.id})" title="AI批改" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <i class="fas fa-brain"></i>
+                        </button>
                         <button class="btn btn-sm ${publishButtonClass}" onclick="publishSingleGrade(${grade.examId}, ${grade.id}, ${isPublished})" title="${publishButtonTitle}">
                             <i class="${publishButtonIcon}"></i>
                             <span style="margin-left: 4px;">${publishButtonText}</span>
@@ -9224,7 +9227,7 @@ function displayGradeQuestions(questions, studentAnswers) {
                 <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${question.score || 10}分)</h5>
                     <span class="question-type" style="padding: 4px 8px; background: #3498db; color: white; border-radius: 4px; font-size: 12px;">
-                        ${question.type || '选择题'}
+                        ${getQuestionTypeDisplayName(question.type)}
                     </span>
                 </div>
                 
@@ -9410,6 +9413,27 @@ async function saveGrade() {
 }
 
 // 显示成绩详情弹窗
+// 获取题目类型显示名称
+function getQuestionTypeDisplayName(type) {
+    const typeMap = {
+        'choice': '选择题',
+        'single_choice': '单选题',
+        'multiple_choice': '多选题',
+        'true_false': '判断题',
+        'true-false': '判断题',
+        'fill_blank': '填空题',
+        'fill-blank': '填空题',
+        'short_answer': '简答题',
+        'short-answer': '简答题',
+        'essay': '论述题',
+        'calculation': '计算题',
+        'case_analysis': '案例分析题',
+        'case-analysis': '案例分析题',
+        'programming': '编程题'
+    };
+    return typeMap[type] || type || '未知题型';
+}
+
 function showGradeDetailModal(gradeData) {
     const modal = document.getElementById('grade-detail-modal');
     if (!modal) return;
@@ -9493,9 +9517,9 @@ function displayGradeDetailQuestions(questions, studentAnswers) {
                 <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${question.score || 10}分)</h5>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <span class="question-type" style="padding: 4px 8px; background: #3498db; color: white; border-radius: 4px; font-size: 12px;">
-                            ${question.type || '选择题'}
-                        </span>
+                                            <span class="question-type" style="padding: 4px 8px; background: #3498db; color: white; border-radius: 4px; font-size: 12px;">
+                        ${getQuestionTypeDisplayName(question.type)}
+                    </span>
                         <span class="answer-status" style="padding: 4px 8px; border-radius: 4px; font-size: 12px; ${isCorrect ? 'background: #27ae60; color: white;' : 'background: #e74c3c; color: white;'}">
                             ${isCorrect ? '正确' : '错误'}
                         </span>
@@ -10008,6 +10032,112 @@ async function applyAiScore(questionId, studentAnswerId, aiScore) {
         hideLoading();
         console.error('应用AI评分失败:', error);
         showNotification('应用AI评分失败：' + error.message, 'error');
+    }
+}
+
+// AI批改整个试卷
+async function aiGradeExam(resultId) {
+    try {
+        // 显示确认对话框
+        const confirmResult = await showConfirmDialog(
+            'AI批改确认',
+            '确定要对这份试卷进行AI批改吗？\n\n系统将自动评分所有主观题，并计算总分。\n\n注意：此操作将覆盖已有的AI评分。',
+            '确定批改'
+        );
+        
+        if (!confirmResult) {
+            return;
+        }
+        
+        showLoading('正在获取试卷详情...');
+        
+        // 先获取试卷详情
+        const response = await TeacherAPI.getGradeDetail(resultId);
+        
+        if (!response.success) {
+            throw new Error(response.message || '获取试卷详情失败');
+        }
+        
+        const gradeData = response.data;
+        const questions = gradeData.questions;
+        const studentAnswers = gradeData.studentAnswers;
+        
+        // 筛选出需要AI评分的题目（主观题）
+        const subjectiveQuestions = questions.filter(question => {
+            const questionType = question.type;
+            return !['multiple-choice', 'choice', 'true-false', 'true_false'].includes(questionType);
+        });
+        
+        if (subjectiveQuestions.length === 0) {
+            hideLoading();
+            showNotification('此试卷没有需要AI批改的主观题', 'warning');
+            return;
+        }
+        
+        hideLoading();
+        showLoading(`正在AI批改 ${subjectiveQuestions.length} 道主观题，请稍候...`);
+        
+        let totalAiScore = 0;
+        let processedCount = 0;
+        let aiGradedResults = [];
+        
+        // 调用整卷AI批改API
+        const aiResponse = await fetch('/api/teacher/grades/ai-grade-exam', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                resultId: resultId
+            })
+        });
+        
+        const aiResult = await aiResponse.json();
+        
+        if (aiResult.success) {
+            processedCount = aiResult.data.processedCount;
+            totalAiScore = aiResult.data.totalAiScore;
+            aiGradedResults = aiResult.data.gradingResults;
+        } else {
+            throw new Error(aiResult.message || 'AI批改失败');
+        }
+        
+        hideLoading();
+        
+        if (processedCount > 0) {
+            // 显示批改结果
+            const resultMessage = `
+                AI批改完成！
+                
+                成功处理：${processedCount} 道题
+                主观题总分：${totalAiScore} 分
+                
+                详细结果：
+                ${aiGradedResults.map((result, index) => 
+                    `${index + 1}. ${result.questionContent}\n   学生答案：${result.studentAnswer}\n   AI评分：${result.aiScore}/${result.maxScore}分`
+                ).join('\n\n')}
+            `;
+            
+            showNotification('AI批改完成，总分已更新到AI评分列', 'success');
+            
+            // 显示详细结果对话框
+            await showConfirmDialog(
+                'AI批改结果',
+                resultMessage,
+                '确定'
+            );
+            
+            // 刷新成绩列表
+            await loadGradeList();
+            
+        } else {
+            showNotification('AI批改失败，未能成功处理任何题目', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('AI批改试卷失败:', error);
+        showNotification('AI批改失败：' + error.message, 'error');
     }
 }
 

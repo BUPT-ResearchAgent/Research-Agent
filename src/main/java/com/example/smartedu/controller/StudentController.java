@@ -1623,6 +1623,10 @@ public class StudentController {
                         questionDTO.setStudentAnswer(studentAnswer.getAnswer());
                         questionDTO.setStudentScore(studentAnswer.getScore());
                         questionDTO.setIsCorrect(studentAnswer.getIsCorrect());
+                        // 添加教师反馈（只有在成绩发布后才显示）
+                        if (showFinalScore && studentAnswer.getTeacherFeedback() != null) {
+                            questionDTO.setTeacherFeedback(studentAnswer.getTeacherFeedback());
+                        }
                     }
                 }
             }
@@ -1648,6 +1652,10 @@ public class StudentController {
             response.put("durationMinutes", examResult.getDurationMinutes());
             response.put("submitTime", examResult.getSubmitTime());
             response.put("gradeStatus", examResult.getGradeStatus());
+            // 添加教师评语（只有在成绩发布后才显示）
+            if (showFinalScore && examResult.getTeacherComments() != null) {
+                response.put("teacherComments", examResult.getTeacherComments());
+            }
             
             return ApiResponse.success("获取考试结果成功", response);
             

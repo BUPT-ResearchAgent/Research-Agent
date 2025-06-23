@@ -1574,6 +1574,172 @@ public class TeacherController {
     }
 
     /**
+     * AI批改整个试卷
+     */
+    @PostMapping("/grades/ai-grade-exam")
+    public ApiResponse<Map<String, Object>> aiGradeFullExam(@RequestBody Map<String, Object> request,
+                                                           jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            Long resultId = Long.valueOf(request.get("resultId").toString());
+            
+            // 获取考试结果
+            Optional<ExamResult> resultOpt = examResultRepository.findById(resultId);
+            if (!resultOpt.isPresent()) {
+                return ApiResponse.error("考试结果不存在");
+            }
+            ExamResult result = resultOpt.get();
+            
+            // 验证权限 - 检查是否是该教师的考试
+            Exam exam = result.getExam();
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent() || !exam.getCourse().getTeacher().getId().equals(teacherOpt.get().getId())) {
+                return ApiResponse.error("权限不足，无法批改此考试");
+            }
+            
+            // 获取学生答案
+            List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(resultId);
+            
+            // 筛选出需要AI评分的题目（主观题）
+            List<Map<String, Object>> gradingRequests = new ArrayList<>();
+            Map<Long, Question> questionMap = new HashMap<>();
+            
+            for (Question question : exam.getQuestions()) {
+                questionMap.put(question.getId(), question);
+                
+                // 跳过客观题
+                String questionType = question.getType();
+                if ("multiple-choice".equals(questionType) || 
+                    "choice".equals(questionType) ||
+                    "true-false".equals(questionType) ||
+                    "true_false".equals(questionType)) {
+                    continue;
+                }
+                
+                // 找到对应的学生答案
+                Optional<StudentAnswer> studentAnswerOpt = studentAnswers.stream()
+                    .filter(sa -> sa.getQuestionId().equals(question.getId()))
+                    .findFirst();
+                
+                if (studentAnswerOpt.isPresent()) {
+                    StudentAnswer studentAnswer = studentAnswerOpt.get();
+                    
+                    Map<String, Object> gradingRequest = new HashMap<>();
+                    gradingRequest.put("questionId", question.getId());
+                    gradingRequest.put("studentAnswerId", studentAnswer.getId());
+                    gradingRequest.put("questionContent", question.getContent());
+                    gradingRequest.put("questionType", getQuestionTypeName(question.getType()));
+                    gradingRequest.put("studentAnswer", studentAnswer.getAnswer());
+                    gradingRequest.put("standardAnswer", question.getAnswer());
+                    gradingRequest.put("explanation", question.getExplanation());
+                    gradingRequest.put("maxScore", question.getScore());
+                    
+                    gradingRequests.add(gradingRequest);
+                }
+            }
+            
+            if (gradingRequests.isEmpty()) {
+                return ApiResponse.error("此试卷没有需要AI批改的主观题");
+            }
+            
+            System.out.println("=== 开始整卷AI批改 ===");
+            System.out.println("学生ID: " + result.getStudent().getId() + 
+                             ", 考试ID: " + exam.getId() + 
+                             ", 需批改题目数: " + gradingRequests.size());
+            
+            // 使用现有的单题批改方法逐个处理
+            List<Map<String, Object>> gradingResults = new ArrayList<>();
+            double totalAiScore = 0;
+            int processedCount = 0;
+            
+            for (Map<String, Object> gradingRequest : gradingRequests) {
+                try {
+                    Long questionId = (Long) gradingRequest.get("questionId");
+                    Long studentAnswerId = (Long) gradingRequest.get("studentAnswerId");
+                    String questionContent = (String) gradingRequest.get("questionContent");
+                    String questionType = (String) gradingRequest.get("questionType");
+                    String studentAnswer = (String) gradingRequest.get("studentAnswer");
+                    String standardAnswer = (String) gradingRequest.get("standardAnswer");
+                    String explanation = (String) gradingRequest.get("explanation");
+                    Integer maxScore = (Integer) gradingRequest.get("maxScore");
+                    
+                    // 调用DeepSeek进行单题智能评分
+                    Integer aiScore = deepSeekService.singleQuestionGrading(
+                        questionContent, questionType, studentAnswer, 
+                        standardAnswer, explanation, maxScore
+                    );
+                    
+                    // 更新学生答案
+                    Optional<StudentAnswer> studentAnswerOpt = studentAnswerRepository.findById(studentAnswerId);
+                    if (studentAnswerOpt.isPresent()) {
+                        StudentAnswer sa = studentAnswerOpt.get();
+                        sa.setScore(aiScore);
+                        sa.setTeacherFeedback("AI智能评分");
+                        studentAnswerRepository.save(sa);
+                        
+                        totalAiScore += aiScore;
+                        processedCount++;
+                        
+                        Map<String, Object> gradingResult = new HashMap<>();
+                        gradingResult.put("questionId", questionId);
+                        gradingResult.put("questionContent", questionContent.length() > 50 ? 
+                            questionContent.substring(0, 50) + "..." : questionContent);
+                        gradingResult.put("studentAnswer", studentAnswer != null && studentAnswer.length() > 30 ? 
+                            studentAnswer.substring(0, 30) + "..." : (studentAnswer != null ? studentAnswer : "未答"));
+                        gradingResult.put("aiScore", aiScore);
+                        gradingResult.put("maxScore", maxScore);
+                        
+                        gradingResults.add(gradingResult);
+                    }
+                    
+                } catch (Exception e) {
+                    System.err.println("单题AI批改失败: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+            
+            // 重新计算考试总分
+            List<StudentAnswer> allAnswers = studentAnswerRepository.findByExamResultId(resultId);
+            double newTotalScore = allAnswers.stream()
+                .mapToDouble(sa -> sa.getScore() != null ? sa.getScore() : 0.0)
+                .sum();
+            
+            // 更新考试结果
+            result.setScore((int) Math.round(newTotalScore));
+            result.setFinalScore(newTotalScore);
+            result.setGradeStatus("AI_GRADED");
+            examResultRepository.save(result);
+            
+            System.out.println("整卷AI批改完成 - 处理题目数: " + processedCount + 
+                             ", 主观题总分: " + totalAiScore + 
+                             ", 试卷总分: " + newTotalScore);
+            
+            // 构建返回结果
+            Map<String, Object> resultData = new HashMap<>();
+            resultData.put("processedCount", processedCount);
+            resultData.put("totalAiScore", totalAiScore);
+            resultData.put("newTotalScore", newTotalScore);
+            resultData.put("gradingResults", gradingResults);
+            
+            return ApiResponse.success("AI批改完成", resultData);
+            
+        } catch (Exception e) {
+            System.err.println("整卷AI批改失败: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.error("AI批改失败：" + e.getMessage());
+        }
+    }
+
+    /**
      * 获取题型中文名称
      */
     private String getQuestionTypeName(String type) {

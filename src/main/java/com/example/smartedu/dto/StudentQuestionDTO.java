@@ -19,6 +19,7 @@ public class StudentQuestionDTO {
     private String studentAnswer; // 学生的答案
     private Integer studentScore; // 学生得分
     private Boolean isCorrect; // 是否正确
+    private String teacherFeedback; // 教师反馈
     
     private static final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -78,4 +79,7 @@ public class StudentQuestionDTO {
     
     public Boolean getIsCorrect() { return isCorrect; }
     public void setIsCorrect(Boolean isCorrect) { this.isCorrect = isCorrect; }
+    
+    public String getTeacherFeedback() { return teacherFeedback; }
+    public void setTeacherFeedback(String teacherFeedback) { this.teacherFeedback = teacherFeedback; }
 } 

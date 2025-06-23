@@ -2949,6 +2949,27 @@ function showExamResultModal(data) {
     }
     totalScoreElement.textContent = examResult.totalScore || 100;
     
+    // 在成绩概览后添加教师评语（如果存在且成绩已发布）
+    const resultSummary = document.querySelector('.result-summary');
+    if (data.teacherComments && data.showFinalScore) {
+        // 检查是否已经存在教师评语元素，避免重复添加
+        const existingComments = document.getElementById('teacher-comments-section');
+        if (existingComments) {
+            existingComments.remove();
+        }
+        
+        const teacherCommentsHtml = `
+            <div id="teacher-comments-section" style="margin-top: 20px; padding: 15px; background: #fff8e1; border-left: 4px solid #ffc107; border-radius: 0 6px 6px 0;">
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                    <i class="fas fa-comment-alt" style="color: #f57c00; margin-right: 8px;"></i>
+                    <strong style="color: #ef6c00;">教师评语</strong>
+                </div>
+                <p style="margin: 0; color: #4a4a4a; line-height: 1.6; font-style: italic;">${data.teacherComments}</p>
+            </div>
+        `;
+        resultSummary.insertAdjacentHTML('beforeend', teacherCommentsHtml);
+    }
+    
     // 检查是否可以查看试卷详情
     if (!canViewPaper) {
         questionsContainer.innerHTML = `
@@ -2962,10 +2983,11 @@ function showExamResultModal(data) {
         // 渲染题目结果
         questionsContainer.innerHTML = exam.questions.map((question, index) => {
             const questionNumber = index + 1;
-            const isCorrect = question.isCorrect;
             const studentAnswer = question.studentAnswer || '未作答';
             const studentScore = question.studentScore || 0;
             const maxScore = question.score || 10;
+            // 修改正确与否的判断逻辑：满分即为正确，否则为错误
+            const isCorrect = studentScore === maxScore;
             
             // 根据题目类型渲染选项
             let optionsHtml = '';
@@ -3034,6 +3056,15 @@ function showExamResultModal(data) {
                         <div style="padding: 10px; background: #f0f9ff; border-radius: 6px;">
                             <strong style="color: #2c3e50;">解析：</strong>
                             <p style="margin: 5px 0 0 0; color: #374151; line-height: 1.6;">${question.explanation}</p>
+                        </div>
+                        ` : ''}
+                        ${data.showFinalScore && question.teacherFeedback ? `
+                        <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 6px; border-left: 3px solid #ffc107;">
+                            <strong style="color: #856404; display: flex; align-items: center;">
+                                <i class="fas fa-user-tie" style="margin-right: 6px;"></i>
+                                教师点评：
+                            </strong>
+                            <p style="margin: 5px 0 0 0; color: #6c5a00; line-height: 1.6; font-style: italic;">${question.teacherFeedback}</p>
                         </div>
                         ` : ''}
                     </div>
