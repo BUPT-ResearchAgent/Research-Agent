@@ -461,7 +461,7 @@ function updateStatsCards(stats) {
         avgScoreElement.textContent = avgScore.toFixed(1) + '%';
     }
     
-    // 更新待批改试卷
+    // 更新已结束考试
     const pendingElement = document.querySelector('.stat-card:nth-child(3) .stat-value');
     if (pendingElement) {
         pendingElement.textContent = stats.pendingGrades || '0';
@@ -2265,7 +2265,6 @@ async function loadGradeData() {
             await loadCourseList();
         }
         await loadGradeList();
-        await loadExamsForGradeFilter();
         console.log('成绩批改页面数据加载完成');
     } catch (error) {
         console.error('加载成绩批改页面数据失败:', error);
@@ -2299,7 +2298,7 @@ function displayGradeList(grades) {
     if (!grades || grades.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                <td colspan="8" style="text-align: center; padding: 40px; color: #7f8c8d;">
                     <i class="fas fa-clipboard-list" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
                     暂无待批改试卷
                 </td>
@@ -2320,11 +2319,14 @@ function displayGradeList(grades) {
         const publishButtonText = isPublished ? '已发布' : '发布';
         
         return `
-            <tr>
+            <tr data-result-id="${grade.id}" data-exam-id="${grade.examId}" data-is-published="${isPublished}">
+                <td style="text-align: center;">
+                    <input type="checkbox" class="grade-checkbox" value="${grade.id}" onchange="updateBatchButtons()" style="transform: scale(1.2);">
+                </td>
                 <td>${grade.studentName || '-'}</td>
                 <td>${grade.examTitle || '-'}</td>
                 <td>${formatDateTime(grade.submitTime)}</td>
-                <td>${grade.aiScore || '-'}</td>
+                <td>${grade.aiScore !== null && grade.aiScore !== undefined && grade.aiScore !== '' ? grade.aiScore : '-'}</td>
                 <td>${grade.finalScore || '-'}</td>
                 <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 <td>
@@ -2340,13 +2342,18 @@ function displayGradeList(grades) {
                         </button>
                         <button class="btn btn-sm ${publishButtonClass}" onclick="publishSingleGrade(${grade.examId}, ${grade.id}, ${isPublished})" title="${publishButtonTitle}">
                             <i class="${publishButtonIcon}"></i>
-                            <span style="margin-left: 4px;">${publishButtonText}</span>
                         </button>
                     </div>
                 </td>
             </tr>
         `;
     }).join('');
+    
+    // 加载筛选选项
+    setTimeout(() => {
+        loadStudentsForGradeFilter();
+        loadExamsForGradeFilter();
+    }, 100);
 }
 
 // 获取批改状态样式
@@ -2369,31 +2376,62 @@ function getGradeStatusText(status) {
     return statusMap[status] || '未知状态';
 }
 
+// 加载学生列表用于筛选
+async function loadStudentsForGradeFilter() {
+    try {
+        const studentFilter = document.getElementById('grade-student-filter');
+        if (!studentFilter) return;
+        
+        // 从当前成绩列表中提取学生名单
+        const rows = document.querySelectorAll('#grades-table tbody tr');
+        const students = new Set();
+        
+        rows.forEach(row => {
+            if (row.cells.length >= 8) {
+                const studentName = row.cells[1].textContent.trim();
+                if (studentName && studentName !== '-') {
+                    students.add(studentName);
+                }
+            }
+        });
+        
+        // 填充学生筛选下拉框
+        const studentOptions = Array.from(students).sort().map(student => 
+            `<option value="${student}">${student}</option>`
+        ).join('');
+        
+        studentFilter.innerHTML = '<option value="">所有学生</option>' + studentOptions;
+        
+    } catch (error) {
+        console.error('加载学生筛选列表失败:', error);
+    }
+}
+
 // 加载考试列表用于筛选
 async function loadExamsForGradeFilter() {
     try {
         const examFilter = document.getElementById('grade-exam-filter');
         if (!examFilter) return;
         
-        if (!currentCourses || currentCourses.length === 0) {
-            await loadCourseList();
-        }
+        // 从当前成绩列表中提取考试列表
+        const rows = document.querySelectorAll('#grades-table tbody tr');
+        const exams = new Set();
         
-        // 获取所有考试
-        let allExams = [];
-        for (const course of currentCourses) {
-            const response = await TeacherAPI.getCourseExams(course.id);
-            if (response.success && response.data) {
-                allExams = allExams.concat(response.data.map(exam => ({
-                    ...exam,
-                    courseName: course.name
-                })));
+        rows.forEach(row => {
+            if (row.cells.length >= 8) {
+                const examTitle = row.cells[2].textContent.trim();
+                if (examTitle && examTitle !== '-') {
+                    exams.add(examTitle);
+                }
             }
-        }
+        });
         
-        // 填充筛选下拉框
-        examFilter.innerHTML = '<option value="">所有考试</option>' + 
-            allExams.map(exam => `<option value="${exam.id}">${exam.title} (${exam.courseName})</option>`).join('');
+        // 填充考试筛选下拉框
+        const examOptions = Array.from(exams).sort().map(exam => 
+            `<option value="${exam}">${exam}</option>`
+        ).join('');
+        
+        examFilter.innerHTML = '<option value="">所有考试</option>' + examOptions;
             
     } catch (error) {
         console.error('加载考试筛选列表失败:', error);
@@ -2402,8 +2440,196 @@ async function loadExamsForGradeFilter() {
 
 // 筛选成绩
 function filterGrades() {
-    // 这里可以实现前端筛选逻辑，或者重新调用API
-    loadGradeList();
+    const studentFilter = document.getElementById('grade-student-filter').value;
+    const examFilter = document.getElementById('grade-exam-filter').value;
+    const statusFilter = document.getElementById('grade-status-filter').value;
+    
+    // 获取当前显示的所有行
+    const rows = document.querySelectorAll('#grades-table tbody tr');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        // 跳过空数据行
+        if (row.cells.length < 8) {
+            return;
+        }
+        
+        const studentName = row.cells[1].textContent.trim();
+        const examTitle = row.cells[2].textContent.trim();
+        const statusElement = row.cells[6].querySelector('.status-badge');
+        const gradeStatus = statusElement ? statusElement.textContent.trim() : '';
+        
+        let shouldShow = true;
+        
+        // 学生筛选
+        if (studentFilter && !studentName.toLowerCase().includes(studentFilter.toLowerCase())) {
+            shouldShow = false;
+        }
+        
+        // 考试筛选
+        if (examFilter && !examTitle.toLowerCase().includes(examFilter.toLowerCase())) {
+            shouldShow = false;
+        }
+        
+        // 状态筛选
+        if (statusFilter) {
+            const statusMap = {
+                'PENDING': '待批改',
+                'AI_GRADED': 'AI已批改',
+                'MANUAL_GRADED': '人工已批改'
+            };
+            if (statusMap[statusFilter] && gradeStatus !== statusMap[statusFilter]) {
+                shouldShow = false;
+            }
+        }
+        
+        // 显示或隐藏行
+        if (shouldShow) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // 如果没有可见行，显示无数据提示
+    const tbody = document.querySelector('#grades-table tbody');
+    if (visibleCount === 0 && tbody) {
+        // 检查是否已经有无数据行
+        const existingEmptyRow = tbody.querySelector('tr[data-empty="true"]');
+        if (!existingEmptyRow) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.setAttribute('data-empty', 'true');
+            emptyRow.innerHTML = `
+                <td colspan="8" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <i class="fas fa-search" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                    没有符合筛选条件的记录
+                </td>
+            `;
+            tbody.appendChild(emptyRow);
+        }
+    } else {
+        // 移除无数据行
+        const emptyRow = tbody.querySelector('tr[data-empty="true"]');
+        if (emptyRow) {
+            emptyRow.remove();
+        }
+     }
+     
+     // 更新批量操作按钮状态
+     updateBatchButtons();
+}
+
+// 重置筛选器
+function resetGradeFilters() {
+    const studentFilter = document.getElementById('grade-student-filter');
+    const examFilter = document.getElementById('grade-exam-filter');
+    const statusFilter = document.getElementById('grade-status-filter');
+    
+    if (studentFilter) studentFilter.value = '';
+    if (examFilter) examFilter.value = '';
+    if (statusFilter) statusFilter.value = '';
+    
+    // 重新显示所有行
+    const rows = document.querySelectorAll('#grades-table tbody tr');
+    rows.forEach(row => {
+        if (!row.hasAttribute('data-empty')) {
+            row.style.display = '';
+        }
+    });
+    
+    // 移除无数据行
+    const emptyRow = document.querySelector('#grades-table tbody tr[data-empty="true"]');
+    if (emptyRow) {
+        emptyRow.remove();
+    }
+    
+    // 重置勾选框状态
+    const selectAllCheckbox = document.getElementById('select-all-grades');
+    const gradeCheckboxes = document.querySelectorAll('.grade-checkbox');
+    
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    }
+    
+    gradeCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // 更新批量操作按钮
+    updateBatchButtons();
+}
+
+// 全选/取消全选
+function toggleAllGrades() {
+    const selectAllCheckbox = document.getElementById('select-all-grades');
+    const gradeCheckboxes = document.querySelectorAll('.grade-checkbox');
+    
+    gradeCheckboxes.forEach(checkbox => {
+        if (checkbox.closest('tr').style.display !== 'none') {
+            checkbox.checked = selectAllCheckbox.checked;
+        }
+    });
+    
+    updateBatchButtons();
+}
+
+// 更新批量操作按钮状态
+function updateBatchButtons() {
+    const checkedBoxes = document.querySelectorAll('.grade-checkbox:checked');
+    const visibleCheckedBoxes = Array.from(checkedBoxes).filter(checkbox => 
+        checkbox.closest('tr').style.display !== 'none'
+    );
+    
+    const batchGradeBtn = document.querySelector('button[onclick="autoGradeAll()"]');
+    const publishBtn = document.querySelector('button[onclick="publishSelectedExamGrades()"]');
+    
+    if (batchGradeBtn) {
+        if (visibleCheckedBoxes.length > 0) {
+            batchGradeBtn.textContent = `批量AI评分 (${visibleCheckedBoxes.length})`;
+            batchGradeBtn.disabled = false;
+        } else {
+            batchGradeBtn.innerHTML = '<i class="fas fa-brain"></i> DeepSeek智能评分';
+            batchGradeBtn.disabled = false;
+        }
+    }
+    
+    if (publishBtn) {
+        if (visibleCheckedBoxes.length > 0) {
+            publishBtn.innerHTML = `<i class="fas fa-paper-plane"></i> 批量发布成绩 (${visibleCheckedBoxes.length})`;
+            publishBtn.disabled = false;
+        } else {
+            publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> 发布成绩';
+            publishBtn.disabled = false;
+        }
+    }
+    
+    // 更新全选复选框状态
+    const selectAllCheckbox = document.getElementById('select-all-grades');
+    const visibleCheckboxes = document.querySelectorAll('.grade-checkbox');
+    const visibleChecked = Array.from(visibleCheckboxes).filter(checkbox => 
+        checkbox.closest('tr').style.display !== 'none' && checkbox.checked
+    );
+    const visibleTotal = Array.from(visibleCheckboxes).filter(checkbox => 
+        checkbox.closest('tr').style.display !== 'none'
+    );
+    
+    if (selectAllCheckbox) {
+        if (visibleTotal.length === 0) {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = false;
+        } else if (visibleChecked.length === visibleTotal.length) {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = true;
+        } else if (visibleChecked.length > 0) {
+            selectAllCheckbox.indeterminate = true;
+            selectAllCheckbox.checked = false;
+        } else {
+            selectAllCheckbox.indeterminate = false;
+            selectAllCheckbox.checked = false;
+        }
+    }
 }
 
 // 批改考试
@@ -6098,21 +6324,22 @@ function displayExamList(examList) {
             <td>${exam.totalScore || 0}分</td>
             <td>
                 <div class="action-buttons">
-                    <button class="btn btn-sm btn-accent" onclick="showExamPreviewModal(${exam.id})" title="预览">
+                    <button class="btn btn-sm btn-accent" onclick="showExamPreviewModal(${exam.id})" title="查看">
                         <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-primary" onclick="showExamEditModal(${exam.id})" title="编辑">
-                        <i class="fas fa-edit"></i>
                     </button>
                     <button class="btn btn-sm btn-secondary" onclick="downloadExam(${exam.id})" title="下载">
                         <i class="fas fa-download"></i>
                     </button>
+                    <button class="btn btn-sm btn-primary" onclick="showExamEditModal(${exam.id})" title="编辑"
+                            ${exam.status === 'PUBLISHED' || exam.status === 'ONGOING' || exam.status === 'FINISHED' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                        <i class="fas fa-edit"></i>
+                    </button>
                     <button class="btn btn-sm btn-success" onclick="showPublishExamWithModal(${exam.id})" 
-                            title="发布" ${exam.status === 'PUBLISHED' ? 'disabled' : ''}>
+                            title="发布" ${exam.status === 'PUBLISHED' || exam.status === 'ONGOING' || exam.status === 'FINISHED' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                         <i class="fas fa-paper-plane"></i>
                     </button>
                     <button class="btn btn-sm btn-danger" onclick="deleteExam(${exam.id})" 
-                            title="删除" ${exam.participantCount > 0 ? 'disabled' : ''}>
+                            title="删除" ${exam.status === 'PUBLISHED' || exam.status === 'ONGOING' || exam.status === 'FINISHED' || exam.participantCount > 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -6167,6 +6394,12 @@ async function showPublishExamWithModal(examId) {
         
         if (response.success && response.data) {
             const exam = response.data;
+            
+            // 检查试卷状态，如果已发布则不允许再发布
+            if (exam.isPublished) {
+                showNotification('该试卷已经发布，无法重复发布', 'warning');
+                return;
+            }
             // 填充试卷信息到模态框
             document.getElementById('exam-title-display').textContent = exam.title || '-';
             
@@ -6232,6 +6465,16 @@ async function downloadExam(examId) {
 // 删除试卷
 async function deleteExam(examId) {
     try {
+        // 检查试卷状态，如果已发布则不允许删除
+        const examResponse = await TeacherAPI.getExamDetail(examId);
+        if (examResponse.success && examResponse.data) {
+            const exam = examResponse.data;
+            if (exam.isPublished) {
+                showNotification('已发布的试卷不能删除', 'warning');
+                return;
+            }
+        }
+        
         const confirmed = await showConfirmDialog(
             '删除试卷',
             '确定要删除这份试卷吗？删除后将无法恢复。',
@@ -6335,7 +6578,7 @@ function updateExamStatsCards(stats) {
         ongoingElement.textContent = stats.ongoingExamCount || '0';
     }
     
-    // 更新待批改答卷数
+    // 更新已结束考试数
     const pendingElement = document.getElementById('stat-pending-grades');
     if (pendingElement) {
         pendingElement.textContent = stats.pendingGradeCount || '0';
@@ -8211,11 +8454,65 @@ function loadAnswersList() {
 
 async function autoGradeAll() {
     try {
+        // 获取选中的试卷
+        const checkedBoxes = document.querySelectorAll('.grade-checkbox:checked');
+        const visibleCheckedBoxes = Array.from(checkedBoxes).filter(checkbox => 
+            checkbox.closest('tr').style.display !== 'none'
+        );
+        
+        if (visibleCheckedBoxes.length > 0) {
+            // 批量处理选中的试卷
+            const confirmed = await showConfirmDialog(
+                'DeepSeek智能评分', 
+                `确定要使用DeepSeek对选中的 ${visibleCheckedBoxes.length} 份试卷进行智能评分吗？\n\n智能评分将：\n• 分析学生答案的完整性和准确性\n• 提供详细的评分理由和建议\n• 自动计算合理的得分\n• 生成个性化反馈`, 
+                '开始智能评分'
+            );
+            if (!confirmed) return;
+            
+            showLoading(`正在使用DeepSeek批量智能评分 ${visibleCheckedBoxes.length} 份试卷...`);
+            
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (const checkbox of visibleCheckedBoxes) {
+                try {
+                    const resultId = checkbox.value;
+                    const response = await fetch('/api/teacher/grades/ai-grade-exam', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ resultId: resultId })
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch (error) {
+                    errorCount++;
+                    console.error(`AI批改试卷${checkbox.value}失败:`, error);
+                }
+            }
+            
+            hideLoading();
+            
+            if (successCount > 0) {
+                showNotification(`批量AI评分完成，成功处理 ${successCount} 份试卷${errorCount > 0 ? `，失败 ${errorCount} 份` : ''}`, 'success');
+                loadGradeList(); // 刷新列表
+            } else {
+                showNotification('批量AI评分失败，请重试', 'error');
+            }
+            
+        } else {
+            // 原有逻辑：如果没有选中试卷，询问考试批改
         const examFilter = document.getElementById('grade-exam-filter');
         const selectedExamId = examFilter?.value;
         
         if (!selectedExamId) {
-            showNotification('请先选择要批改的考试', 'warning');
+                showNotification('请先选择要批改的考试或勾选要批改的试卷', 'warning');
             return;
         }
         
@@ -8235,6 +8532,7 @@ async function autoGradeAll() {
             loadGradeList(); // 刷新列表
         } else {
             showNotification('批改失败：' + response.message, 'error');
+            }
         }
     } catch (error) {
         hideLoading();
@@ -9517,9 +9815,9 @@ function displayGradeDetailQuestions(questions, studentAnswers) {
                 <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${question.score || 10}分)</h5>
                     <div style="display: flex; align-items: center; gap: 10px;">
-                                            <span class="question-type" style="padding: 4px 8px; background: #3498db; color: white; border-radius: 4px; font-size: 12px;">
+                        <span class="question-type" style="padding: 4px 8px; background: #3498db; color: white; border-radius: 4px; font-size: 12px;">
                         ${getQuestionTypeDisplayName(question.type)}
-                    </span>
+                        </span>
                         <span class="answer-status" style="padding: 4px 8px; border-radius: 4px; font-size: 12px; ${isCorrect ? 'background: #27ae60; color: white;' : 'background: #e74c3c; color: white;'}">
                             ${isCorrect ? '正确' : '错误'}
                         </span>
@@ -9613,15 +9911,75 @@ function formatDateTime(dateTime) {
 // 发布选中考试的成绩
 async function publishSelectedExamGrades() {
     try {
+        // 获取选中的试卷
+        const checkedBoxes = document.querySelectorAll('.grade-checkbox:checked');
+        const visibleCheckedBoxes = Array.from(checkedBoxes).filter(checkbox => 
+            checkbox.closest('tr').style.display !== 'none'
+        );
+        
+        if (visibleCheckedBoxes.length > 0) {
+            // 批量发布选中的试卷成绩
+            const confirmed = await showConfirmDialog(
+                '批量发布成绩',
+                `确定要发布选中的 ${visibleCheckedBoxes.length} 份试卷的成绩吗？\n\n发布后学生将能够查看这些考试的成绩。`,
+                '发布成绩'
+            );
+            if (!confirmed) return;
+            
+            showLoading(`正在批量发布 ${visibleCheckedBoxes.length} 份试卷成绩...`);
+            
+            // 获取所有选中试卷的考试ID
+            const examIds = new Set();
+            visibleCheckedBoxes.forEach(checkbox => {
+                const row = checkbox.closest('tr');
+                const examId = row.getAttribute('data-exam-id');
+                if (examId) {
+                    examIds.add(examId);
+                }
+            });
+            
+            let successCount = 0;
+            let errorCount = 0;
+            
+            // 批量发布每个考试的成绩
+            for (const examId of examIds) {
+                try {
+                    const response = await TeacherAPI.publishGrades(examId, true);
+                    if (response.success) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch (error) {
+                    errorCount++;
+                    console.error(`发布考试${examId}成绩失败:`, error);
+                }
+            }
+            
+            hideLoading();
+            
+            if (successCount > 0) {
+                showNotification(`批量发布成绩完成，成功发布 ${successCount} 个考试的成绩${errorCount > 0 ? `，失败 ${errorCount} 个` : ''}`, 'success');
+                loadGradeList(); // 刷新列表
+            } else {
+                showNotification('批量发布成绩失败，请重试', 'error');
+            }
+            
+        } else {
+            // 原有逻辑：如果没有选中试卷，发布整个考试的成绩
         const examFilter = document.getElementById('grade-exam-filter');
         const selectedExamId = examFilter?.value;
         
         if (!selectedExamId) {
-            showNotification('请先选择要发布成绩的考试', 'warning');
+                showNotification('请先选择要发布成绩的考试或勾选要发布的试卷', 'warning');
             return;
         }
         
-        const confirmed = confirm('确定要发布所选考试的成绩吗？发布后学生将能够查看成绩。');
+            const confirmed = await showConfirmDialog(
+                '发布考试成绩',
+                '确定要发布所选考试的成绩吗？发布后学生将能够查看成绩。',
+                '发布成绩'
+            );
         if (!confirmed) return;
         
         showLoading('正在发布成绩...');
@@ -9633,6 +9991,7 @@ async function publishSelectedExamGrades() {
             loadGradeList(); // 刷新列表
         } else {
             showNotification('发布失败：' + response.message, 'error');
+            }
         }
     } catch (error) {
         hideLoading();

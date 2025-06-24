@@ -845,4 +845,58 @@ public class DeepSeekService {
         *注：本大纲由AI智能生成，基于上传的课程资料内容制定。*
         """;
     }
+
+    /**
+     * 生成题目帮助回答
+     */
+    public String generateQuestionHelpResponse(String questionContent, String questionType, 
+                                             String userQuestion, String correctAnswer, 
+                                             String explanation, List<Map<String, String>> chatHistory) {
+        
+        // 构建上下文信息
+        StringBuilder context = new StringBuilder();
+        context.append("题目信息：\n");
+        context.append("题目类型：").append(getQuestionTypeName(questionType)).append("\n");
+        context.append("题目内容：").append(questionContent).append("\n");
+        
+        if (correctAnswer != null && !correctAnswer.trim().isEmpty()) {
+            context.append("正确答案：").append(correctAnswer).append("\n");
+        }
+        
+        if (explanation != null && !explanation.trim().isEmpty()) {
+            context.append("题目解析：").append(explanation).append("\n");
+        }
+        
+        // 添加历史对话记录
+        if (chatHistory != null && !chatHistory.isEmpty()) {
+            context.append("\n历史对话：\n");
+            for (Map<String, String> chat : chatHistory) {
+                String role = chat.get("role");
+                String content = chat.get("content");
+                if ("user".equals(role)) {
+                    context.append("学生问：").append(content).append("\n");
+                } else if ("assistant".equals(role)) {
+                    context.append("AI答：").append(content).append("\n");
+                }
+            }
+        }
+        
+        // 构建完整的prompt
+        String prompt = String.format(
+            "你是一个专业的学习助手，正在帮助学生理解考试题目。请根据以下信息回答学生的问题：\n\n" +
+            "%s\n" +
+            "学生问题：%s\n\n" +
+            "请注意：\n" +
+            "1. 如果学生询问正确答案，只有在题目信息中包含正确答案时才能告诉学生\n" +
+            "2. 重点帮助学生理解题目思路和解题方法，而不是直接给出答案\n" +
+            "3. 如果有解析信息，可以基于解析进行详细说明\n" +
+            "4. 回答要通俗易懂，有教育意义\n" +
+            "5. 如果学生问题与当前题目无关，请引导学生回到题目讨论\n" +
+            "6. 保持友好、耐心的语气\n\n" +
+            "请回答学生的问题：",
+            context.toString(), userQuestion
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
 } 

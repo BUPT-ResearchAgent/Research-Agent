@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import com.example.smartedu.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +28,8 @@ import java.util.ArrayList;
 @RequestMapping("/api/student")
 @CrossOrigin(originPatterns = "*", allowCredentials = "true")
 public class StudentController {
+    
+    private static final Logger log = LoggerFactory.getLogger(StudentController.class);
     
     @Autowired
     private StudentManagementService studentManagementService;
@@ -1710,5 +1714,42 @@ public class StudentController {
             return "false";
         }
         return answer;
+    }
+
+    @PostMapping("/ai-question-help")
+    public ResponseEntity<?> getAIQuestionHelp(@RequestBody Map<String, Object> request) {
+        try {
+            String questionContent = (String) request.get("questionContent");
+            String questionType = (String) request.get("questionType");
+            String userQuestion = (String) request.get("userQuestion");
+            String correctAnswer = (String) request.get("correctAnswer");
+            String explanation = (String) request.get("explanation");
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> chatHistory = (List<Map<String, String>>) request.get("chatHistory");
+            
+            if (questionContent == null || userQuestion == null) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "缺少必要参数"));
+            }
+            
+            // 调用DeepSeek服务生成回答
+            String aiResponse = deepSeekService.generateQuestionHelpResponse(
+                questionContent, questionType, userQuestion, correctAnswer, explanation, chatHistory
+            );
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("data", Map.of("response", aiResponse));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("AI问答失败", e);
+            return ResponseEntity.ok(Map.of(
+                "success", false,
+                "message", "AI助手暂时无法回答，请稍后重试",
+                "error", e.getMessage()
+            ));
+        }
     }
 } 

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
+import java.time.LocalDateTime;
 
 @Service
 @Transactional
@@ -108,7 +109,9 @@ public class ExamService {
             
             // 创建考试记录
         Exam exam = new Exam();
-            exam.setTitle("AI生成试卷 - " + course.getName());
+            // 生成时间格式：yyyyMMddHHmm
+            String timeStamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
+            exam.setTitle(course.getName() + "+" + timeStamp);
             exam.setCourse(course);
             exam.setChapter("基于知识库内容");
             exam.setExamType("RAG生成");
@@ -2067,26 +2070,53 @@ public class ExamService {
                 .count();
             stats.put("draftExamCount", draftExamCount);
             
-            // 2. 进行中考试数（已发布但未结束）
+            // 2. 进行中考试数（已发布且正在进行中）
+            LocalDateTime now = LocalDateTime.now();
             long ongoingExamCount = allExams.stream()
                 .filter(exam -> exam.getIsPublished() != null && exam.getIsPublished())
                 .filter(exam -> {
-                    // 这里可以根据考试的开始时间和结束时间判断是否进行中
-                    // 简化处理：已发布的考试视为进行中（可以根据实际需求调整）
-                    return true; // 或者添加更复杂的时间判断逻辑
+                    // 判断考试是否正在进行中
+                    LocalDateTime startTime = exam.getStartTime();
+                    LocalDateTime endTime = exam.getEndTime();
+                    
+                    // 如果设置了具体的考试时间，按时间判断
+                    if (startTime != null && endTime != null) {
+                        return now.isAfter(startTime) && now.isBefore(endTime);
+                    } else if (startTime != null) {
+                        // 只设置了开始时间，检查是否已开始
+                        return now.isAfter(startTime);
+                    } else if (endTime != null) {
+                        // 只设置了结束时间，检查是否未结束
+                        return now.isBefore(endTime);
+                    }
+                    
+                    // 如果没有设置具体时间，则认为是随时可考的考试
+                    // 这种情况下，只要已发布且没有学生参与，或有学生正在考试中，就算进行中
+                    long totalParticipants = examResultRepository.countByExam(exam);
+                    if (totalParticipants == 0) {
+                        return true; // 已发布但还没有人参与，算作进行中
+                    }
+                    
+                    // 检查是否还有学生在考试中（已开始但未提交）
+                    List<ExamResult> allResults = examResultRepository.findByExam(exam);
+                    boolean hasUnsubmittedResults = allResults.stream()
+                        .anyMatch(result -> result.getSubmitTime() == null);
+                    
+                    return hasUnsubmittedResults; // 有未提交的答卷，说明还在进行中
                 })
                 .count();
             stats.put("ongoingExamCount", ongoingExamCount);
             
-            // 3. 待批改答卷数
-            long pendingGradeCount = 0;
-            for (Exam exam : allExams) {
-                if (exam.getIsPublished() != null && exam.getIsPublished()) {
-                    List<ExamResult> pendingResults = examResultRepository.findByExamAndGradeStatus(exam, "PENDING");
-                    pendingGradeCount += pendingResults.size();
-                }
-            }
-            stats.put("pendingGradeCount", pendingGradeCount);
+            // 3. 已结束考试数
+            long finishedExamCount = allExams.stream()
+                .filter(exam -> exam.getIsPublished() != null && exam.getIsPublished())
+                .filter(exam -> {
+                    // 判断考试是否已结束：有学生提交答案的考试视为已结束
+                    long submissionCount = examResultRepository.countByExam(exam);
+                    return submissionCount > 0;
+                })
+                .count();
+            stats.put("pendingGradeCount", finishedExamCount);
             
             // 4. 本月考试数
             java.time.LocalDateTime startOfMonth = java.time.LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);

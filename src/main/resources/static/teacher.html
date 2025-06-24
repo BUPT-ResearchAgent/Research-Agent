@@ -1055,9 +1055,9 @@
                             
                             <div class="stat-card">
                                 <div class="stat-header">
-                                    <div class="stat-title">待批改答卷</div>
-                                    <div class="stat-icon" style="background-color: rgba(231, 76, 60, 0.1);">
-                                        <i class="fas fa-marker" style="color: var(--danger-color);"></i>
+                                    <div class="stat-title">已结束考试</div>
+                                    <div class="stat-icon" style="background-color: rgba(155, 89, 182, 0.1);">
+                                        <i class="fas fa-check-circle" style="color: #9b59b6;"></i>
                                     </div>
                                 </div>
                                 <div class="stat-value" id="stat-pending-grades">0</div>
@@ -1177,6 +1177,9 @@
                     <div class="card-header">
                         <i class="fas fa-marker"></i> 待批改试卷
                         <div class="card-actions">
+                            <select id="grade-student-filter" class="form-select" onchange="filterGrades()">
+                                <option value="">所有学生</option>
+                            </select>
                             <select id="grade-exam-filter" class="form-select" onchange="filterGrades()">
                                 <option value="">所有考试</option>
                             </select>
@@ -1186,12 +1189,18 @@
                                 <option value="AI_GRADED">AI已批改</option>
                                 <option value="MANUAL_GRADED">人工已批改</option>
                             </select>
+                            <button class="btn btn-secondary" onclick="resetGradeFilters()" title="重置筛选" style="height: 40px; display: flex; align-items: center; white-space: nowrap;">
+                                <i class="fas fa-undo" style="margin-right: 6px;"></i>重置
+                            </button>
                         </div>
                     </div>
                     <div class="table-container">
                         <table id="grades-table">
                             <thead>
                                 <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" id="select-all-grades" onchange="toggleAllGrades()" style="transform: scale(1.2);">
+                                    </th>
                                     <th>学生姓名</th>
                                     <th>考试名称</th>
                                     <th>提交时间</th>

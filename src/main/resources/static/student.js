@@ -2923,6 +2923,11 @@ async function viewExamResult(examResultId) {
 
 // 显示考试结果模态框
 function showExamResultModal(data) {
+    // 保存考试数据供AI对话使用
+    currentExamData = data;
+    // 重置AI对话状态
+    closeAIChat();
+    
     const modal = document.getElementById('exam-result-modal');
     const examTitleElement = document.getElementById('result-exam-title');
     const submitTimeElement = document.getElementById('result-submit-time');
@@ -3028,6 +3033,12 @@ function showExamResultModal(data) {
                     <div class="result-question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${getQuestionTypeDisplayName(question.type)})</h5>
                         <div style="display: flex; align-items: center; gap: 10px;">
+                            <button class="ai-help-btn" onclick="openAIChat(${index})" title="AI学习助手" 
+                                    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);"
+                                    onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 4px 8px rgba(102, 126, 234, 0.4)';"
+                                    onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(102, 126, 234, 0.3)';">
+                                <i class="fas fa-robot" style="color: white; font-size: 12px;"></i>
+                            </button>
                             <span style="color: #7f8c8d; font-size: 14px;">得分：${studentScore}/${maxScore}分</span>
                             <span class="result-status" style="padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: 500; ${isCorrect ? 'background: #d4edda; color: #155724;' : 'background: #f8d7da; color: #721c24;'}">
                                 ${isCorrect ? '✓ 正确' : '✗ 错误'}
@@ -4114,3 +4125,329 @@ function updateExamCountBadge(count) {
         badge.style.display = count > 0 ? 'inline-block' : 'none';
     }
 }
+
+// ================ AI对话相关功能 ================
+
+// 全局变量
+let currentExamData = null;
+let currentQuestionIndex = -1;
+let aiChatHistory = [];
+
+// 打开AI对话
+function openAIChat(questionIndex) {
+    currentQuestionIndex = questionIndex;
+    
+    if (!currentExamData || !currentExamData.exam.questions) {
+        showNotification('无法获取题目信息', 'error');
+        return;
+    }
+    
+    const question = currentExamData.exam.questions[questionIndex];
+    if (!question) {
+        showNotification('题目不存在', 'error');
+        return;
+    }
+    
+    // 显示AI对话面板
+    const aiChatPanel = document.getElementById('ai-chat-panel');
+    aiChatPanel.style.display = 'flex';
+    
+    // 更新当前题目信息
+    const currentQuestionInfo = document.getElementById('current-question-info');
+    const currentQuestionTitle = document.getElementById('current-question-title');
+    
+    currentQuestionInfo.style.display = 'block';
+    currentQuestionTitle.textContent = `第${questionIndex + 1}题 (${getQuestionTypeDisplayName(question.type)})`;
+    
+    // 清空之前的对话并添加欢迎消息
+    clearAIChatMessages();
+    addAIChatMessage('AI', `您好！我是您的学习助手。您现在正在查看第${questionIndex + 1}题，有什么问题可以问我！`, 'ai');
+    
+    // 显示输入区域
+    const aiInputArea = document.getElementById('ai-input-area');
+    aiInputArea.style.display = 'block';
+    
+    // 更新状态
+    const aiStatus = document.getElementById('ai-status');
+    aiStatus.textContent = '正在为您服务...';
+    
+    // 设置事件监听器
+    setupAIChatEventListeners();
+    
+    // 聚焦到输入框
+    setTimeout(() => {
+        const messageInput = document.getElementById('ai-message-input');
+        if (messageInput) {
+            messageInput.focus();
+        }
+    }, 100);
+}
+
+// 关闭AI对话
+function closeAIChat() {
+    const aiChatPanel = document.getElementById('ai-chat-panel');
+    aiChatPanel.style.display = 'none';
+    
+    // 隐藏题目信息和输入区域
+    document.getElementById('current-question-info').style.display = 'none';
+    document.getElementById('ai-input-area').style.display = 'none';
+    
+    // 重置状态
+    const aiStatus = document.getElementById('ai-status');
+    aiStatus.textContent = '点击题目旁的机器人按钮开始对话';
+    
+    // 清空当前题目索引
+    currentQuestionIndex = -1;
+}
+
+// 设置AI对话事件监听器
+function setupAIChatEventListeners() {
+    // 移除旧的事件监听器
+    const closeBtn = document.getElementById('close-ai-chat');
+    const sendBtn = document.getElementById('send-ai-message');
+    const messageInput = document.getElementById('ai-message-input');
+    
+    // 关闭按钮
+    closeBtn.removeEventListener('click', closeAIChat);
+    closeBtn.addEventListener('click', closeAIChat);
+    
+    // 发送按钮
+    sendBtn.removeEventListener('click', sendAIMessage);
+    sendBtn.addEventListener('click', sendAIMessage);
+    
+    // 输入框回车键
+    messageInput.removeEventListener('keypress', handleAIInputKeyPress);
+    messageInput.addEventListener('keypress', handleAIInputKeyPress);
+}
+
+// 处理输入框回车键
+function handleAIInputKeyPress(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendAIMessage();
+    }
+}
+
+// 发送AI消息
+async function sendAIMessage() {
+    const messageInput = document.getElementById('ai-message-input');
+    const userMessage = messageInput.value.trim();
+    
+    if (!userMessage) {
+        showNotification('请输入您的问题', 'warning');
+        return;
+    }
+    
+    if (currentQuestionIndex < 0 || !currentExamData) {
+        showNotification('请先选择题目', 'error');
+        return;
+    }
+    
+    const question = currentExamData.exam.questions[currentQuestionIndex];
+    
+    // 清空输入框
+    messageInput.value = '';
+    
+    // 添加用户消息
+    addAIChatMessage('User', userMessage, 'user');
+    
+    // 显示AI正在思考
+    showAIThinking();
+    
+    try {
+        // 调用后端AI接口
+        const response = await fetch('/api/student/ai-question-help', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                questionContent: question.content,
+                questionType: question.type,
+                options: question.options || null,
+                correctAnswer: question.answer || null,
+                explanation: question.explanation || null,
+                userQuestion: userMessage,
+                chatHistory: aiChatHistory.slice(-6) // 只发送最近6条对话记录
+            })
+        });
+        
+        const result = await response.json();
+        
+        // 隐藏思考状态
+        hideAIThinking();
+        
+        if (result.success) {
+            // 添加AI回复
+            addAIChatMessage('AI', result.data.response, 'ai');
+            
+            // 保存对话历史
+            aiChatHistory.push({
+                role: 'user',
+                content: userMessage
+            });
+            aiChatHistory.push({
+                role: 'assistant',
+                content: result.data.response
+            });
+            
+            // 限制历史记录长度
+            if (aiChatHistory.length > 20) {
+                aiChatHistory = aiChatHistory.slice(-20);
+            }
+        } else {
+            addAIChatMessage('System', '抱歉，AI助手暂时无法回答您的问题，请稍后再试。', 'system');
+            showNotification(result.message || 'AI回复失败', 'error');
+        }
+        
+    } catch (error) {
+        console.error('AI对话错误:', error);
+        hideAIThinking();
+        addAIChatMessage('System', '网络连接异常，请检查网络后重试。', 'system');
+        showNotification('网络异常，请重试', 'error');
+    }
+}
+
+// 添加AI对话消息
+function addAIChatMessage(sender, message, type) {
+    const messagesContainer = document.getElementById('ai-chat-messages');
+    
+    // 如果是第一条消息，清空空状态
+    const emptyState = messagesContainer.querySelector('[style*="text-align: center"]');
+    if (emptyState) {
+        emptyState.remove();
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `ai-message ai-message-${type}`;
+    
+    const time = new Date().toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    let avatarHtml = '';
+    let messageStyle = '';
+    let headerStyle = '';
+    
+    if (type === 'user') {
+        avatarHtml = '<div style="width: 32px; height: 32px; border-radius: 50%; background: #007bff; display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: bold;">我</div>';
+        messageStyle = 'background: #007bff; color: white; margin-left: 8px; border-radius: 18px 18px 4px 18px;';
+        headerStyle = 'justify-content: flex-end;';
+    } else if (type === 'ai') {
+        avatarHtml = '<div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;"><i class="fas fa-robot" style="color: white; font-size: 14px;"></i></div>';
+        messageStyle = 'background: #f1f3f4; color: #333; margin-right: 8px; border-radius: 18px 18px 18px 4px;';
+        headerStyle = 'justify-content: flex-start;';
+    } else {
+        avatarHtml = '<div style="width: 32px; height: 32px; border-radius: 50%; background: #6c757d; display: flex; align-items: center; justify-content: center;"><i class="fas fa-info-circle" style="color: white; font-size: 14px;"></i></div>';
+        messageStyle = 'background: #fff3cd; color: #856404; margin-right: 8px; border-radius: 18px 18px 18px 4px; border: 1px solid #ffeaa7;';
+        headerStyle = 'justify-content: flex-start;';
+    }
+    
+    messageDiv.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; ${headerStyle}">
+            ${type !== 'user' ? avatarHtml : ''}
+            <div style="max-width: 85%; display: flex; flex-direction: column;">
+                <div style="padding: 10px 15px; ${messageStyle}">
+                    ${formatAIMessageText(message)}
+                </div>
+                <div style="font-size: 11px; color: #7f8c8d; margin-top: 4px; ${type === 'user' ? 'text-align: right;' : ''}">${time}</div>
+            </div>
+            ${type === 'user' ? avatarHtml : ''}
+        </div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    
+    // 滚动到底部
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// 显示AI思考状态
+function showAIThinking() {
+    const messagesContainer = document.getElementById('ai-chat-messages');
+    
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.id = 'ai-thinking';
+    thinkingDiv.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-robot" style="color: white; font-size: 14px;"></i>
+            </div>
+            <div style="background: #f1f3f4; color: #333; margin-right: 8px; border-radius: 18px 18px 18px 4px; padding: 10px 15px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span>正在思考</span>
+                    <div style="display: flex; gap: 2px;">
+                        <div style="width: 4px; height: 4px; border-radius: 50%; background: #667eea; animation: thinking-dot 1.4s infinite both; animation-delay: 0s;"></div>
+                        <div style="width: 4px; height: 4px; border-radius: 50%; background: #667eea; animation: thinking-dot 1.4s infinite both; animation-delay: 0.2s;"></div>
+                        <div style="width: 4px; height: 4px; border-radius: 50%; background: #667eea; animation: thinking-dot 1.4s infinite both; animation-delay: 0.4s;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(thinkingDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    // 添加动画样式
+    if (!document.querySelector('#thinking-animation-style')) {
+        const style = document.createElement('style');
+        style.id = 'thinking-animation-style';
+        style.textContent = `
+            @keyframes thinking-dot {
+                0%, 80%, 100% {
+                    transform: scale(0.8);
+                    opacity: 0.5;
+                }
+                40% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
+
+// 隐藏AI思考状态
+function hideAIThinking() {
+    const thinkingDiv = document.getElementById('ai-thinking');
+    if (thinkingDiv) {
+        thinkingDiv.remove();
+    }
+}
+
+// 清空AI对话消息
+function clearAIChatMessages() {
+    const messagesContainer = document.getElementById('ai-chat-messages');
+    messagesContainer.innerHTML = '';
+    aiChatHistory = [];
+}
+
+// 格式化AI消息
+function formatAIMessageText(message) {
+    // 转换markdown格式到HTML
+    return message
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br>')
+        .replace(/```(.*?)```/gs, '<pre style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; margin: 4px 0;"><code>$1</code></pre>')
+        .replace(/`(.*?)`/g, '<code style="background: #f8f9fa; padding: 2px 4px; border-radius: 2px; font-family: monospace; font-size: 13px;">$1</code>');
+}
+
+// 在页面加载时初始化AI聊天功能
+document.addEventListener('DOMContentLoaded', function() {
+    // 监听考试结果模态框的关闭事件
+    const modal = document.getElementById('exam-result-modal');
+    if (modal) {
+        const closeBtn = document.getElementById('close-result-modal');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                closeAIChat();
+                currentExamData = null;
+            });
+        }
+    }
+});
