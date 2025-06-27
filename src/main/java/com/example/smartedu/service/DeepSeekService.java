@@ -345,6 +345,7 @@ public class DeepSeekService {
                 "D. [选项D内容]\n" +
                 "**正确答案**：[完整答案内容，编程题请提供完整代码]\n" +
                 "**解析**：[详细解析]\n" +
+                "**知识点**：[简短的知识点标记，如：数据结构、算法分析等]\n" +
                 "**分值建议**：[具体分值]分\n\n" +
                 "**重要提醒**：\n" +
                 "- 单道题目时，请将所有内容作为一个完整题目输出\n" +
@@ -354,15 +355,16 @@ public class DeepSeekService {
                 :
                 // 多道题目的标准格式  
                 "### 题目X（题型类型）\n" +
-                "**题目内容**：[具体题目内容]\n" +
-                "**选项**：（如果是选择题）\n" +
-                "A. [选项A内容]\n" +
-                "B. [选项B内容]\n" +
-                "C. [选项C内容]\n" +
-                "D. [选项D内容]\n" +
-                "**正确答案**：[答案]\n" +
-                "**解析**：[详细解析]\n" +
-                "**分值建议**：[具体分值]分\n\n" +
+                            "**题目内容**：[具体题目内容]\n" +
+            "**选项**：（如果是选择题）\n" +
+            "A. [选项A内容]\n" +
+            "B. [选项B内容]\n" +
+            "C. [选项C内容]\n" +
+            "D. [选项D内容]\n" +
+            "**正确答案**：[答案]\n" +
+            "**解析**：[详细解析]\n" +
+            "**知识点**：[简短的知识点标记，如：数据结构、算法分析等]\n" +
+            "**分值建议**：[具体分值]分\n\n" +
                 "---\n\n"
             ) +
             "## 题型说明：\n" +
@@ -846,6 +848,55 @@ public class DeepSeekService {
         """;
     }
 
+    /**
+     * 为题目生成知识点标记
+     */
+    public String generateKnowledgePoint(String questionContent, String questionType) {
+        String prompt = String.format(
+            "请为以下题目生成一个简洁的知识点标记（3-8个字）：\n\n" +
+            "题目类型：%s\n" +
+            "题目内容：%s\n\n" +
+            "要求：\n" +
+            "1. 知识点标记要简洁明了，3-8个字\n" +
+            "2. 体现题目考查的核心知识领域\n" +
+            "3. 使用标准的学科术语\n" +
+            "4. 只返回知识点标记，不要其他内容\n\n" +
+            "示例：\n" +
+            "- 数据结构\n" +
+            "- 算法分析\n" +
+            "- 面向对象\n" +
+            "- 数据库设计\n" +
+            "- 网络协议\n" +
+            "- 系统架构\n\n" +
+            "请直接返回知识点标记：",
+            questionType, questionContent
+        );
+        
+        try {
+            String response = callDeepSeekAPI(prompt);
+            // 清理响应，去除多余的文字
+            if (response != null) {
+                response = response.trim()
+                    .replaceAll("知识点标记[：:]?", "")
+                    .replaceAll("知识点[：:]?", "")
+                    .replaceAll("^[：:：\\-\\s]+", "")
+                    .replaceAll("[：:：\\-\\s]+$", "")
+                    .trim();
+                
+                // 如果响应过长，取前8个字符
+                if (response.length() > 8) {
+                    response = response.substring(0, 8);
+                }
+                
+                return response.isEmpty() ? "未分类" : response;
+            }
+        } catch (Exception e) {
+            System.err.println("生成知识点失败: " + e.getMessage());
+        }
+        
+        return "未分类";
+    }
+    
     /**
      * 生成题目帮助回答
      */

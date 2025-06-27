@@ -30,6 +30,9 @@ public class Question {
     
     private Integer score; // 分值
     
+    @Column(length = 100)
+    private String knowledgePoint; // 知识点标记
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_id", nullable = false)
     @JsonBackReference
@@ -96,6 +99,14 @@ public class Question {
     
     public void setScore(Integer score) {
         this.score = score;
+    }
+    
+    public String getKnowledgePoint() {
+        return knowledgePoint;
+    }
+    
+    public void setKnowledgePoint(String knowledgePoint) {
+        this.knowledgePoint = knowledgePoint;
     }
     
     public Exam getExam() {

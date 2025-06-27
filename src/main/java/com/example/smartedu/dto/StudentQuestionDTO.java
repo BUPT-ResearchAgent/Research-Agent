@@ -20,16 +20,26 @@ public class StudentQuestionDTO {
     private Integer studentScore; // 学生得分
     private Boolean isCorrect; // 是否正确
     private String teacherFeedback; // 教师反馈
+    private String knowledgePoint; // 知识点（学生查看试卷时显示）
     
     private static final ObjectMapper objectMapper = new ObjectMapper();
     
     public StudentQuestionDTO() {}
     
     public StudentQuestionDTO(Question question, boolean showAnswers) {
+        this(question, showAnswers, true); // 默认显示知识点
+    }
+    
+    public StudentQuestionDTO(Question question, boolean showAnswers, boolean showKnowledgePoint) {
         this.id = question.getId();
         this.type = question.getType();
         this.content = question.getContent();
         this.score = question.getScore();
+        
+        // 根据参数决定是否显示知识点
+        if (showKnowledgePoint) {
+            this.knowledgePoint = question.getKnowledgePoint();
+        }
         
         // 解析选项
         if (question.getOptions() != null && !question.getOptions().isEmpty()) {
@@ -82,4 +92,7 @@ public class StudentQuestionDTO {
     
     public String getTeacherFeedback() { return teacherFeedback; }
     public void setTeacherFeedback(String teacherFeedback) { this.teacherFeedback = teacherFeedback; }
+    
+    public String getKnowledgePoint() { return knowledgePoint; }
+    public void setKnowledgePoint(String knowledgePoint) { this.knowledgePoint = knowledgePoint; }
 } 

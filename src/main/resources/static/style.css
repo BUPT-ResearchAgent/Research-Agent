@@ -4386,6 +4386,7 @@ section#gen-test .main-content {
     width: 100%;
     border-collapse: collapse;
     margin-top: 16px;
+    min-width: 1000px;
 }
 
 #exams-table th,
@@ -4403,6 +4404,7 @@ section#gen-test .main-content {
     position: sticky;
     top: 0;
     z-index: 1;
+    white-space: nowrap;
 }
 
 #exams-table tr:hover {

@@ -2416,7 +2416,9 @@ function renderExamQuestions() {
             <div class="question-item" style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                 <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <h5 style="margin: 0; color: #2c3e50; font-weight: 600;">第${questionNumber}题</h5>
+                        <h5 style="margin: 0; color: #2c3e50; font-weight: 600;">第${questionNumber}题
+                    ${question.knowledgePoint ? `<span style="background: #e8f5e8; color: #2e7d32; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 6px;">知识点：${question.knowledgePoint}</span>` : ''}
+                </h5>
                         <div style="padding: 4px 8px; background-color: #e8f4fd; border-radius: 4px; font-size: 12px; color: #2c5aa0;">${questionTypeInfo.displayName}</div>
                     </div>
                     <span style="color: #7f8c8d; font-size: 14px;">${question.score || 10}分</span>
@@ -3031,7 +3033,9 @@ function showExamResultModal(data) {
             return `
                 <div class="result-question-item" style="background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
                     <div class="result-question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${getQuestionTypeDisplayName(question.type)})</h5>
+                        <h5 style="margin: 0; color: #2c3e50;">第${questionNumber}题 (${getQuestionTypeDisplayName(question.type)})
+                    ${question.knowledgePoint ? `<span style="background: #e8f5e8; color: #2e7d32; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 6px;">知识点：${question.knowledgePoint}</span>` : ''}
+                </h5>
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <button class="ai-help-btn" onclick="openAIChat(${index})" title="AI学习助手" 
                                     style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);"

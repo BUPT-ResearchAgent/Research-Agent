@@ -65,11 +65,15 @@ public class StudentExamDTO {
     }
     
     public StudentExamDTO(Exam exam, boolean includeQuestions, boolean showAnswers) {
+        this(exam, includeQuestions, showAnswers, true); // 默认显示知识点
+    }
+    
+    public StudentExamDTO(Exam exam, boolean includeQuestions, boolean showAnswers, boolean showKnowledgePoint) {
         this(exam);
         
         if (includeQuestions && exam.getQuestions() != null) {
             this.questions = exam.getQuestions().stream()
-                    .map(q -> new StudentQuestionDTO(q, showAnswers))
+                    .map(q -> new StudentQuestionDTO(q, showAnswers, showKnowledgePoint))
                     .collect(Collectors.toList());
         }
     }

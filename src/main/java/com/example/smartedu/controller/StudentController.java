@@ -1257,8 +1257,8 @@ public class StudentController {
                 return ApiResponse.error("您已提交过此考试");
             }
             
-            // 构建考试DTO，包含题目但不显示答案
-            StudentExamDTO examDTO = new StudentExamDTO(exam, true, false);
+            // 构建考试DTO，包含题目但不显示答案和知识点（答题时）
+            StudentExamDTO examDTO = new StudentExamDTO(exam, true, false, false);
             examDTO.setHasSubmitted(false);
             
             // 计算剩余时间

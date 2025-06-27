@@ -698,6 +698,16 @@ public class ExamService {
             }
             question.setExplanation(explanation);
             
+            // 生成知识点
+            String knowledgePoint = extractContent(content, "**知识点**：", "**");
+            if (knowledgePoint != null && !knowledgePoint.trim().isEmpty()) {
+                question.setKnowledgePoint(knowledgePoint.trim());
+            } else {
+                // 使用DeepSeek生成知识点
+                String generatedKnowledgePoint = generateKnowledgePoint(questionContent, questionType);
+                question.setKnowledgePoint(generatedKnowledgePoint);
+            }
+            
             // 设置分值
             int totalScore = exam.getTotalScore() != null ? exam.getTotalScore() : 100;
             question.setScore(totalScore); // 单题情况下使用全部分值
@@ -821,6 +831,16 @@ public class ExamService {
             String explanation = extractContent(block, "**解析**：", "**");
             if (explanation != null) {
                 question.setExplanation(explanation.trim());
+            }
+            
+            // 提取知识点
+            String knowledgePoint = extractContent(block, "**知识点**：", "**");
+            if (knowledgePoint != null && !knowledgePoint.trim().isEmpty()) {
+                question.setKnowledgePoint(knowledgePoint.trim());
+            } else {
+                // 如果没有显式提取到知识点，使用DeepSeek生成
+                String generatedKnowledgePoint = generateKnowledgePoint(question.getContent(), questionType);
+                question.setKnowledgePoint(generatedKnowledgePoint);
             }
             
             // 提取分值
@@ -1766,6 +1786,21 @@ public class ExamService {
     /**
      * 根据题型获取默认答案
      */
+    
+    /**
+     * 为题目生成知识点标记
+     */
+    private String generateKnowledgePoint(String questionContent, String questionType) {
+        try {
+            // 调用DeepSeek生成知识点
+            String knowledgePoint = deepSeekService.generateKnowledgePoint(questionContent, questionType);
+            return knowledgePoint != null && !knowledgePoint.trim().isEmpty() ? knowledgePoint.trim() : "未分类";
+        } catch (Exception e) {
+            System.err.println("生成知识点失败: " + e.getMessage());
+            return "未分类";
+        }
+    }
+    
     private String getDefaultAnswerForType(String questionType) {
         if (questionType.contains("choice") || questionType.contains("选择")) {
             return "A";

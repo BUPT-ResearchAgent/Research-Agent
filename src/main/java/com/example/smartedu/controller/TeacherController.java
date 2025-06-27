@@ -908,7 +908,7 @@ public class TeacherController {
                             gradeInfo.put("studentNumber", result.getStudent().getStudentId());
                             gradeInfo.put("examTitle", exam.getTitle());
                             gradeInfo.put("submitTime", result.getSubmitTime());
-                            gradeInfo.put("aiScore", result.getScore()); // AI评分
+                            gradeInfo.put("aiScore", result.getAiScore()); // AI评分
                             gradeInfo.put("finalScore", result.getFinalScore()); // 最终得分
                             gradeInfo.put("totalScore", result.getTotalScore());
                             gradeInfo.put("gradeStatus", result.getGradeStatus());
@@ -1181,10 +1181,10 @@ public class TeacherController {
                     gradedCount++;
                 } catch (Exception e) {
                     System.err.println("智能评分失败，学生ID: " + result.getStudent().getId() + ", 错误: " + e.getMessage());
-                    // 智能评分失败时，保持原有评分
+                    // 智能评分失败时，保持原有评分，但存到aiScore字段
                     result.setGradeStatus("AI_GRADED");
                     result.setIsCorrected(true);
-                    result.setFinalScore(result.getScore().doubleValue());
+                    result.setAiScore(result.getScore().doubleValue());
                     examResultRepository.save(result);
                     gradedCount++;
                 }
@@ -1357,7 +1357,7 @@ public class TeacherController {
                 Map<String, Object> questionAnalysis = new HashMap<>();
                 questionAnalysis.put("questionNumber", i + 1);
                 questionAnalysis.put("questionType", getQuestionTypeDisplayName(question.getType()));
-                questionAnalysis.put("knowledgePoint", "未分类"); // 暂时固定为未分类，后续可扩展
+                questionAnalysis.put("knowledgePoint", question.getKnowledgePoint() != null ? question.getKnowledgePoint() : "未分类");
                 questionAnalysis.put("errorRate", Math.round(errorRate * 100.0) / 100.0);
                 questionAnalysis.put("commonErrors", generateCommonErrors(question, submittedResults));
                 
@@ -1482,7 +1482,7 @@ public class TeacherController {
                     Map<String, Object> errorItem = new HashMap<>();
                     errorItem.put("questionNumber", i + 1);
                     errorItem.put("questionType", getQuestionTypeName(question.getType()));
-                    errorItem.put("knowledgePoint", "未分类"); // 暂时固定值，后续可扩展
+                    errorItem.put("knowledgePoint", question.getKnowledgePoint() != null ? question.getKnowledgePoint() : "未分类");
                     errorItem.put("errorRate", String.format("%.1f", errorRate));
                     errorItem.put("commonErrors", generateCommonErrors(question, submittedResults));
                     
@@ -1678,7 +1678,7 @@ public class TeacherController {
             html.append("<tr>");
             html.append("<td>第").append(error.get("questionNumber")).append("题</td>");
             html.append("<td>").append(error.get("questionType")).append("</td>");
-            html.append("<td>").append(error.get("knowledgePoint")).append("</td>");
+                                html.append("<td>").append(error.get("knowledgePoint") != null ? error.get("knowledgePoint") : "未分类").append("</td>");
             html.append("<td><span class='error-rate ").append(errorClass).append("'>").append(error.get("errorRate")).append("%</span></td>");
             html.append("<td>").append(error.get("commonErrors")).append("</td>");
             html.append("</tr>");
@@ -1783,20 +1783,20 @@ public class TeacherController {
                     }
                 }
                 
-                // 更新考试结果的最终得分
+                // 更新考试结果的AI评分
                 if (processedCount > 0) {
-                    double originalFinalScore = examResult.getFinalScore() != null ? examResult.getFinalScore() : examResult.getScore().doubleValue();
-                    double newFinalScore = Math.max(0, originalFinalScore + totalAdjustment);
-                    examResult.setFinalScore(newFinalScore);
+                    double originalAiScore = examResult.getAiScore() != null ? examResult.getAiScore() : examResult.getScore().doubleValue();
+                    double newAiScore = Math.max(0, originalAiScore + totalAdjustment);
+                    examResult.setAiScore(newAiScore);
                     
                     System.out.println("智能评分完成 - 学生ID: " + examResult.getStudent().getId() + 
                                      ", 处理题目数: " + processedCount + 
                                      ", 分数调整: " + totalAdjustment + 
-                                     ", 最终得分: " + newFinalScore);
+                                     ", AI得分: " + newAiScore);
                 }
             } else {
                 // 没有需要智能评分的题目，保持原有分数
-                examResult.setFinalScore(examResult.getScore().doubleValue());
+                examResult.setAiScore(examResult.getScore().doubleValue());
             }
             
         } catch (Exception e) {
@@ -1926,20 +1926,20 @@ public class TeacherController {
             studentAnswer.setTeacherFeedback("AI智能评分");
             studentAnswerRepository.save(studentAnswer);
             
-            // 重新计算考试总分
+            // 重新计算考试AI总分
             ExamResult examResult = studentAnswer.getExamResult();
             List<StudentAnswer> allAnswers = studentAnswerRepository.findByExamResultId(examResult.getId());
             double totalScore = allAnswers.stream()
                 .mapToDouble(sa -> sa.getScore() != null ? sa.getScore() : 0.0)
                 .sum();
             
-            examResult.setFinalScore(totalScore);
+            examResult.setAiScore(totalScore);
             examResultRepository.save(examResult);
             
             System.out.println("应用AI评分 - 学生答案ID: " + studentAnswerId + 
                              ", 原分数: " + originalScore + 
                              ", 新分数: " + aiScore + 
-                             ", 考试总分: " + totalScore);
+                             ", 考试AI总分: " + totalScore);
             
             return ApiResponse.success("AI评分已应用");
             
@@ -2092,7 +2092,7 @@ public class TeacherController {
             
             // 更新考试结果
             result.setScore((int) Math.round(newTotalScore));
-            result.setFinalScore(newTotalScore);
+            result.setAiScore(newTotalScore); // AI评分存到aiScore字段
             result.setGradeStatus("AI_GRADED");
             examResultRepository.save(result);
             

@@ -1795,7 +1795,9 @@ function displayExamPreview(examData) {
             
             questionsHtml += `
                 <div class="question-item">
-                    <h4>第${index + 1}题 (${question.score || 2}分)</h4>
+                    <h4>第${index + 1}题 (${question.score || 2}分)
+                        ${question.knowledgePoint ? `<span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">知识点：${question.knowledgePoint}</span>` : ''}
+                    </h4>
                     <div class="question-content">${formatTeacherMarkdown(question.content || '题目内容加载失败')}</div>
                     ${options.length > 0 ? `
                         <div class="question-options">
@@ -2886,13 +2888,13 @@ function displayScoreDistributionChart(distribution) {
         chartHtml += `
             <div style="display: flex; flex-direction: column; align-items: center; margin: 0 8px; position: relative; cursor: pointer;" 
                  title="${labels[index]}: ${count}人 (${percentage}%)">
-                <div style="font-size: 13px; margin-bottom: 5px; color: #2c3e50; font-weight: bold;">${count}</div>
-                <div style="font-size: 10px; margin-bottom: 3px; color: #7f8c8d;">${percentage}%</div>
                 <div style="width: 45px; background: linear-gradient(to top, ${colors[index]}, ${colors[index]}88); 
                            height: ${height}px; border-radius: 6px 6px 0 0; transition: all 0.3s ease; 
                            box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative;">
-                    ${height > 20 ? `<div style="position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); 
-                                             color: white; font-size: 10px; font-weight: bold;">${count}</div>` : ''}
+                    <div style="position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); 
+                                             color: white; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">${count}</div>
+                    <div style="position: absolute; top: 5px; left: 50%; transform: translateX(-50%); 
+                                             color: white; font-size: 9px; font-weight: 500; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">${percentage}%</div>
                 </div>
                 <div style="font-size: 11px; margin-top: 8px; color: #2c3e50; text-align: center; font-weight: 500;">${range}</div>
                 <div style="font-size: 9px; color: #7f8c8d; text-align: center;">${labels[index]}</div>
@@ -6726,6 +6728,12 @@ function generateExamMarkdown(examData) {
         }
         
         questionText += `**分值建议**：${question.score || 2}分\n\n`;
+        
+        // 添加知识点信息（如果有的话）
+        if (question.knowledgePoint) {
+            questionText += `**知识点**：${question.knowledgePoint}\n\n`;
+        }
+        
         questionText += '---\n\n';
         
         return questionText;
@@ -6782,6 +6790,12 @@ function generateMarkdownFromQuestions(questions) {
         }
         
         questionText += `**分值建议**：${question.score || 2}分\n\n`;
+        
+        // 添加知识点信息（如果有的话）
+        if (question.knowledgePoint) {
+            questionText += `**知识点**：${question.knowledgePoint}\n\n`;
+        }
+        
         questionText += '---\n\n';
         
         return questionText;
@@ -6909,6 +6923,10 @@ function parseQuestionBlockToData(block, questionIndex) {
         const scoreMatch = block.match(/\*\*分值建议\*\*：(\d+)分/);
         const score = scoreMatch ? parseInt(scoreMatch[1]) : 10;
         
+        // 提取知识点（如果有的话）
+        const knowledgePointMatch = block.match(/\*\*知识点\*\*：([^\n]+)/);
+        const knowledgePoint = knowledgePointMatch ? knowledgePointMatch[1].trim() : null;
+        
         return {
             title: title,
             content: content,
@@ -6918,7 +6936,8 @@ function parseQuestionBlockToData(block, questionIndex) {
             answer: correctAnswer,
             explanation: explanation,
             analysis: explanation,
-            score: score
+            score: score,
+            knowledgePoint: knowledgePoint
         };
         
     } catch (error) {
@@ -6978,10 +6997,16 @@ function parseQuestionBlock(block, questionIndex) {
         const scoreMatch = block.match(/\*\*分值建议\*\*：(\d+)分/);
         const score = scoreMatch ? scoreMatch[1] : '2';
         
+        // 提取知识点（如果有的话）
+        const knowledgePointMatch = block.match(/\*\*知识点\*\*：([^\n]+)/);
+        const knowledgePoint = knowledgePointMatch ? knowledgePointMatch[1].trim() : null;
+        
         // 生成HTML结构（与displayExamPreview一致）
         return `
             <div class="question-item">
-                <h4>第${questionIndex}题 (${score}分)</h4>
+                <h4>第${questionIndex}题 (${score}分)
+                    ${knowledgePoint ? `<span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">知识点：${knowledgePoint}</span>` : ''}
+                </h4>
                 <div class="question-content">${formatTeacherMarkdown(content)}</div>
                 ${optionsHtml}
                 <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
@@ -9244,6 +9269,7 @@ function renderExamQuestions(questions) {
                 <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h4 style="color: #3498db; margin: 0; font-size: 16px; font-weight: 600;">
                         第${questionNumber}题 (${score}分)
+                        ${question.knowledgePoint ? `<span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">知识点：${question.knowledgePoint}</span>` : ''}
                     </h4>
                 </div>
                 
@@ -10254,6 +10280,7 @@ function renderExamPreviewFromData(examData, container = null) {
             <div class="preview-question" style="margin-bottom: 25px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: #fafbfc;">
                 <div class="preview-question-header" style="margin-bottom: 10px;">
                     <span style="color: #3498db; font-weight: 600; font-size: 14px;">第${questionNumber}题 (${question.score || 10}分)</span>
+                    ${question.knowledgePoint ? `<span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">知识点：${question.knowledgePoint}</span>` : ''}
                 </div>
                 
                 <div class="preview-question-content" style="margin-bottom: 15px; line-height: 1.6;">

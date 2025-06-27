@@ -195,6 +195,7 @@ public class ExamDTO {
         private String answer;
         private String explanation;
         private Integer score;
+        private String knowledgePoint; // 知识点
         
         public QuestionDTO() {}
         
@@ -206,6 +207,7 @@ public class ExamDTO {
             this.answer = question.getAnswer();
             this.explanation = question.getExplanation();
             this.score = question.getScore();
+            this.knowledgePoint = question.getKnowledgePoint();
         }
         
         // Getter和Setter方法
@@ -263,6 +265,14 @@ public class ExamDTO {
         
         public void setScore(Integer score) {
             this.score = score;
+        }
+        
+        public String getKnowledgePoint() {
+            return knowledgePoint;
+        }
+        
+        public void setKnowledgePoint(String knowledgePoint) {
+            this.knowledgePoint = knowledgePoint;
         }
     }
 } 
