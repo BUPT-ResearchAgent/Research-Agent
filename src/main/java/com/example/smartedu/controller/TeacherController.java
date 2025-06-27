@@ -11,8 +11,23 @@ import com.example.smartedu.service.CourseService;
 import com.example.smartedu.service.DeepSeekService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.itextpdf.html2pdf.HtmlConverter;
+import com.itextpdf.html2pdf.ConverterProperties;
+import com.itextpdf.layout.font.FontProvider;
+import com.itextpdf.io.font.constants.StandardFonts;
+import com.itextpdf.kernel.font.PdfFont;
+import com.itextpdf.kernel.font.PdfFontFactory;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 
 
 import java.time.LocalDateTime;
@@ -1266,8 +1281,11 @@ public class TeacherController {
                 emptyAnalysis.put("averageScore", 0.0);
                 emptyAnalysis.put("maxScore", 0.0);
                 emptyAnalysis.put("minScore", 0.0);
+                emptyAnalysis.put("passRate", 0.0);
                 emptyAnalysis.put("standardDeviation", 0.0);
                 emptyAnalysis.put("scoreDistribution", new HashMap<>());
+                emptyAnalysis.put("examTitle", exam.getTitle());
+                emptyAnalysis.put("totalScore", exam.getTotalScore());
                 return ApiResponse.success("获取分析数据成功", emptyAnalysis);
             }
             
@@ -1294,7 +1312,14 @@ public class TeacherController {
             scoreDistribution.put("60-69", 0);
             scoreDistribution.put("0-59", 0);
             
+            // 计算及格率（以60分为及格线）
+            long passCount = 0;
+            
             for (Double score : scores) {
+                if (score >= 60) {
+                    passCount++;
+                }
+                
                 if (score >= 90) scoreDistribution.put("90-100", scoreDistribution.get("90-100") + 1);
                 else if (score >= 80) scoreDistribution.put("80-89", scoreDistribution.get("80-89") + 1);
                 else if (score >= 70) scoreDistribution.put("70-79", scoreDistribution.get("70-79") + 1);
@@ -1302,13 +1327,52 @@ public class TeacherController {
                 else scoreDistribution.put("0-59", scoreDistribution.get("0-59") + 1);
             }
             
+            double passRate = submittedResults.size() > 0 ? (passCount * 100.0) / submittedResults.size() : 0.0;
+            
+            // 错误率分析
+            List<Map<String, Object>> errorAnalysis = new ArrayList<>();
+            List<Question> questions = questionRepository.findByExamId(examId);
+            
+            for (int i = 0; i < questions.size(); i++) {
+                Question question = questions.get(i);
+                
+                // 计算该题的错误率
+                long totalAnswers = 0;
+                long correctAnswers = 0;
+                
+                for (ExamResult result : submittedResults) {
+                    List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultIdAndQuestionId(result.getId(), question.getId());
+                    if (!studentAnswers.isEmpty()) {
+                        totalAnswers++;
+                        StudentAnswer answer = studentAnswers.get(0);
+                        // 基于得分判断是否正确（得满分视为正确）
+                        if (answer.getScore() != null && answer.getScore().equals(question.getScore())) {
+                            correctAnswers++;
+                        }
+                    }
+                }
+                
+                double errorRate = totalAnswers > 0 ? ((totalAnswers - correctAnswers) * 100.0) / totalAnswers : 0.0;
+                
+                Map<String, Object> questionAnalysis = new HashMap<>();
+                questionAnalysis.put("questionNumber", i + 1);
+                questionAnalysis.put("questionType", getQuestionTypeDisplayName(question.getType()));
+                questionAnalysis.put("knowledgePoint", "未分类"); // 暂时固定为未分类，后续可扩展
+                questionAnalysis.put("errorRate", Math.round(errorRate * 100.0) / 100.0);
+                questionAnalysis.put("commonErrors", generateCommonErrors(question, submittedResults));
+                
+                errorAnalysis.add(questionAnalysis);
+            }
+            
             Map<String, Object> analysis = new HashMap<>();
             analysis.put("participantCount", submittedResults.size());
             analysis.put("averageScore", Math.round(averageScore * 100.0) / 100.0);
             analysis.put("maxScore", maxScore);
             analysis.put("minScore", minScore);
+            analysis.put("passRate", Math.round(passRate * 100.0) / 100.0);
             analysis.put("standardDeviation", Math.round(standardDeviation * 100.0) / 100.0);
             analysis.put("scoreDistribution", scoreDistribution);
+            analysis.put("errorAnalysis", errorAnalysis);
             analysis.put("examTitle", exam.getTitle());
             analysis.put("totalScore", exam.getTotalScore());
             
@@ -1316,6 +1380,319 @@ public class TeacherController {
         } catch (Exception e) {
             return ApiResponse.error("获取分析数据失败：" + e.getMessage());
         }
+    }
+    
+    /**
+     * 导出成绩分析报告为PDF
+     */
+    @GetMapping("/analysis/{examId}/export")
+    public ResponseEntity<byte[]> exportAnalysisReport(@PathVariable Long examId,
+                                                       jakarta.servlet.http.HttpSession session) {
+        try {
+            // 权限检查
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ResponseEntity.status(401).build();
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ResponseEntity.status(403).build();
+            }
+            
+            // 获取考试信息
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            Exam exam = examOpt.get();
+            
+            // 获取分析数据（复用现有逻辑）
+            List<ExamResult> examResults = examResultRepository.findByExamId(examId);
+            if (examResults.isEmpty()) {
+                return ResponseEntity.noContent().build();
+            }
+            
+            // 只考虑已批改或已提交的结果
+            List<ExamResult> submittedResults = examResults.stream()
+                    .filter(result -> result.getSubmitTime() != null)
+                    .collect(Collectors.toList());
+            
+            if (submittedResults.isEmpty()) {
+                return ResponseEntity.noContent().build();
+            }
+            
+            // 计算统计数据
+            double averageScore = submittedResults.stream()
+                    .mapToDouble(ExamResult::getTotalScore)
+                    .average()
+                    .orElse(0.0);
+            
+            double maxScore = submittedResults.stream()
+                    .mapToDouble(ExamResult::getTotalScore)
+                    .max()
+                    .orElse(0.0);
+            
+            long passCount = submittedResults.stream()
+                    .mapToLong(result -> result.getTotalScore() >= 60 ? 1L : 0L)
+                    .sum();
+            
+            double passRate = (double) passCount / submittedResults.size() * 100;
+            
+            // 计算标准差
+            double variance = submittedResults.stream()
+                    .mapToDouble(result -> Math.pow(result.getTotalScore() - averageScore, 2))
+                    .average()
+                    .orElse(0.0);
+            double standardDeviation = Math.sqrt(variance);
+            
+            // 成绩分布统计
+            Map<String, Integer> scoreDistribution = new HashMap<>();
+            scoreDistribution.put("90-100", 0);
+            scoreDistribution.put("80-89", 0);
+            scoreDistribution.put("70-79", 0);
+            scoreDistribution.put("60-69", 0);
+            scoreDistribution.put("0-59", 0);
+            
+            submittedResults.forEach(result -> {
+                double score = result.getTotalScore();
+                if (score >= 90) scoreDistribution.put("90-100", scoreDistribution.get("90-100") + 1);
+                else if (score >= 80) scoreDistribution.put("80-89", scoreDistribution.get("80-89") + 1);
+                else if (score >= 70) scoreDistribution.put("70-79", scoreDistribution.get("70-79") + 1);
+                else if (score >= 60) scoreDistribution.put("60-69", scoreDistribution.get("60-69") + 1);
+                else scoreDistribution.put("0-59", scoreDistribution.get("0-59") + 1);
+            });
+            
+            // 错误率分析
+            List<Map<String, Object>> errorAnalysis = new ArrayList<>();
+            List<Question> questions = questionRepository.findByExamId(examId);
+            
+            for (int i = 0; i < questions.size(); i++) {
+                Question question = questions.get(i);
+                List<StudentAnswer> answers = studentAnswerRepository.findByQuestionId(question.getId());
+                
+                if (!answers.isEmpty()) {
+                    long wrongCount = answers.stream()
+                            .mapToLong(answer -> (answer.getIsCorrect() != null && !answer.getIsCorrect()) ? 1L : 0L)
+                            .sum();
+                    
+                    double errorRate = (double) wrongCount / answers.size() * 100;
+                    
+                    Map<String, Object> errorItem = new HashMap<>();
+                    errorItem.put("questionNumber", i + 1);
+                    errorItem.put("questionType", getQuestionTypeName(question.getType()));
+                    errorItem.put("knowledgePoint", "未分类"); // 暂时固定值，后续可扩展
+                    errorItem.put("errorRate", String.format("%.1f", errorRate));
+                    errorItem.put("commonErrors", generateCommonErrors(question, submittedResults));
+                    
+                    errorAnalysis.add(errorItem);
+                }
+            }
+            
+            // 生成HTML报告
+            String htmlContent = generateAnalysisReportHtml(exam, averageScore, maxScore, passRate, 
+                                                           standardDeviation, scoreDistribution, errorAnalysis, submittedResults.size());
+            
+            // 转换HTML为PDF
+            ByteArrayOutputStream pdfOutputStream = new ByteArrayOutputStream();
+            
+            try {
+                // 配置中文字体支持
+                ConverterProperties converterProperties = new ConverterProperties();
+                FontProvider fontProvider = new FontProvider();
+                
+                // 添加系统默认字体
+                fontProvider.addStandardPdfFonts();
+                
+                // 尝试添加中文字体
+                try {
+                    // 添加内置的亚洲字体支持
+                    fontProvider.addFont("STSongStd-Light", "UniGB-UCS2-H");
+                    fontProvider.addFont("STSong-Light", "UniGB-UCS2-H");
+                    fontProvider.addFont("HeiseiMinStd-W3", "UniJIS-UCS2-H");
+                    fontProvider.addFont("HeiseiKakuGothicStd-W5", "UniJIS-UCS2-H");
+                    System.out.println("成功加载中文字体支持");
+                } catch (Exception fontException) {
+                    System.out.println("中文字体加载警告: " + fontException.getMessage());
+                    // 尝试加载系统字体
+                    try {
+                        fontProvider.addSystemFonts();
+                        System.out.println("已加载系统字体作为备选");
+                    } catch (Exception sysException) {
+                        System.out.println("系统字体加载失败: " + sysException.getMessage());
+                        // 最后备选：使用标准字体
+                        fontProvider.addFont(StandardFonts.HELVETICA);
+                    }
+                }
+                
+                converterProperties.setFontProvider(fontProvider);
+                
+                // 设置字符集
+                converterProperties.setCharset("UTF-8");
+                
+                // 转换HTML为PDF
+                HtmlConverter.convertToPdf(htmlContent, pdfOutputStream, converterProperties);
+            } catch (Exception e) {
+                // 如果PDF转换失败，降级为HTML格式
+                System.err.println("PDF转换失败，使用HTML格式: " + e.getMessage());
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
+                String fileName = String.format("成绩分析报告_%s_%s.html", exam.getTitle(), sdf.format(new java.util.Date()));
+                String encodedFileName = URLEncoder.encode(fileName, "UTF-8").replaceAll("\\+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.TEXT_HTML);
+                headers.set("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFileName);
+                headers.set("Cache-Control", "no-cache");
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(htmlContent.getBytes("UTF-8"));
+            }
+            
+            // 生成PDF文件名并进行URL编码
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
+            String fileName = String.format("成绩分析报告_%s_%s.pdf", exam.getTitle(), sdf.format(new java.util.Date()));
+            String encodedFileName = URLEncoder.encode(fileName, "UTF-8").replaceAll("\\+", "%20");
+            
+            // 设置PDF响应头
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.set("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFileName);
+            headers.set("Cache-Control", "no-cache");
+            headers.setContentLength(pdfOutputStream.size());
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(pdfOutputStream.toByteArray());
+                    
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+    
+    /**
+     * 生成分析报告HTML内容
+     */
+    private String generateAnalysisReportHtml(Exam exam, double averageScore, double maxScore, 
+                                             double passRate, double standardDeviation,
+                                             Map<String, Integer> scoreDistribution,
+                                             List<Map<String, Object>> errorAnalysis,
+                                             int totalStudents) {
+        
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss");
+        String currentTime = sdf.format(new java.util.Date());
+        
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html>");
+        html.append("<html lang='zh-CN'><head>");
+        html.append("<meta charset='UTF-8'>");
+        html.append("<meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>");
+        html.append("<meta name='viewport' content='width=device-width, initial-scale=1.0'>");
+        html.append("<title>成绩分析报告</title>");
+        html.append("<style>");
+        html.append("@page { size: A4; margin: 1cm; }");
+        html.append("body { font-family: 'STSong-Light', 'STSongStd-Light', 'SimSun', 'Microsoft YaHei', sans-serif; font-size: 12px; margin: 0; padding: 20px; line-height: 1.4; }");
+        html.append("h1 { color: #2c3e50; text-align: center; font-size: 20px; margin-bottom: 30px; page-break-after: avoid; }");
+        html.append("h2 { color: #34495e; font-size: 16px; margin-top: 25px; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 5px; page-break-after: avoid; }");
+        html.append(".header-info { background: #f8f9fa; padding: 15px; border: 1px solid #e9ecef; margin-bottom: 20px; page-break-inside: avoid; }");
+        html.append(".stats-container { display: table; width: 100%; margin: 20px 0; page-break-inside: avoid; }");
+        html.append(".stats-row { display: table-row; }");
+        html.append(".stat-cell { display: table-cell; width: 25%; padding: 10px; text-align: center; border: 1px solid #e9ecef; background: #fff; }");
+        html.append(".stat-value { font-size: 18px; font-weight: bold; color: #2c3e50; display: block; }");
+        html.append(".stat-label { font-size: 11px; color: #7f8c8d; margin-top: 5px; display: block; }");
+        html.append("table { width: 100%; border-collapse: collapse; margin: 15px 0; page-break-inside: avoid; }");
+        html.append("th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 11px; }");
+        html.append("th { background-color: #f2f2f2; font-weight: bold; }");
+        html.append(".distribution-table td { text-align: center; }");
+        html.append(".error-rate { font-weight: bold; }");
+        html.append(".error-rate.high { color: #e74c3c; }");
+        html.append(".error-rate.medium { color: #f39c12; }");
+        html.append(".error-rate.low { color: #27ae60; }");
+        html.append(".footer { margin-top: 30px; text-align: center; font-size: 10px; color: #7f8c8d; page-break-inside: avoid; }");
+        html.append("</style>");
+        html.append("</head><body>");
+        
+        // 标题
+        html.append("<h1>").append(exam.getTitle()).append(" - 成绩分析报告</h1>");
+        
+        // 基本信息
+        html.append("<div class='header-info'>");
+        html.append("<p><strong>考试名称：</strong>").append(exam.getTitle()).append("</p>");
+        html.append("<p><strong>参与人数：</strong>").append(totalStudents).append("人</p>");
+        html.append("<p><strong>生成时间：</strong>").append(currentTime).append("</p>");
+        html.append("</div>");
+        
+        // 统计数据
+        html.append("<h2>统计概览</h2>");
+        html.append("<div class='stats-container'>");
+        html.append("<div class='stats-row'>");
+        html.append("<div class='stat-cell'>");
+        html.append("<span class='stat-value'>").append(String.format("%.1f", averageScore)).append("</span>");
+        html.append("<span class='stat-label'>平均分</span>");
+        html.append("</div>");
+        html.append("<div class='stat-cell'>");
+        html.append("<span class='stat-value'>").append(String.format("%.1f", maxScore)).append("</span>");
+        html.append("<span class='stat-label'>最高分</span>");
+        html.append("</div>");
+        html.append("<div class='stat-cell'>");
+        html.append("<span class='stat-value'>").append(String.format("%.1f%%", passRate)).append("</span>");
+        html.append("<span class='stat-label'>及格率</span>");
+        html.append("</div>");
+        html.append("<div class='stat-cell'>");
+        html.append("<span class='stat-value'>").append(String.format("%.1f", standardDeviation)).append("</span>");
+        html.append("<span class='stat-label'>标准差</span>");
+        html.append("</div>");
+        html.append("</div></div>");
+        
+        // 成绩分布
+        html.append("<h2>成绩分布</h2>");
+        html.append("<table class='distribution-table'>");
+        html.append("<tr><th>分数区间</th><th>人数</th><th>占比</th><th>等级</th></tr>");
+        
+        String[] ranges = {"90-100", "80-89", "70-79", "60-69", "0-59"};
+        String[] labels = {"优秀", "良好", "中等", "及格", "不及格"};
+        
+        for (int i = 0; i < ranges.length; i++) {
+            int count = scoreDistribution.get(ranges[i]);
+            double percentage = (double) count / totalStudents * 100;
+            html.append("<tr>");
+            html.append("<td>").append(ranges[i]).append("</td>");
+            html.append("<td>").append(count).append("</td>");
+            html.append("<td>").append(String.format("%.1f%%", percentage)).append("</td>");
+            html.append("<td>").append(labels[i]).append("</td>");
+            html.append("</tr>");
+        }
+        html.append("</table>");
+        
+        // 错误率分析
+        html.append("<h2>错误率分析</h2>");
+        html.append("<table>");
+        html.append("<tr><th>题目编号</th><th>题目类型</th><th>知识点</th><th>错误率</th><th>常见错误</th></tr>");
+        
+        for (Map<String, Object> error : errorAnalysis) {
+            double errorRate = Double.parseDouble(error.get("errorRate").toString());
+            String errorClass = errorRate > 50 ? "high" : errorRate > 30 ? "medium" : "low";
+            
+            html.append("<tr>");
+            html.append("<td>第").append(error.get("questionNumber")).append("题</td>");
+            html.append("<td>").append(error.get("questionType")).append("</td>");
+            html.append("<td>").append(error.get("knowledgePoint")).append("</td>");
+            html.append("<td><span class='error-rate ").append(errorClass).append("'>").append(error.get("errorRate")).append("%</span></td>");
+            html.append("<td>").append(error.get("commonErrors")).append("</td>");
+            html.append("</tr>");
+        }
+        html.append("</table>");
+        
+        // 页脚
+        html.append("<div class='footer'>");
+        html.append("<p>本报告由SmartEdu智能教育系统自动生成</p>");
+        html.append("</div>");
+        
+        html.append("</body></html>");
+        
+        return html.toString();
     }
     
     /**
@@ -1738,6 +2115,120 @@ public class TeacherController {
             return ApiResponse.error("AI批改失败：" + e.getMessage());
         }
     }
+
+    /**
+     * 获取题目类型显示名称（中文）
+     */
+    private String getQuestionTypeDisplayName(String type) {
+        return getQuestionTypeName(type);
+    }
+    
+    /**
+     * 生成常见错误描述（基于学生实际答案）
+     */
+    private String generateCommonErrors(Question question, List<ExamResult> examResults) {
+        try {
+            // 收集该题目的所有学生答案
+            Map<String, Integer> answerCount = new HashMap<>();
+            String correctAnswer = question.getAnswer();
+            int totalAnswers = 0;
+            int wrongAnswers = 0;
+            
+            for (ExamResult result : examResults) {
+                List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(result.getId());
+                for (StudentAnswer studentAnswer : studentAnswers) {
+                    if (studentAnswer.getQuestion().getId().equals(question.getId())) {
+                        String answer = studentAnswer.getAnswer();
+                        if (answer != null && !answer.trim().isEmpty()) {
+                            answerCount.put(answer, answerCount.getOrDefault(answer, 0) + 1);
+                            totalAnswers++;
+                            
+                            // 判断是否为错误答案
+                            if (!answer.equals(correctAnswer)) {
+                                wrongAnswers++;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            if (totalAnswers == 0) {
+                return "暂无答题数据";
+            }
+            
+            if (wrongAnswers == 0) {
+                return "全部正确";
+            }
+            
+            // 找出最常见的错误答案
+            List<Map.Entry<String, Integer>> sortedAnswers = answerCount.entrySet().stream()
+                .filter(entry -> !entry.getKey().equals(correctAnswer))
+                .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+                .collect(Collectors.toList());
+            
+            StringBuilder commonErrors = new StringBuilder();
+            int errorCount = 0;
+            
+            for (Map.Entry<String, Integer> entry : sortedAnswers) {
+                if (errorCount >= 3) break; // 最多显示3个常见错误
+                
+                String wrongAnswer = entry.getKey();
+                int count = entry.getValue();
+                double percentage = (count * 100.0) / totalAnswers;
+                
+                if (percentage >= 10) { // 只显示占比10%以上的错误答案
+                    if (commonErrors.length() > 0) {
+                        commonErrors.append("；");
+                    }
+                    
+                    // 根据题目类型分析错误原因
+                    String errorAnalysis = analyzeErrorReason(question, wrongAnswer, correctAnswer);
+                    commonErrors.append(String.format("选择%s (%d人，%.1f%%) - %s", 
+                        wrongAnswer, count, percentage, errorAnalysis));
+                    errorCount++;
+                }
+            }
+            
+            if (commonErrors.length() == 0) {
+                return "错误答案较为分散，无明显集中的错误选项";
+            }
+            
+            return commonErrors.toString();
+            
+        } catch (Exception e) {
+            return "错误分析生成失败";
+        }
+    }
+    
+    /**
+     * 分析错误原因
+     */
+    private String analyzeErrorReason(Question question, String wrongAnswer, String correctAnswer) {
+        String questionType = question.getType();
+        
+        if ("multiple-choice".equals(questionType) || "single-choice".equals(questionType)) {
+            // 对于选择题，可以分析选项特点
+            try {
+                String optionsJson = question.getOptions();
+                if (optionsJson != null) {
+                    // 这里可以根据具体的选项内容进行更详细的分析
+                    return "可能存在概念混淆";
+                }
+            } catch (Exception e) {
+                // 忽略解析错误
+            }
+            return "理解偏差";
+        } else if ("fill-blank".equals(questionType)) {
+            return "知识点掌握不准确";
+        } else if ("essay".equals(questionType)) {
+            return "答题要点不全面";
+        } else {
+            return "理解有误";
+        }
+    }
+    
+
 
     /**
      * 获取题型中文名称

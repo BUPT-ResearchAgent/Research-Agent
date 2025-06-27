@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>成绩分析调试页面</title>
+</head>
+<body>
+    <h1>成绩分析功能调试</h1>
+    
+    <div id="debug-output" style="border: 1px solid #ccc; padding: 20px; margin: 20px 0; height: 400px; overflow-y: auto; background: #f9f9f9;">
+        调试信息将显示在这里...
+    </div>
+    
+    <button onclick="testCurrentUser()">测试当前用户信息</button>
+    <button onclick="testGetExamList()">测试获取考试列表</button>
+    <button onclick="testFullFlow()">测试完整流程</button>
+    <button onclick="clearDebug()">清除日志</button>
+
+    <script>
+        function log(message) {
+            const output = document.getElementById('debug-output');
+            const time = new Date().toLocaleTimeString();
+            output.innerHTML += `[${time}] ${message}<br>`;
+            output.scrollTop = output.scrollHeight;
+            console.log(message);
+        }
+
+        function clearDebug() {
+            document.getElementById('debug-output').innerHTML = '调试信息将显示在这里...<br>';
+        }
+
+        async function testCurrentUser() {
+            log('=== 测试当前用户信息 ===');
+            try {
+                const response = await fetch('/api/auth/current-user', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                log(`响应状态: ${response.status}`);
+                log(`用户信息: ${JSON.stringify(data, null, 2)}`);
+                
+                if (data.success && data.data) {
+                    log(`用户ID: ${data.data.userId}`);
+                    log(`教师ID: ${data.data.teacherId}`);
+                    log(`角色: ${data.data.role}`);
+                } else {
+                    log(`错误: ${data.message}`);
+                }
+            } catch (error) {
+                log(`请求失败: ${error.message}`);
+            }
+        }
+
+        async function testGetExamList() {
+            log('=== 测试获取考试列表 ===');
+            try {
+                // 先获取用户信息
+                const userResponse = await fetch('/api/auth/current-user', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const userData = await userResponse.json();
+                
+                if (!userData.success || !userData.data || userData.data.role !== 'teacher') {
+                    log('错误: 未获取到有效的教师信息');
+                    return;
+                }
+                
+                const teacherId = userData.data.teacherId || userData.data.userId;
+                log(`使用教师ID: ${teacherId}`);
+                
+                // 调用考试列表API
+                const examResponse = await fetch(`/api/exam/list?teacherId=${teacherId}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const examData = await examResponse.json();
+                
+                log(`API响应状态: ${examResponse.status}`);
+                log(`考试列表响应: ${JSON.stringify(examData, null, 2)}`);
+                
+                if (examData.success && examData.data) {
+                    log(`考试总数: ${examData.data.length}`);
+                    examData.data.forEach((exam, index) => {
+                        log(`考试 ${index + 1}: ${exam.title} - 状态: ${exam.status} - 已发布: ${exam.isPublished}`);
+                    });
+                    
+                    // 筛选已发布的考试
+                    const publishedExams = examData.data.filter(exam => 
+                        exam.status === 'PUBLISHED' || exam.isPublished === true
+                    );
+                    log(`已发布考试数量: ${publishedExams.length}`);
+                    
+                } else {
+                    log(`获取考试列表失败: ${examData.message}`);
+                }
+                
+            } catch (error) {
+                log(`测试失败: ${error.message}`);
+            }
+        }
+
+        async function testFullFlow() {
+            log('=== 测试完整流程 ===');
+            await testCurrentUser();
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 等待1秒
+            await testGetExamList();
+        }
+
+        // 页面加载时自动测试
+        window.onload = function() {
+            log('调试页面已加载');
+            testFullFlow();
+        };
+    </script>
+</body>
+</html> 

@@ -1226,68 +1226,69 @@
                     <select id="analysis-exam-select" class="form-select" onchange="loadSelectedExamAnalysis()">
                         <option value="">选择考试</option>
                     </select>
-                    <button class="btn btn-accent" onclick="exportAnalysisReport()">
-                        <i class="fas fa-download"></i> 导出报告
+                    <button class="btn btn-accent" onclick="exportAnalysisReport()" style="white-space: nowrap;">
+                        <i class="fas fa-download"></i>&nbsp;导出报告
                     </button>
                 </div>
             </div>
             
+            <!-- 第一行：统计数据卡片 -->
+            <div class="stats-container">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">平均分</div>
+                        <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
+                            <i class="fas fa-calculator" style="color: var(--primary-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="analysis-avg-score">--</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">最高分</div>
+                        <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
+                            <i class="fas fa-trophy" style="color: var(--success-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="analysis-max-score">--</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">及格率</div>
+                        <div class="stat-icon" style="background-color: rgba(26, 188, 156, 0.1);">
+                            <i class="fas fa-percentage" style="color: var(--accent-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="analysis-pass-rate">--%</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-title">标准差</div>
+                        <div class="stat-icon" style="background-color: rgba(243, 156, 18, 0.1);">
+                            <i class="fas fa-chart-line" style="color: var(--warning-color);"></i>
+                        </div>
+                    </div>
+                    <div class="stat-value" id="analysis-std-dev">--</div>
+                </div>
+            </div>
+            
+            <!-- 第二行：成绩分布图表 -->
             <div class="main-content">
                 <div class="content-card">
                     <div class="card-header">
                         <i class="fas fa-chart-pie"></i> 成绩分布统计
                     </div>
-                    <div style="padding: 24px;">
-                        <div class="stats-container">
-                            <div class="stat-card">
-                                <div class="stat-header">
-                                    <div class="stat-title">平均分</div>
-                                    <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
-                                        <i class="fas fa-calculator" style="color: var(--primary-color);"></i>
-                                    </div>
-                                </div>
-                                <div class="stat-value" id="analysis-avg-score">--</div>
-                            </div>
-                            
-                            <div class="stat-card">
-                                <div class="stat-header">
-                                    <div class="stat-title">最高分</div>
-                                    <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
-                                        <i class="fas fa-trophy" style="color: var(--success-color);"></i>
-                                    </div>
-                                </div>
-                                <div class="stat-value" id="analysis-max-score">--</div>
-                            </div>
-                            
-                            <div class="stat-card">
-                                <div class="stat-header">
-                                    <div class="stat-title">及格率</div>
-                                    <div class="stat-icon" style="background-color: rgba(26, 188, 156, 0.1);">
-                                        <i class="fas fa-percentage" style="color: var(--accent-color);"></i>
-                                    </div>
-                                </div>
-                                <div class="stat-value" id="analysis-pass-rate">--%</div>
-                            </div>
-                            
-                            <div class="stat-card">
-                                <div class="stat-header">
-                                    <div class="stat-title">标准差</div>
-                                    <div class="stat-icon" style="background-color: rgba(243, 156, 18, 0.1);">
-                                        <i class="fas fa-chart-line" style="color: var(--warning-color);"></i>
-                                    </div>
-                                </div>
-                                <div class="stat-value" id="analysis-std-dev">--</div>
-                            </div>
-                        </div>
-                        
-                        <div class="chart-container" style="margin-top: 24px;">
-                            <div id="score-distribution-chart" style="height: 300px; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #7f8c8d;">
-                                选择考试后显示成绩分布图表
-                            </div>
+                    <div class="chart-container">
+                        <div id="score-distribution-chart" style="background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #7f8c8d;">
+                            选择考试后显示成绩分布图表
                         </div>
                     </div>
                 </div>
                 
+                <!-- 第三行：错误率分析 -->
                 <div class="content-card">
                     <div class="card-header">
                         <i class="fas fa-exclamation-triangle"></i> 错误率分析
@@ -1301,7 +1302,6 @@
                                     <th>知识点</th>
                                     <th>错误率</th>
                                     <th>常见错误</th>
-                                    <th>改进建议</th>
                                 </tr>
                             </thead>
                             <tbody>

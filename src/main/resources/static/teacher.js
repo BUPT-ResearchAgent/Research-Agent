@@ -2672,9 +2672,23 @@ async function viewGradeDetail(resultId) {
 
 async function loadAnalysisData() {
     try {
+        console.log('加载成绩分析页面数据开始...');
+        
+        // 首先测试登录状态
+        console.log('检查登录状态...');
+        const currentUserResponse = await fetch('/api/auth/current-user', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        const currentUserData = await currentUserResponse.json();
+        console.log('当前用户状态:', currentUserData);
+        
         if (!currentCourses || currentCourses.length === 0) {
+            console.log('加载课程列表...');
             await loadCourseList();
         }
+        
+        console.log('加载考试分析列表...');
         await loadExamsForAnalysis();
         console.log('成绩分析页面数据加载完成');
     } catch (error) {
@@ -2685,34 +2699,92 @@ async function loadAnalysisData() {
 // 加载考试列表用于分析
 async function loadExamsForAnalysis() {
     try {
+        console.log('开始加载考试分析列表...');
         const examSelect = document.getElementById('analysis-exam-select');
-        if (!examSelect) return;
-        
-        if (!currentCourses || currentCourses.length === 0) {
-            await loadCourseList();
+        if (!examSelect) {
+            console.error('未找到考试选择下拉框元素');
+            return;
         }
         
-        // 获取所有考试
-        let allExams = [];
-        for (const course of currentCourses) {
-            const response = await TeacherAPI.getCourseExams(course.id);
-            if (response.success && response.data) {
-                allExams = allExams.concat(response.data.map(exam => ({
-                    ...exam,
-                    courseName: course.name
-                })));
-            }
+        // 获取当前教师ID
+        console.log('正在获取教师ID...');
+        const teacherId = await getUserId();
+        console.log('获取到的教师ID:', teacherId);
+        if (!teacherId) {
+            console.error('未获取到教师ID');
+            examSelect.innerHTML = '<option value="">未获取到教师信息</option>';
+            return;
         }
         
-        // 只显示已发布的考试
-        const publishedExams = allExams.filter(exam => exam.status === 'PUBLISHED');
+        // 获取教师的所有考试
+        console.log('正在调用TeacherAPI.getExamList...');
+        const response = await TeacherAPI.getExamList(teacherId, '', '');
+        console.log('API响应:', response);
+        
+        if (!response.success) {
+            console.error('API调用失败:', response.message);
+            examSelect.innerHTML = '<option value="">API调用失败</option>';
+            return;
+        }
+        
+        if (!response.data) {
+            console.error('API返回数据为空');
+            examSelect.innerHTML = '<option value="">暂无考试数据</option>';
+            return;
+        }
+        
+        console.log('API返回的考试数据:', response.data);
+        console.log('考试数量:', response.data.length);
+        
+        // 显示所有考试的详细信息用于调试
+        response.data.forEach(exam => {
+            console.log(`考试详情: ID=${exam.id}, 标题=${exam.title}, status=${exam.status}, isPublished=${exam.isPublished}`);
+        });
+        
+        // 临时显示所有考试（包括草稿）用于测试
+        const publishedExams = response.data.filter(exam => {
+            // 临时放宽条件：显示所有考试
+            const isPublished = true; // 临时设为true显示所有考试
+            console.log(`考试 ${exam.title}: status=${exam.status}, isPublished=${exam.isPublished}, 临时显示=true`);
+            return isPublished;
+        });
+        
+        // 如果没有已发布的考试，但有草稿，给出提示
+        if (publishedExams.length === 0 && response.data.length > 0) {
+            console.warn('没有已发布的考试，但有以下草稿考试:');
+            response.data.forEach(exam => {
+                console.warn(`- ${exam.title} (状态: ${exam.status})`);
+            });
+        }
+        
+        console.log('所有考试:', response.data);
+        console.log('已发布的考试:', publishedExams);
+        console.log('考试状态映射:', response.data.map(exam => ({
+            id: exam.id,
+            title: exam.title,
+            status: exam.status,
+            isPublished: exam.isPublished
+        })));
         
         // 填充下拉框
-        examSelect.innerHTML = '<option value="">选择考试</option>' + 
-            publishedExams.map(exam => `<option value="${exam.id}">${exam.title} (${exam.courseName})</option>`).join('');
+        if (publishedExams.length > 0) {
+            const optionsHtml = '<option value="">选择考试</option>' + 
+                publishedExams.map(exam => `<option value="${exam.id}">${exam.title}</option>`).join('');
+            console.log('生成的选项HTML:', optionsHtml);
+            examSelect.innerHTML = optionsHtml;
+            console.log('下拉框填充完成，发布考试数量:', publishedExams.length);
+        } else {
+            examSelect.innerHTML = '<option value="">暂无已发布的考试</option>';
+            console.log('没有已发布的考试');
+        }
             
     } catch (error) {
         console.error('加载考试分析列表失败:', error);
+        console.error('错误堆栈:', error.stack);
+        const examSelect = document.getElementById('analysis-exam-select');
+        if (examSelect) {
+            examSelect.innerHTML = '<option value="">加载失败，请重试</option>';
+        }
     }
 }
 
@@ -2748,10 +2820,9 @@ async function loadSelectedExamAnalysis() {
 // 显示分析数据
 function displayAnalysisData(data) {
     // 更新统计卡片
-    document.getElementById('analysis-participant-count').textContent = data.participantCount || '0';
     document.getElementById('analysis-avg-score').textContent = data.averageScore || '0';
     document.getElementById('analysis-max-score').textContent = data.maxScore || '0';
-    document.getElementById('analysis-min-score').textContent = data.minScore || '0';
+    document.getElementById('analysis-pass-rate').textContent = (data.passRate || 0) + '%';
     document.getElementById('analysis-std-dev').textContent = data.standardDeviation || '0';
     
     // 显示分数分布图表
@@ -2763,10 +2834,9 @@ function displayAnalysisData(data) {
 
 // 清空分析数据
 function clearAnalysisData() {
-    document.getElementById('analysis-participant-count').textContent = '--';
     document.getElementById('analysis-avg-score').textContent = '--';
     document.getElementById('analysis-max-score').textContent = '--';
-    document.getElementById('analysis-min-score').textContent = '--';
+    document.getElementById('analysis-pass-rate').textContent = '--%';
     document.getElementById('analysis-std-dev').textContent = '--';
     
     // 清空图表
@@ -2799,28 +2869,52 @@ function displayScoreDistributionChart(distribution) {
     
     const ranges = ['90-100', '80-89', '70-79', '60-69', '0-59'];
     const colors = ['#27ae60', '#2ecc71', '#f39c12', '#e67e22', '#e74c3c'];
+    const labels = ['优秀', '良好', '中等', '及格', '不及格'];
     
     let chartHtml = '<div style="padding: 20px;">';
     chartHtml += '<h4 style="text-align: center; margin-bottom: 20px; color: #2c3e50;">成绩分布图</h4>';
-    chartHtml += '<div style="display: flex; align-items: end; justify-content: space-around; height: 200px; border-bottom: 2px solid #34495e; padding: 0 20px;">';
+    chartHtml += '<div style="display: flex; align-items: end; justify-content: space-around; height: 200px; border-bottom: 2px solid #34495e; padding: 0 20px; position: relative;">';
     
     const maxCount = Math.max(...ranges.map(range => distribution[range] || 0));
+    const totalCount = ranges.reduce((sum, range) => sum + (distribution[range] || 0), 0);
     
     ranges.forEach((range, index) => {
         const count = distribution[range] || 0;
         const height = maxCount > 0 ? (count / maxCount) * 160 : 0;
+        const percentage = totalCount > 0 ? ((count / totalCount) * 100).toFixed(1) : 0;
         
         chartHtml += `
-            <div style="display: flex; flex-direction: column; align-items: center; margin: 0 10px;">
-                <div style="font-size: 12px; margin-bottom: 5px; color: #2c3e50; font-weight: bold;">${count}</div>
-                <div style="width: 40px; background: ${colors[index]}; height: ${height}px; border-radius: 4px 4px 0 0; transition: all 0.3s ease;"></div>
-                <div style="font-size: 11px; margin-top: 8px; color: #7f8c8d; text-align: center;">${range}</div>
+            <div style="display: flex; flex-direction: column; align-items: center; margin: 0 8px; position: relative; cursor: pointer;" 
+                 title="${labels[index]}: ${count}人 (${percentage}%)">
+                <div style="font-size: 13px; margin-bottom: 5px; color: #2c3e50; font-weight: bold;">${count}</div>
+                <div style="font-size: 10px; margin-bottom: 3px; color: #7f8c8d;">${percentage}%</div>
+                <div style="width: 45px; background: linear-gradient(to top, ${colors[index]}, ${colors[index]}88); 
+                           height: ${height}px; border-radius: 6px 6px 0 0; transition: all 0.3s ease; 
+                           box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative;">
+                    ${height > 20 ? `<div style="position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); 
+                                             color: white; font-size: 10px; font-weight: bold;">${count}</div>` : ''}
+                </div>
+                <div style="font-size: 11px; margin-top: 8px; color: #2c3e50; text-align: center; font-weight: 500;">${range}</div>
+                <div style="font-size: 9px; color: #7f8c8d; text-align: center;">${labels[index]}</div>
             </div>
         `;
     });
     
     chartHtml += '</div>';
-    chartHtml += '<div style="text-align: center; margin-top: 15px; font-size: 12px; color: #7f8c8d;">分数区间</div>';
+    chartHtml += '<div style="text-align: center; margin-top: 15px; font-size: 12px; color: #7f8c8d;">分数区间 (总参与人数: ' + totalCount + ')</div>';
+    
+    // 添加图例
+    chartHtml += '<div style="display: flex; justify-content: center; margin-top: 15px; gap: 15px; flex-wrap: wrap;">';
+    ranges.forEach((range, index) => {
+        chartHtml += `
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <div style="width: 12px; height: 12px; background: ${colors[index]}; border-radius: 2px;"></div>
+                <span style="font-size: 11px; color: #2c3e50;">${range} (${labels[index]})</span>
+            </div>
+        `;
+    });
+    chartHtml += '</div>';
+    
     chartHtml += '</div>';
     
     chartContainer.innerHTML = chartHtml;
@@ -2846,23 +2940,27 @@ function displayErrorAnalysisTable(errorAnalysis) {
         return;
     }
     
-    tbody.innerHTML = errorAnalysis.map((item, index) => `
+    tbody.innerHTML = errorAnalysis.map((item, index) => {
+        const errorRate = item.errorRate || 0;
+        const rateClass = errorRate > 50 ? 'error-rate-high' : errorRate > 30 ? 'error-rate-medium' : 'error-rate-low';
+        
+        return `
         <tr>
-            <td>第${index + 1}题</td>
+            <td>第${item.questionNumber || (index + 1)}题</td>
             <td>${item.questionType || '选择题'}</td>
             <td>${item.knowledgePoint || '未分类'}</td>
             <td>
-                <div style="display: flex; align-items: center;">
-                    <div style="flex: 1; background: #ecf0f1; height: 8px; border-radius: 4px; margin-right: 8px;">
-                        <div style="width: ${item.errorRate || 0}%; height: 100%; background: ${(item.errorRate || 0) > 50 ? '#e74c3c' : (item.errorRate || 0) > 30 ? '#f39c12' : '#27ae60'}; border-radius: 4px;"></div>
+                <div class="error-rate-bar">
+                    <div class="error-rate-progress">
+                        <div class="error-rate-fill ${rateClass}" style="width: ${errorRate}%;"></div>
                     </div>
-                    <span style="font-weight: bold; color: #2c3e50;">${item.errorRate || 0}%</span>
+                    <span style="font-weight: bold; color: #2c3e50; min-width: 40px;">${errorRate}%</span>
                 </div>
             </td>
             <td>${item.commonErrors || '无'}</td>
-            <td>${item.suggestions || '无'}</td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
 async function loadImprovementData() {
@@ -6518,7 +6616,7 @@ function filterExamsByStatus() {
 // 获取当前教师ID的辅助函数
 async function getUserId() {
     try {
-        const response = await fetch('http://localhost:8080/api/auth/current-user', {
+        const response = await fetch('/api/auth/current-user', {
             method: 'GET',
             credentials: 'include'
         });
@@ -6527,9 +6625,14 @@ async function getUserId() {
         
         if (result.success && result.data) {
             const userData = result.data;
+            console.log('当前用户信息:', userData);
             if (userData.role === 'teacher') {
                 // 如果有直接的teacherId就使用，否则使用userId
-                return userData.teacherId || userData.userId;
+                const teacherId = userData.teacherId || userData.userId;
+                console.log('获取到的教师ID:', teacherId);
+                return teacherId;
+            } else {
+                console.error('当前用户不是教师角色:', userData.role);
             }
         }
         throw new Error('未获取到有效的教师ID');
@@ -8551,11 +8654,44 @@ async function exportAnalysisReport() {
             return;
         }
         
-        showLoading('正在生成分析报告...');
-        await TeacherAPI.exportAnalysisReport(selectedExamId);
-        hideLoading();
+        // 获取考试名称
+        const examName = examSelect.options[examSelect.selectedIndex].text;
         
+        showLoading('正在生成分析报告...');
+        
+        // 调用API导出报告
+        const response = await fetch(`/api/teacher/analysis/${selectedExamId}/export`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`导出失败: ${response.status}`);
+        }
+        
+        // 获取文件数据
+        const blob = await response.blob();
+        
+        // 生成文件名
+        const timestamp = new Date().toLocaleDateString('zh-CN').replace(/\//g, '');
+        const fileName = `成绩分析报告_${examName}_${timestamp}.pdf`;
+        
+        // 创建下载链接
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        
+        // 清理
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        hideLoading();
         showNotification('分析报告导出成功', 'success');
+        
     } catch (error) {
         hideLoading();
         console.error('导出分析报告失败:', error);
