@@ -346,7 +346,6 @@ function renderSidebar(role) {
         <div class="submenu">
             <div class="submenu-item" data-section="gen-test"><i class="fas fa-pen-nib"></i> 生成测评</div>
             <div class="submenu-item" data-section="test-manage"><i class="fas fa-tasks"></i> 测评管理</div>
-            <div class="submenu-item" data-section="answer-manage"><i class="fas fa-key"></i> 答案管理</div>
         </div>
         <div class="menu-item" data-section="analysis"><i class="fas fa-chart-pie"></i><span>学情数据分析</span><i class="fas fa-chevron-down arrow"></i></div>
         <div class="submenu">

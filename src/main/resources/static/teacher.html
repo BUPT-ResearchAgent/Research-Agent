@@ -335,7 +335,6 @@
         <div class="submenu">
             <div class="submenu-item" data-section="gen-test"><i class="fas fa-pen-nib"></i> 生成测评</div>
             <div class="submenu-item" data-section="test-manage"><i class="fas fa-tasks"></i> 测评管理</div>
-            <div class="submenu-item" data-section="answer-manage"><i class="fas fa-key"></i> 答案管理</div>
         </div>
         
         <div class="menu-item">
@@ -1122,42 +1121,7 @@
             </div>
         </section>
         
-        <section id="answer-manage" class="main-section hidden-section">
-            <div class="content-header">
-                <h1 class="page-title">答案管理</h1>
-                <div class="header-actions">
-                    <button class="btn btn-primary" onclick="loadAnswersList()">
-                        <i class="fas fa-sync-alt"></i> 刷新
-                    </button>
-                </div>
-            </div>
-            
-            <div class="main-content">
-                <div class="content-card">
-                    <div class="card-header">
-                        <i class="fas fa-key"></i> 答案与解析管理
-                    </div>
-                    <div class="table-container">
-                        <table id="answers-table">
-                            <thead>
-                                <tr>
-                                    <th>试卷名称</th>
-                                    <th>题目数量</th>
-                                    <th>答案状态</th>
-                                    <th>解析状态</th>
-                                    <th>公布设置</th>
-                                    <th>最后编辑</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- 动态加载内容 -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </section>
+
         
         <section id="grade-mark" class="main-section hidden-section">
             <div class="content-header">
@@ -1325,6 +1289,9 @@
                     </button>
                     <button class="btn btn-accent" onclick="exportImprovements()">
                         <i class="fas fa-download"></i> 导出报告
+                    </button>
+                    <button id="my-reports-btn" class="btn btn-secondary" onclick="showMyReportsModal()" style="display: none;">
+                        <i class="fas fa-history"></i> 我的报告
                     </button>
                 </div>
             </div>
@@ -2878,6 +2845,47 @@ D. D. 8
                 <button type="button" class="btn btn-success" onclick="saveExamEdit()">
                     <i class="fas fa-save"></i> 保存修改
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 我的报告弹窗 -->
+    <div id="myReportsModal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 1000px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-history"></i>
+                    </div>
+                    <h3>我的报告</h3>
+                </div>
+                <button id="close-my-reports-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <div class="reports-toolbar" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="color: #6c757d; font-size: 14px;">
+                        <i class="fas fa-info-circle"></i> 
+                        共 <span id="reports-count">0</span> 个报告
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-danger" onclick="clearAllReports()" id="clear-all-btn" style="display: none;">
+                            <i class="fas fa-trash-alt"></i> 清空全部
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="reports-list" class="reports-list">
+                    <!-- 动态加载报告列表 -->
+                </div>
+                
+                <div id="empty-reports" class="empty-state" style="display: none; text-align: center; padding: 60px 20px; color: #6c757d;">
+                    <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 20px; opacity: 0.3;"></i>
+                    <h5 style="margin-bottom: 10px;">暂无报告</h5>
+                    <p style="margin: 0; font-size: 14px;">生成教学改进建议后，报告将显示在这里</p>
+                </div>
             </div>
         </div>
     </div>

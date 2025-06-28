@@ -382,9 +382,7 @@ async function loadSectionData(sectionId) {
             case 'test-manage':
                 await loadExamManageData();
                 break;
-            case 'answer-manage':
-                await loadAnswersData();
-                break;
+
             case 'grade-mark':
                 await loadGradeData();
                 break;
@@ -2250,16 +2248,7 @@ async function loadExamGenerationData() {
         console.error('加载试卷生成页面数据失败:', error);
     }
 }
-async function loadAnswersData() {
-    try {
-        if (!currentCourses || currentCourses.length === 0) {
-            await loadCourseList();
-        }
-        console.log('答案管理页面数据加载完成');
-    } catch (error) {
-        console.error('加载答案管理页面数据失败:', error);
-    }
-}
+
 
 async function loadGradeData() {
     try {
@@ -3004,6 +2993,35 @@ function updateImprovementCourseSelect() {
 function setupImprovementEvents() {
     // 不需要处理分析范围，只保留课程选择功能
     // 课程选择下拉栏始终可见
+    
+    // 检查并显示"我的报告"按钮
+    checkAndShowMyReportsButton();
+}
+
+// 检查并显示"我的报告"按钮
+async function checkAndShowMyReportsButton() {
+    try {
+        const response = await fetch('/api/teaching-reports/list', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data && result.data.length > 0) {
+                showMyReportsButton();
+                console.log(`发现 ${result.data.length} 个历史报告，显示"我的报告"按钮`);
+            } else {
+                // 即使没有历史报告，也显示按钮（点击时显示空状态）
+                showMyReportsButton();
+                console.log('没有历史报告，但仍显示"我的报告"按钮');
+            }
+        }
+    } catch (error) {
+        console.error('检查历史报告时出错:', error);
+        // 发生错误时也显示按钮
+        showMyReportsButton();
+    }
 }
 function updateMaterialsTable() {
     console.log('开始更新资料表格, currentMaterials:', currentMaterials);
@@ -8604,9 +8622,7 @@ function showScheduleModal() {
     showNotification('考试安排功能待实现', 'info');
 }
 
-function loadAnswersList() {
-    showNotification('答案列表功能待实现', 'info');
-}
+
 
 async function autoGradeAll() {
     try {
@@ -8773,6 +8789,10 @@ async function generateImprovements() {
         if (response.success) {
             displayImprovements(response.data.improvements, scope, courseId);
             showNotification('教学改进建议生成成功', 'success');
+            
+            // 自动保存报告到数据库
+            await autoSaveReportToDatabase();
+            
         } else {
             showNotification(response.message || '生成改进建议失败', 'error');
         }
@@ -8836,6 +8856,9 @@ function displayImprovements(improvements, scope, courseId) {
         courseText: courseText,
         generatedAt: new Date().toLocaleString()
     };
+    
+    // 显示"我的报告"按钮
+    showMyReportsButton();
 }
 
 function formatImprovementsContent(content) {
@@ -11050,6 +11073,391 @@ async function aiGradeExam(resultId) {
         hideLoading();
         console.error('AI批改试卷失败:', error);
         showNotification('AI批改失败：' + error.message, 'error');
+    }
+}
+
+// ===============================
+// 我的报告功能
+// ===============================
+
+// 自动保存报告到数据库
+async function autoSaveReportToDatabase() {
+    if (!window.currentImprovements) return;
+    
+    try {
+        // 生成文件名
+        const now = new Date();
+        const dateStr = now.getFullYear() + 
+                       String(now.getMonth() + 1).padStart(2, '0') + 
+                       String(now.getDate()).padStart(2, '0') + '_' +
+                       String(now.getHours()).padStart(2, '0') + 
+                       String(now.getMinutes()).padStart(2, '0');
+        
+        let fileName = `教学改进建议_${window.currentImprovements.scopeText}`;
+        if (window.currentImprovements.courseText) {
+            fileName += `_${window.currentImprovements.courseText}`;
+        }
+        fileName += `_${dateStr}.pdf`;
+        
+        const reportData = {
+            title: `教学改进建议 - ${window.currentImprovements.courseText || '未知课程'}`,
+            content: window.currentImprovements.content,
+            fileName: fileName,
+            analysisScope: window.currentImprovements.scope || 'COURSE',
+            scopeText: window.currentImprovements.scopeText,
+            courseId: window.currentImprovements.courseId,
+            courseText: window.currentImprovements.courseText
+        };
+        
+        const response = await fetch('/api/teaching-reports/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify(reportData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('报告已自动保存到数据库:', result.data);
+            showNotification('报告已自动保存', 'success');
+        } else {
+            console.error('保存报告到数据库失败:', result.message);
+            showNotification('保存报告失败：' + result.message, 'warning');
+        }
+        
+    } catch (error) {
+        console.error('保存报告到数据库时出错:', error);
+        showNotification('保存报告时出错，请重试', 'warning');
+    }
+}
+
+// 显示"我的报告"按钮
+function showMyReportsButton() {
+    const myReportsBtn = document.getElementById('my-reports-btn');
+    if (myReportsBtn) {
+        myReportsBtn.style.display = 'inline-block';
+        console.log('显示"我的报告"按钮');
+    }
+}
+
+// 显示"我的报告"弹窗
+async function showMyReportsModal() {
+    const modal = document.getElementById('myReportsModal');
+    if (!modal) return;
+    
+    // 显示弹窗
+    modal.style.display = 'flex';
+    
+    // 加载报告列表
+    await loadReportsList();
+    
+    // 绑定关闭事件
+    const closeBtn = document.getElementById('close-my-reports-modal');
+    if (closeBtn) {
+        closeBtn.onclick = closeMyReportsModal;
+    }
+    
+    // 点击遮罩关闭
+    modal.onclick = function(e) {
+        if (e.target === modal) {
+            closeMyReportsModal();
+        }
+    };
+}
+
+// 关闭"我的报告"弹窗
+function closeMyReportsModal() {
+    const modal = document.getElementById('myReportsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// 加载报告列表
+async function loadReportsList() {
+    try {
+        const response = await fetch('/api/teaching-reports/list', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayReportsList(result.data || []);
+        } else {
+            showNotification('获取报告列表失败：' + result.message, 'error');
+            displayReportsList([]);
+        }
+        
+    } catch (error) {
+        console.error('获取报告列表失败:', error);
+        showNotification('获取报告列表失败，请重试', 'error');
+        displayReportsList([]);
+    }
+}
+
+// 显示报告列表
+function displayReportsList(reports) {
+    const reportsContainer = document.getElementById('reports-list');
+    const emptyState = document.getElementById('empty-reports');
+    const reportsCount = document.getElementById('reports-count');
+    const clearAllBtn = document.getElementById('clear-all-btn');
+    
+    // 更新报告数量
+    if (reportsCount) {
+        reportsCount.textContent = reports.length;
+    }
+    
+    // 显示/隐藏清空按钮
+    if (clearAllBtn) {
+        clearAllBtn.style.display = reports.length > 0 ? 'inline-block' : 'none';
+    }
+    
+    if (reports.length === 0) {
+        // 显示空状态
+        if (reportsContainer) reportsContainer.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+    }
+    
+    // 隐藏空状态
+    if (emptyState) emptyState.style.display = 'none';
+    
+    // 生成报告列表HTML
+    const reportsHTML = reports.map(report => {
+        const createdDate = new Date(report.createdAt).toLocaleString('zh-CN');
+        const previewText = report.content ? report.content.substring(0, 100).replace(/[#*`]/g, '') + '...' : '无内容预览';
+        
+        return `
+            <div class="report-item" data-report-id="${report.id}">
+                <div class="report-header">
+                    <div>
+                        <h5 class="report-title">${report.title}</h5>
+                        <div class="report-meta">
+                            <span><i class="fas fa-calendar"></i> ${createdDate}</span>
+                            <span><i class="fas fa-file"></i> ${report.fileName}</span>
+                            ${report.courseText ? `<span><i class="fas fa-book"></i> ${report.courseText}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="report-actions">
+                        <button class="btn btn-sm btn-primary" onclick="viewReport(${report.id})" title="查看详情">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick="downloadReport(${report.id})" title="重新下载">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteReport(${report.id})" title="删除">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="report-content-preview">
+                    ${previewText}
+                </div>
+                <div class="report-tags">
+                    <span class="report-tag scope-${report.analysisScope || 'course'}">${report.scopeText || '单个课程'}</span>
+                    <span class="report-tag"><i class="fas fa-robot"></i> AI生成</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    if (reportsContainer) {
+        reportsContainer.innerHTML = reportsHTML;
+    }
+}
+
+// 查看报告详情
+async function viewReport(reportId) {
+    try {
+        const response = await fetch(`/api/teaching-reports/${reportId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            showNotification('获取报告详情失败：' + result.message, 'error');
+            return;
+        }
+        
+        const report = result.data;
+        
+        // 创建详情查看弹窗
+        const detailModal = document.createElement('div');
+        detailModal.className = 'report-detail-modal';
+        detailModal.innerHTML = `
+            <div class="report-detail-content">
+                <div class="report-detail-header">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: rgba(255, 255, 255, 0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px;">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <h4 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: 0.5px;">
+                            ${report.title}
+                        </h4>
+                    </div>
+                    <button onclick="closeReportDetail()" style="background: rgba(255, 255, 255, 0.1); border: none; color: white; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s ease;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="report-detail-body">
+                    <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 14px;">
+                            <div><strong>生成时间：</strong>${report.generatedAt || report.createdAt}</div>
+                            <div><strong>分析范围：</strong>${report.scopeText}</div>
+                            <div><strong>课程：</strong>${report.courseText || '未知课程'}</div>
+                            <div><strong>文件名：</strong>${report.fileName}</div>
+                        </div>
+                    </div>
+                    <div class="improvements-content" style="background: white; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; max-height: 400px; overflow-y: auto;">
+                        ${formatImprovementsContent(report.content)}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(detailModal);
+        
+        // 添加关闭功能
+        window.closeReportDetail = function() {
+            document.body.removeChild(detailModal);
+            delete window.closeReportDetail;
+        };
+        
+        // 点击遮罩关闭
+        detailModal.onclick = function(e) {
+            if (e.target === detailModal) {
+                window.closeReportDetail();
+            }
+        };
+        
+    } catch (error) {
+        console.error('查看报告详情失败:', error);
+        showNotification('查看报告详情失败，请重试', 'error');
+    }
+}
+
+// 下载报告
+async function downloadReport(reportId) {
+    try {
+        // 先获取报告详情
+        const response = await fetch(`/api/teaching-reports/${reportId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            showNotification('获取报告信息失败：' + result.message, 'error');
+            return;
+        }
+        
+        const report = result.data;
+        
+        // 临时设置当前改进建议数据
+        const originalImprovements = window.currentImprovements;
+        window.currentImprovements = {
+            content: report.content,
+            scope: report.analysisScope,
+            courseId: report.courseId,
+            scopeText: report.scopeText,
+            courseText: report.courseText,
+            generatedAt: report.generatedAt || report.createdAt
+        };
+        
+        // 生成PDF
+        showNotification('正在重新生成PDF，请稍候...', 'info');
+        await generateChinesePDF(report.fileName);
+        
+        // 更新下载次数
+        await fetch(`/api/teaching-reports/${reportId}/download`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        
+        // 恢复原始数据
+        setTimeout(() => {
+            window.currentImprovements = originalImprovements;
+        }, 1000);
+        
+    } catch (error) {
+        console.error('下载报告失败:', error);
+        showNotification('下载失败，请重试', 'error');
+    }
+}
+
+// 删除报告
+async function deleteReport(reportId) {
+    try {
+        const confirmed = await showConfirmDialog(
+            '删除报告',
+            '确定要删除这个报告吗？删除后无法恢复。',
+            '删除'
+        );
+        
+        if (!confirmed) {
+            return;
+        }
+        
+        const response = await fetch(`/api/teaching-reports/${reportId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('报告已删除', 'success');
+            // 重新加载列表
+            await loadReportsList();
+        } else {
+            showNotification('删除失败：' + result.message, 'error');
+        }
+        
+    } catch (error) {
+        console.error('删除报告失败:', error);
+        showNotification('删除失败，请重试', 'error');
+    }
+}
+
+// 清空所有报告
+async function clearAllReports() {
+    try {
+        const confirmed = await showConfirmDialog(
+            '清空所有报告',
+            '确定要清空所有报告吗？此操作无法恢复。',
+            '清空'
+        );
+        
+        if (!confirmed) {
+            return;
+        }
+        
+        const response = await fetch('/api/teaching-reports/clear-all', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(`成功清空 ${result.data.deletedCount} 个报告`, 'success');
+            // 重新加载列表
+            await loadReportsList();
+        } else {
+            showNotification('清空失败：' + result.message, 'error');
+        }
+        
+    } catch (error) {
+        console.error('清空报告失败:', error);
+        showNotification('清空失败，请重试', 'error');
     }
 }
 
