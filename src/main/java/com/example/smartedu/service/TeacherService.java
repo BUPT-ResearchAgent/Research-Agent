@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -60,6 +62,15 @@ public class TeacherService {
     
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
+    
+    @Autowired
+    private ExamResultRepository examResultRepository;
+    
+    @Autowired
+    private QuestionRepository questionRepository;
+    
+    @Autowired
+    private StudentAnswerRepository studentAnswerRepository;
     
     private static final String SALT = "SmartEdu2024"; // 与UserService保持一致的盐值
     
@@ -583,7 +594,7 @@ public class TeacherService {
                 
                 if (searchResults.isEmpty()) {
                     throw new RuntimeException("无法从知识库中检索到相关内容，请检查知识库数据是否正常");
-        }
+                }
             }
         }
         
@@ -799,5 +810,208 @@ public class TeacherService {
         // 确保Course被正确加载以避免懒加载问题
         saved.getCourse().getName(); // 触发加载
         return saved;
+    }
+
+    /**
+     * 生成教学改进建议
+     */
+    public String generateTeachingImprovements(String scope, Long courseId) {
+        try {
+            System.out.println("开始生成教学改进建议，范围: " + scope + ", 课程ID: " + courseId);
+            
+            // 根据范围收集数据
+            List<Course> coursesToAnalyze = new ArrayList<>();
+            if ("COURSE".equals(scope) && courseId != null) {
+                // 单个课程分析
+                Course course = courseRepository.findById(courseId)
+                    .orElseThrow(() -> new RuntimeException("课程不存在"));
+                coursesToAnalyze.add(course);
+            } else if ("SEMESTER".equals(scope) || "YEAR".equals(scope)) {
+                // 本学期或本学年分析 - 获取当前教师的所有课程
+                coursesToAnalyze = courseRepository.findAll().stream()
+                    .filter(course -> course.getTeacher() != null)
+                    .collect(Collectors.toList());
+            }
+            
+            if (coursesToAnalyze.isEmpty()) {
+                return "暂无课程数据可供分析，请先创建课程并进行考试。";
+            }
+            
+            // 收集考试和成绩数据
+            StringBuilder analysisData = new StringBuilder();
+            int totalExams = 0;
+            int totalStudents = 0;
+            Map<String, List<Double>> courseScores = new HashMap<>();
+            Map<String, Map<String, Integer>> difficultyStats = new HashMap<>();
+            List<Map<String, Object>> examAnalysisData = new ArrayList<>();
+            
+            for (Course course : coursesToAnalyze) {
+                List<Exam> exams = examRepository.findByCourseId(course.getId());
+                if (exams.isEmpty()) continue;
+                
+                analysisData.append("\n**课程：").append(course.getName())
+                    .append("（").append(course.getCourseCode()).append("）**\n");
+                
+                List<Double> allScores = new ArrayList<>();
+                Map<String, Integer> difficultyCount = new HashMap<>();
+                
+                for (Exam exam : exams) {
+                    List<ExamResult> results = examResultRepository.findByExamId(exam.getId());
+                    if (results.isEmpty()) continue;
+                    
+                    totalExams++;
+                    totalStudents += results.size();
+                    
+                    // 统计本次考试成绩
+                    List<Double> examScores = results.stream()
+                        .map(r -> r.getFinalScore() != null ? r.getFinalScore() : r.getScore().doubleValue())
+                        .collect(Collectors.toList());
+                    allScores.addAll(examScores);
+                    
+                    double avgScore = examScores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                    double maxScore = examScores.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+                    double minScore = examScores.stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
+                    
+                    analysisData.append("- 考试：").append(exam.getTitle())
+                        .append("\n  参考人数：").append(results.size())
+                        .append("\n  平均分：").append(String.format("%.2f", avgScore))
+                        .append("\n  最高分：").append(String.format("%.2f", maxScore))
+                        .append("\n  最低分：").append(String.format("%.2f", minScore));
+                    
+                    // 收集详细的错题分析数据
+                    Map<String, Object> examData = collectDetailedExamAnalysis(exam, results);
+                    if (examData != null) {
+                        examAnalysisData.add(examData);
+                    }
+                    
+                    // 分析题目难度分布
+                    List<Question> questions = questionRepository.findByExamId(exam.getId());
+                    for (Question question : questions) {
+                        List<StudentAnswer> answers = studentAnswerRepository.findByQuestionId(question.getId());
+                        if (!answers.isEmpty()) {
+                            double correctRate = answers.stream()
+                                .mapToDouble(ans -> {
+                                    if (ans.getScore() == null) return 0.0;
+                                    return ans.getScore().doubleValue() / question.getScore();
+                                })
+                                .average().orElse(0.0);
+                            
+                            String difficulty;
+                            if (correctRate >= 0.8) difficulty = "简单";
+                            else if (correctRate >= 0.6) difficulty = "中等";
+                            else difficulty = "困难";
+                            
+                            difficultyCount.put(difficulty, difficultyCount.getOrDefault(difficulty, 0) + 1);
+                        }
+                    }
+                    
+                    analysisData.append("\n");
+                }
+                
+                courseScores.put(course.getName(), allScores);
+                difficultyStats.put(course.getName(), difficultyCount);
+                
+                if (!allScores.isEmpty()) {
+                    double courseAvg = allScores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                    analysisData.append("课程总体平均分：").append(String.format("%.2f", courseAvg)).append("\n");
+                }
+            }
+            
+            // 调用DeepSeek生成改进建议（使用多轮对话）
+            return deepSeekService.generateTeachingImprovementsWithDetailedAnalysis(
+                scope, analysisData.toString(), totalExams, totalStudents, 
+                courseScores, difficultyStats, examAnalysisData);
+                
+        } catch (Exception e) {
+            System.err.println("生成教学改进建议失败: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("生成教学改进建议失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 收集详细的考试分析数据
+     */
+    private Map<String, Object> collectDetailedExamAnalysis(Exam exam, List<ExamResult> results) {
+        try {
+            Map<String, Object> examData = new HashMap<>();
+            examData.put("examTitle", exam.getTitle());
+            examData.put("courseName", exam.getCourse().getName());
+            examData.put("studentCount", results.size());
+            
+            // 获取考试题目
+            List<Question> questions = questionRepository.findByExamId(exam.getId());
+            if (questions.isEmpty()) return null;
+            
+            List<Map<String, Object>> questionAnalysis = new ArrayList<>();
+            
+            for (Question question : questions) {
+                Map<String, Object> questionData = new HashMap<>();
+                questionData.put("questionContent", question.getContent());
+                questionData.put("questionType", question.getType());
+                questionData.put("maxScore", question.getScore());
+                questionData.put("standardAnswer", question.getAnswer());
+                questionData.put("explanation", question.getExplanation());
+                
+                // 获取学生答案
+                List<StudentAnswer> studentAnswers = studentAnswerRepository.findByQuestionId(question.getId());
+                
+                if (!studentAnswers.isEmpty()) {
+                    // 统计答题情况
+                    int totalAnswers = studentAnswers.size();
+                    int correctCount = 0;
+                    double totalScore = 0;
+                    List<Map<String, Object>> wrongAnswers = new ArrayList<>();
+                    Map<String, Integer> answerDistribution = new HashMap<>();
+                    
+                    for (StudentAnswer answer : studentAnswers) {
+                        double score = answer.getScore() != null ? answer.getScore() : 0;
+                        totalScore += score;
+                        
+                                                 String studentAnswerText = answer.getAnswer();
+                         if (studentAnswerText != null && !studentAnswerText.trim().isEmpty()) {
+                             answerDistribution.put(studentAnswerText, 
+                                 answerDistribution.getOrDefault(studentAnswerText, 0) + 1);
+                         }
+                         
+                         // 判断是否正确（得分率>=80%视为正确）
+                         if (score >= question.getScore() * 0.8) {
+                             correctCount++;
+                         } else {
+                             // 收集错误答案
+                             Map<String, Object> wrongAnswer = new HashMap<>();
+                             wrongAnswer.put("studentAnswer", studentAnswerText);
+                            wrongAnswer.put("score", score);
+                            wrongAnswer.put("maxScore", question.getScore());
+                            wrongAnswers.add(wrongAnswer);
+                        }
+                    }
+                    
+                    double correctRate = (double) correctCount / totalAnswers;
+                    double avgScore = totalScore / totalAnswers;
+                    
+                    questionData.put("totalAnswers", totalAnswers);
+                    questionData.put("correctCount", correctCount);
+                    questionData.put("correctRate", correctRate);
+                    questionData.put("avgScore", avgScore);
+                    questionData.put("wrongAnswers", wrongAnswers);
+                    questionData.put("answerDistribution", answerDistribution);
+                    
+                    // 只收集正确率较低的题目（<70%）进行详细分析
+                    if (correctRate < 0.7) {
+                        questionAnalysis.add(questionData);
+                    }
+                }
+            }
+            
+            examData.put("questionAnalysis", questionAnalysis);
+            
+            // 只有存在错题分析时才返回数据
+            return questionAnalysis.isEmpty() ? null : examData;
+            
+        } catch (Exception e) {
+            System.err.println("收集考试分析数据失败: " + e.getMessage());
+            return null;
+        }
     }
 } 

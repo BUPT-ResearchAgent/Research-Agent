@@ -2967,15 +2967,43 @@ function displayErrorAnalysisTable(errorAnalysis) {
 
 async function loadImprovementData() {
     try {
+        // 加载课程列表
         if (!currentCourses || currentCourses.length === 0) {
             await loadCourseList();
-        } else {
-            updateCourseSelects();
         }
+        
+        // 更新课程选择下拉框
+        updateImprovementCourseSelect();
+        
+        // 设置分析范围变化事件
+        setupImprovementEvents();
+        
         console.log('教学改进建议页面数据加载完成');
     } catch (error) {
         console.error('加载教学改进建议页面数据失败:', error);
+        showNotification('加载页面数据失败', 'error');
     }
+}
+
+function updateImprovementCourseSelect() {
+    const courseSelect = document.getElementById('improve-course-select');
+    if (!courseSelect) return;
+    
+    courseSelect.innerHTML = '<option value="">请选择课程</option>';
+    
+    if (currentCourses && currentCourses.length > 0) {
+        currentCourses.forEach(course => {
+            const option = document.createElement('option');
+            option.value = course.id;
+            option.textContent = `${course.name} (${course.courseCode})`;
+            courseSelect.appendChild(option);
+        });
+    }
+}
+
+function setupImprovementEvents() {
+    // 不需要处理分析范围，只保留课程选择功能
+    // 课程选择下拉栏始终可见
 }
 function updateMaterialsTable() {
     console.log('开始更新资料表格, currentMaterials:', currentMaterials);
@@ -8724,12 +8752,374 @@ async function exportAnalysisReport() {
     }
 }
 
-function generateImprovements() {
-    showNotification('生成改进建议功能待实现', 'info');
+async function generateImprovements() {
+    try {
+        const courseId = document.getElementById('improve-course-select').value;
+        
+        // 验证输入
+        if (!courseId) {
+            showNotification('请选择要分析的课程', 'warning');
+            return;
+        }
+        
+        showLoading('正在分析数据并生成改进建议，请稍候...');
+        
+        // 固定使用单个课程分析
+        const scope = 'COURSE';
+        const response = await TeacherAPI.generateImprovements(scope, courseId);
+        
+        hideLoading();
+        
+        if (response.success) {
+            displayImprovements(response.data.improvements, scope, courseId);
+            showNotification('教学改进建议生成成功', 'success');
+        } else {
+            showNotification(response.message || '生成改进建议失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('生成改进建议失败:', error);
+        showNotification('生成改进建议失败，请重试', 'error');
+    }
+}
+
+function displayImprovements(improvements, scope, courseId) {
+    const container = document.getElementById('improvements-content');
+    
+    // 获取课程名称的显示文本
+    let courseText = '';
+    if (courseId) {
+        const courseSelect = document.getElementById('improve-course-select');
+        const selectedOption = courseSelect.querySelector(`option[value="${courseId}"]`);
+        courseText = selectedOption ? selectedOption.textContent : '未知课程';
+    }
+    
+    // 生成显示内容
+    container.innerHTML = `
+        <div class="improvements-header" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h6 style="margin: 0; color: #007bff; font-weight: bold;">
+                        <i class="fas fa-chart-line"></i> AI智能分析报告
+                    </h6>
+                    <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">
+                        分析课程：${courseText || '未选择课程'}
+                    </p>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-primary" onclick="copyImprovements()" title="复制内容">
+                        <i class="fas fa-copy"></i> 复制
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="improvements-content" style="background: white; padding: 24px; border-radius: 8px; border: 1px solid #e9ecef; line-height: 1.6;">
+            ${formatImprovementsContent(improvements)}
+        </div>
+        
+        <div class="improvements-footer" style="margin-top: 20px; text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+            <p style="margin: 0; color: #6c757d; font-size: 14px;">
+                <i class="fas fa-info-circle"></i> 
+                以上建议由AI智能分析生成，请结合实际教学情况参考使用
+            </p>
+        </div>
+    `;
+    
+    // 保存当前建议内容，用于导出
+    window.currentImprovements = {
+        content: improvements,
+        scope: scope,
+        courseId: courseId,
+        scopeText: '单个课程',
+        courseText: courseText,
+        generatedAt: new Date().toLocaleString()
+    };
+}
+
+function formatImprovementsContent(content) {
+    if (!content) return '<p>暂无改进建议</p>';
+    
+    // 使用Marked.js进行专业的Markdown解析
+    if (typeof marked !== 'undefined') {
+        try {
+            // 配置Marked.js选项，专门针对教学改进建议优化
+            marked.setOptions({
+                breaks: true,        // 支持单行换行
+                gfm: true,          // GitHub风格Markdown
+                sanitize: false,    // 信任内容
+                smartLists: true,   // 智能列表处理
+                smartypants: false, // 保持原始引号
+                headerIds: false,   // 不生成header id
+                mangle: false       // 不混淆邮箱地址
+            });
+            
+            // 预处理内容，确保格式正确
+            let processedContent = content;
+            
+            // 确保表格格式正确（如果有的话）
+            processedContent = processedContent.replace(/\|([^|\n]+)\|/g, function(match, content) {
+                // 简单的表格格式检查和修复
+                return match;
+            });
+            
+            // 使用Marked.js解析
+            let html = marked.parse(processedContent);
+            
+            // 后处理：添加专门的样式
+            html = html.replace(/<h1>/g, '<h1 style="color: #e74c3c; margin: 32px 0 20px 0; font-size: 24px; border-bottom: 3px solid #e74c3c; padding-bottom: 10px; font-weight: bold;">');
+            html = html.replace(/<h2>/g, '<h2 style="color: #2980b9; margin: 28px 0 16px 0; font-size: 22px; border-bottom: 2px solid #3498db; padding-bottom: 8px; font-weight: bold;">');
+            html = html.replace(/<h3>/g, '<h3 style="color: #2c3e50; margin: 24px 0 12px 0; font-size: 20px; font-weight: bold;">');
+            html = html.replace(/<h4>/g, '<h4 style="color: #34495e; margin: 20px 0 10px 0; font-size: 18px; font-weight: bold;">');
+            html = html.replace(/<h5>/g, '<h5 style="color: #7f8c8d; margin: 16px 0 8px 0; font-size: 16px; font-weight: 600;">');
+            html = html.replace(/<h6>/g, '<h6 style="color: #95a5a6; margin: 14px 0 6px 0; font-size: 14px; font-weight: 600;">');
+            
+            // 段落样式
+            html = html.replace(/<p>/g, '<p style="margin: 15px 0; line-height: 1.7; color: #2c3e50;">');
+            
+            // 列表样式
+            html = html.replace(/<ul>/g, '<ul style="margin: 16px 0; padding-left: 24px; color: #2c3e50;">');
+            html = html.replace(/<ol>/g, '<ol style="margin: 16px 0; padding-left: 24px; color: #2c3e50;">');
+            html = html.replace(/<li>/g, '<li style="margin: 8px 0; line-height: 1.6;">');
+            
+            // 强调样式
+            html = html.replace(/<strong>/g, '<strong style="color: #2c3e50; font-weight: 700;">');
+            html = html.replace(/<em>/g, '<em style="color: #7f8c8d; font-style: italic;">');
+            
+            // 代码样式
+            html = html.replace(/<code>/g, '<code style="background: #f1f2f6; color: #e74c3c; padding: 3px 6px; border-radius: 4px; font-family: Monaco, Consolas, monospace; font-size: 13px;">');
+            html = html.replace(/<pre>/g, '<pre style="background: #2d3748; color: #e2e8f0; padding: 16px; border-radius: 8px; margin: 16px 0; overflow-x: auto; font-family: Monaco, Consolas, monospace; font-size: 13px; line-height: 1.5;">');
+            
+            // 引用样式
+            html = html.replace(/<blockquote>/g, '<blockquote style="border-left: 4px solid #3498db; margin: 16px 0; padding: 12px 16px; background: #f8f9fa; color: #2c3e50; font-style: italic; border-radius: 0 4px 4px 0;">');
+            
+            // 分隔线样式
+            html = html.replace(/<hr>/g, '<hr style="border: none; height: 2px; background: linear-gradient(to right, #3498db, transparent); margin: 32px 0;">');
+            
+            // 表格样式（如果有的话）
+            html = html.replace(/<table>/g, '<table style="width: 100%; border-collapse: collapse; margin: 20px 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">');
+            html = html.replace(/<th>/g, '<th style="background: #3498db; color: white; padding: 12px; text-align: left; font-weight: 600;">');
+            html = html.replace(/<td>/g, '<td style="padding: 12px; border-bottom: 1px solid #e9ecef; color: #2c3e50;">');
+            html = html.replace(/<tr>/g, '<tr style="transition: background-color 0.2s;">');
+            
+            // 链接样式
+            html = html.replace(/<a href="/g, '<a style="color: #3498db; text-decoration: none; border-bottom: 1px dotted #3498db;" href="');
+            
+            return html;
+            
+        } catch (error) {
+            console.error('Marked.js解析教学改进建议失败:', error);
+            // 如果Marked.js解析失败，回退到简单处理
+            return formatImprovementsFallback(content);
+        }
+    } else {
+        console.warn('Marked.js未加载，使用简单格式化');
+        // 如果Marked.js不可用，使用简单的格式化
+        return formatImprovementsFallback(content);
+    }
+}
+
+// 备用的简单格式化函数
+function formatImprovementsFallback(content) {
+    let formatted = content;
+    
+    // 处理标题
+    formatted = formatted.replace(/^# (.*$)/gim, '<h1 style="color: #e74c3c; margin: 32px 0 20px 0; font-size: 24px; border-bottom: 3px solid #e74c3c; padding-bottom: 10px; font-weight: bold;">$1</h1>');
+    formatted = formatted.replace(/^## (.*$)/gim, '<h2 style="color: #2980b9; margin: 28px 0 16px 0; font-size: 22px; border-bottom: 2px solid #3498db; padding-bottom: 8px; font-weight: bold;">$1</h2>');
+    formatted = formatted.replace(/^### (.*$)/gim, '<h3 style="color: #2c3e50; margin: 24px 0 12px 0; font-size: 20px; font-weight: bold;">$1</h3>');
+    formatted = formatted.replace(/^#### (.*$)/gim, '<h4 style="color: #34495e; margin: 20px 0 10px 0; font-size: 18px; font-weight: bold;">$1</h4>');
+    
+    // 处理粗体和斜体
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #2c3e50; font-weight: 700;">$1</strong>');
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em style="color: #7f8c8d; font-style: italic;">$1</em>');
+    
+    // 处理代码
+    formatted = formatted.replace(/`([^`]+)`/g, '<code style="background: #f1f2f6; color: #e74c3c; padding: 3px 6px; border-radius: 4px; font-family: Monaco, Consolas, monospace; font-size: 13px;">$1</code>');
+    
+    // 处理列表
+    formatted = formatted.replace(/^- (.*$)/gm, '<li style="margin: 8px 0; line-height: 1.6; color: #2c3e50;">$1</li>');
+    formatted = formatted.replace(/^  - (.*$)/gm, '<li style="margin: 5px 0; margin-left: 20px; line-height: 1.6; color: #2c3e50; list-style-type: circle;">$1</li>');
+    formatted = formatted.replace(/^(\d+)\. (.*$)/gm, '<li style="margin: 10px 0; line-height: 1.6; color: #2c3e50; list-style-type: decimal;">$2</li>');
+    
+    // 将连续的li标签包装在ul或ol中
+    formatted = formatted.replace(/(<li[^>]*>.*?<\/li>[\s]*)+/g, function(match) {
+        if (match.includes('list-style-type: decimal')) {
+            return '<ol style="margin: 16px 0; padding-left: 24px; color: #2c3e50;">' + match + '</ol>';
+        } else {
+            return '<ul style="margin: 16px 0; padding-left: 24px; color: #2c3e50;">' + match + '</ul>';
+        }
+    });
+    
+    // 处理段落
+    formatted = formatted.replace(/\n\n/g, '</p><p style="margin: 15px 0; line-height: 1.7; color: #2c3e50;">');
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // 添加段落标签
+    if (formatted && !formatted.startsWith('<')) {
+        formatted = '<p style="margin: 15px 0; line-height: 1.7; color: #2c3e50;">' + formatted + '</p>';
+    }
+    
+    return formatted;
+}
+
+function copyImprovements() {
+    if (!window.currentImprovements) {
+        showNotification('没有可复制的内容', 'warning');
+        return;
+    }
+    
+    const textContent = `智能教学改进建议报告
+
+分析范围：${window.currentImprovements.scopeText}${window.currentImprovements.courseText ? ' - ' + window.currentImprovements.courseText : ''}
+生成时间：${window.currentImprovements.generatedAt}
+
+${window.currentImprovements.content}
+
+---
+本报告由SmartEdu智能教学系统基于DeepSeek AI模型生成
+`;
+    
+    navigator.clipboard.writeText(textContent).then(() => {
+        showNotification('内容已复制到剪贴板', 'success');
+    }).catch(() => {
+        showNotification('复制失败，请手动选择复制', 'error');
+    });
 }
 
 function exportImprovements() {
-    showNotification('导出改进建议功能待实现', 'info');
+    if (!window.currentImprovements) {
+        showNotification('请先生成改进建议', 'warning');
+        return;
+    }
+    
+    try {
+        // 生成文件名
+        const now = new Date();
+        const dateStr = now.getFullYear() + 
+                       String(now.getMonth() + 1).padStart(2, '0') + 
+                       String(now.getDate()).padStart(2, '0') + '_' +
+                       String(now.getHours()).padStart(2, '0') + 
+                       String(now.getMinutes()).padStart(2, '0');
+        
+        let fileName = `教学改进建议_${window.currentImprovements.scopeText}`;
+        if (window.currentImprovements.courseText) {
+            fileName += `_${window.currentImprovements.courseText}`;
+        }
+        fileName += `_${dateStr}.pdf`;
+        
+        // 显示生成提示
+        showNotification('正在生成PDF，请稍候...', 'info');
+        
+        // 生成PDF
+        generateChinesePDF(fileName);
+        
+    } catch (error) {
+        console.error('导出PDF失败:', error);
+        showNotification('导出PDF失败，请重试', 'error');
+    }
+}
+
+// 生成支持中文的PDF
+async function generateChinesePDF(fileName) {
+    try {
+        // 创建临时的HTML容器
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.left = '-9999px';
+        tempContainer.style.top = '0';
+        tempContainer.style.width = '794px'; // A4宽度（像素）
+        tempContainer.style.backgroundColor = 'white';
+        tempContainer.style.padding = '40px';
+        tempContainer.style.fontFamily = 'Microsoft YaHei, SimSun, sans-serif';
+        tempContainer.style.fontSize = '14px';
+        tempContainer.style.lineHeight = '1.6';
+        tempContainer.style.color = '#333';
+        
+        // 生成HTML内容
+        const htmlContent = generateReportHTML();
+        tempContainer.innerHTML = htmlContent;
+        
+        // 添加到页面
+        document.body.appendChild(tempContainer);
+        
+        // 使用html2canvas生成图片
+        const canvas = await html2canvas(tempContainer, {
+            scale: 2, // 提高清晰度
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            width: 794,
+            height: tempContainer.scrollHeight
+        });
+        
+        // 移除临时容器
+        document.body.removeChild(tempContainer);
+        
+        // 创建PDF
+        const { jsPDF } = window.jspdf;
+        const imgData = canvas.toDataURL('image/png');
+        
+        // 计算PDF尺寸
+        const imgWidth = 210; // A4宽度(mm)
+        const pageHeight = 297; // A4高度(mm)
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        
+        const doc = new jsPDF('p', 'mm', 'a4');
+        let position = 0;
+        
+        // 添加第一页
+        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        // 如果内容超过一页，添加更多页面
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            doc.addPage();
+            doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+        
+        // 下载PDF
+        doc.save(fileName);
+        showNotification('PDF报告导出成功', 'success');
+        
+    } catch (error) {
+        console.error('生成PDF失败:', error);
+        showNotification('生成PDF失败，请重试', 'error');
+    }
+}
+
+// 生成报告HTML内容
+function generateReportHTML() {
+    const formattedContent = formatImprovementsContent(window.currentImprovements.content);
+    
+    return `
+        <div style="font-family: Microsoft YaHei, SimSun, sans-serif;">
+            <!-- 报告头部 -->
+            <div style="text-align: center; border-bottom: 3px solid #2980b9; padding-bottom: 20px; margin-bottom: 30px;">
+                <h1 style="font-size: 28px; font-weight: bold; color: #2c3e50; margin: 0 0 15px 0;">
+                    智能教学改进建议报告
+                </h1>
+                <div style="font-size: 14px; color: #7f8c8d; margin: 5px 0;">
+                    <div>分析范围：${window.currentImprovements.scopeText}${window.currentImprovements.courseText ? ' - ' + window.currentImprovements.courseText : ''}</div>
+                    <div>生成时间：${window.currentImprovements.generatedAt}</div>
+                </div>
+            </div>
+            
+            <!-- 报告内容 -->
+            <div style="font-size: 14px; line-height: 1.8; color: #333;">
+                ${formattedContent}
+            </div>
+            
+            <!-- 报告尾部 -->
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; font-size: 12px; color: #7f8c8d;">
+                <div>本报告由SmartEdu智能教学系统基于DeepSeek AI模型生成</div>
+                <div style="margin-top: 5px;">报告生成时间：${window.currentImprovements.generatedAt}</div>
+            </div>
+        </div>
+    `;
 }
 
 // ============= 知识块查看功能 =============

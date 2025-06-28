@@ -2252,4 +2252,65 @@ public class TeacherController {
             default: return type;
         }
     }
+
+    /**
+     * 生成教学改进建议
+     */
+    @PostMapping("/improvements")
+    public ResponseEntity<Map<String, Object>> generateImprovements(@RequestBody Map<String, Object> request) {
+        try {
+            String scope = (String) request.get("scope");
+            Object courseIdObj = request.get("courseId");
+            
+            if (scope == null || scope.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "分析范围不能为空"
+                ));
+            }
+            
+            // 验证courseId（当scope为COURSE时）
+            if ("COURSE".equals(scope)) {
+                if (courseIdObj == null || courseIdObj.toString().trim().isEmpty()) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "选择单个课程分析时，必须指定课程"
+                    ));
+                }
+            }
+            
+            Long courseId = null;
+            if (courseIdObj != null && !courseIdObj.toString().trim().isEmpty()) {
+                try {
+                    courseId = Long.valueOf(courseIdObj.toString());
+                } catch (NumberFormatException e) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "无效的课程ID格式"
+                    ));
+                }
+            }
+            
+            // 调用服务生成改进建议
+            String improvements = teacherService.generateTeachingImprovements(scope, courseId);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "data", Map.of(
+                    "improvements", improvements,
+                    "scope", scope,
+                    "courseId", courseId
+                ),
+                "message", "教学改进建议生成成功"
+            ));
+            
+        } catch (Exception e) {
+            System.err.println("生成教学改进建议失败: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "message", "生成教学改进建议失败：" + e.getMessage()
+            ));
+        }
+    }
 } 

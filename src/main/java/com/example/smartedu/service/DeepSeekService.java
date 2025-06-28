@@ -355,16 +355,16 @@ public class DeepSeekService {
                 :
                 // 多道题目的标准格式  
                 "### 题目X（题型类型）\n" +
-                            "**题目内容**：[具体题目内容]\n" +
-            "**选项**：（如果是选择题）\n" +
-            "A. [选项A内容]\n" +
-            "B. [选项B内容]\n" +
-            "C. [选项C内容]\n" +
-            "D. [选项D内容]\n" +
-            "**正确答案**：[答案]\n" +
-            "**解析**：[详细解析]\n" +
+                "**题目内容**：[具体题目内容]\n" +
+                "**选项**：（如果是选择题）\n" +
+                "A. [选项A内容]\n" +
+                "B. [选项B内容]\n" +
+                "C. [选项C内容]\n" +
+                "D. [选项D内容]\n" +
+                "**正确答案**：[答案]\n" +
+                "**解析**：[详细解析]\n" +
             "**知识点**：[简短的知识点标记，如：数据结构、算法分析等]\n" +
-            "**分值建议**：[具体分值]分\n\n" +
+                "**分值建议**：[具体分值]分\n\n" +
                 "---\n\n"
             ) +
             "## 题型说明：\n" +
@@ -949,5 +949,430 @@ public class DeepSeekService {
         );
         
         return callDeepSeekAPI(prompt);
+    }
+
+    /**
+     * 生成教学改进建议（包含详细错题分析）
+     */
+    public String generateTeachingImprovementsWithDetailedAnalysis(String scope, String analysisData, 
+                                                                 int totalExams, int totalStudents, 
+                                                                 Map<String, List<Double>> courseScores, 
+                                                                 Map<String, Map<String, Integer>> difficultyStats,
+                                                                 List<Map<String, Object>> examAnalysisData) {
+        
+        // 如果没有详细的错题数据，使用原来的方法
+        if (examAnalysisData.isEmpty()) {
+            return generateTeachingImprovements(scope, analysisData, totalExams, totalStudents, courseScores, difficultyStats);
+        }
+        
+        try {
+            // 构建多轮对话
+            List<Map<String, Object>> messages = new ArrayList<>();
+            
+            // 第一轮：发送系统角色和基础分析数据
+            messages.add(Map.of(
+                "role", "system",
+                "content", "您是一位资深的教育专家，擅长分析学生学习情况并提供教学改进建议。我将为您提供详细的考试数据和错题分析，请您仔细记录这些信息，在我发送完所有数据后，您将基于这些信息生成专业的教学改进建议。"
+            ));
+            
+            // 第二轮：发送基础统计数据
+            StringBuilder summary = buildAnalysisSummary(scope, totalExams, totalStudents, courseScores, difficultyStats);
+            messages.add(Map.of(
+                "role", "user",
+                "content", "**基础教学数据分析**\n\n" + summary.toString() + "\n\n" + analysisData + "\n\n请记录这些基础数据，我接下来将发送详细的错题分析。"
+            ));
+            
+            messages.add(Map.of(
+                "role", "assistant",
+                "content", "我已经记录了基础教学数据。请继续发送详细的错题分析数据。"
+            ));
+            
+            // 第三轮及后续：逐个发送考试的详细错题分析
+            for (int i = 0; i < examAnalysisData.size(); i++) {
+                Map<String, Object> examData = examAnalysisData.get(i);
+                String examAnalysisContent = buildExamAnalysisContent(examData, i + 1);
+                
+                messages.add(Map.of(
+                    "role", "user",
+                    "content", examAnalysisContent
+                ));
+                
+                if (i < examAnalysisData.size() - 1) {
+                    // 不是最后一个考试，AI确认收到
+                    messages.add(Map.of(
+                        "role", "assistant",
+                        "content", String.format("已记录第%d个考试的详细错题分析数据。请继续发送下一个考试的分析。", i + 1)
+                    ));
+                }
+            }
+            
+            // 最后一轮：要求生成综合分析报告
+            String finalPrompt = buildFinalAnalysisPrompt(scope, examAnalysisData.size());
+            messages.add(Map.of(
+                "role", "user",
+                "content", finalPrompt
+            ));
+            
+            // 调用DeepSeek API进行多轮对话
+            return callDeepSeekAPIWithMessages(messages);
+            
+        } catch (Exception e) {
+            System.err.println("详细分析失败，使用基础分析: " + e.getMessage());
+            // 如果详细分析失败，回退到基础分析
+            return generateTeachingImprovements(scope, analysisData, totalExams, totalStudents, courseScores, difficultyStats);
+        }
+    }
+    
+    /**
+     * 构建分析摘要
+     */
+    private StringBuilder buildAnalysisSummary(String scope, int totalExams, int totalStudents, 
+                                             Map<String, List<Double>> courseScores, 
+                                             Map<String, Map<String, Integer>> difficultyStats) {
+        StringBuilder summary = new StringBuilder();
+        summary.append("**数据概览**\n");
+        summary.append("- 分析范围：").append(getScopeDisplayName(scope)).append("\n");
+        summary.append("- 考试总数：").append(totalExams).append(" 场\n");
+        summary.append("- 学生总数：").append(totalStudents).append(" 人次\n\n");
+        
+        // 分析各课程成绩分布
+        if (!courseScores.isEmpty()) {
+            summary.append("**成绩分析**\n");
+            for (Map.Entry<String, List<Double>> entry : courseScores.entrySet()) {
+                String courseName = entry.getKey();
+                List<Double> scores = entry.getValue();
+                if (scores.isEmpty()) continue;
+                
+                double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                
+                // 计算优秀率、良好率、及格率
+                long excellentCount = scores.stream().mapToLong(s -> s >= 90 ? 1 : 0).sum();
+                long goodCount = scores.stream().mapToLong(s -> s >= 80 && s < 90 ? 1 : 0).sum();
+                long passCount = scores.stream().mapToLong(s -> s >= 60 ? 1 : 0).sum();
+                
+                double excellentRate = excellentCount * 100.0 / scores.size();
+                double goodRate = goodCount * 100.0 / scores.size();
+                double passRate = passCount * 100.0 / scores.size();
+                
+                summary.append("- ").append(courseName).append("：\n");
+                summary.append("  平均分：").append(String.format("%.2f", avg));
+                summary.append(" | 及格率：").append(String.format("%.1f%%", passRate));
+                summary.append(" | 优秀率：").append(String.format("%.1f%%", excellentRate)).append("\n");
+            }
+        }
+        
+        // 分析题目难度分布
+        if (!difficultyStats.isEmpty()) {
+            summary.append("\n**题目难度分析**\n");
+            for (Map.Entry<String, Map<String, Integer>> entry : difficultyStats.entrySet()) {
+                String courseName = entry.getKey();
+                Map<String, Integer> stats = entry.getValue();
+                
+                int total = stats.values().stream().mapToInt(Integer::intValue).sum();
+                if (total == 0) continue;
+                
+                summary.append("- ").append(courseName).append("：");
+                summary.append("简单题 ").append(stats.getOrDefault("简单", 0)).append("道");
+                summary.append(" | 中等题 ").append(stats.getOrDefault("中等", 0)).append("道");
+                summary.append(" | 困难题 ").append(stats.getOrDefault("困难", 0)).append("道\n");
+            }
+        }
+        
+        return summary;
+    }
+    
+    /**
+     * 构建单个考试的详细分析内容
+     */
+    private String buildExamAnalysisContent(Map<String, Object> examData, int examIndex) {
+        StringBuilder content = new StringBuilder();
+        
+        content.append("**第").append(examIndex).append("个考试详细错题分析**\n\n");
+        content.append("考试名称：").append(examData.get("examTitle")).append("\n");
+        content.append("课程名称：").append(examData.get("courseName")).append("\n");
+        content.append("参考人数：").append(examData.get("studentCount")).append("\n\n");
+        
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> questionAnalysis = (List<Map<String, Object>>) examData.get("questionAnalysis");
+        
+        if (questionAnalysis != null && !questionAnalysis.isEmpty()) {
+            content.append("**错题详细分析（正确率<70%的题目）：**\n\n");
+            
+            for (int i = 0; i < questionAnalysis.size(); i++) {
+                Map<String, Object> question = questionAnalysis.get(i);
+                content.append("题目").append(i + 1).append("：\n");
+                content.append("- 题目内容：").append(question.get("questionContent")).append("\n");
+                content.append("- 题目类型：").append(getQuestionTypeDisplayName((String) question.get("questionType"))).append("\n");
+                content.append("- 标准答案：").append(question.get("standardAnswer")).append("\n");
+                content.append("- 题目解析：").append(question.get("explanation")).append("\n");
+                content.append("- 满分：").append(question.get("maxScore")).append("分\n");
+                content.append("- 答题人数：").append(question.get("totalAnswers")).append("\n");
+                content.append("- 正确人数：").append(question.get("correctCount")).append("\n");
+                content.append("- 正确率：").append(String.format("%.1f%%", ((Double) question.get("correctRate")) * 100)).append("\n");
+                content.append("- 平均得分：").append(String.format("%.2f", question.get("avgScore"))).append("分\n");
+                
+                // 错误答案分析
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> wrongAnswers = (List<Map<String, Object>>) question.get("wrongAnswers");
+                if (wrongAnswers != null && !wrongAnswers.isEmpty()) {
+                    content.append("- 典型错误答案：\n");
+                    
+                    // 只显示前5个错误答案作为代表
+                    int maxDisplay = Math.min(5, wrongAnswers.size());
+                    for (int j = 0; j < maxDisplay; j++) {
+                        Map<String, Object> wrongAnswer = wrongAnswers.get(j);
+                        content.append("  ").append(j + 1).append(". \"").append(wrongAnswer.get("studentAnswer"))
+                               .append("\" (得分：").append(wrongAnswer.get("score")).append("/")
+                               .append(wrongAnswer.get("maxScore")).append(")\n");
+                    }
+                    
+                    if (wrongAnswers.size() > 5) {
+                        content.append("  ... 还有").append(wrongAnswers.size() - 5).append("个错误答案\n");
+                    }
+                }
+                
+                // 答案分布分析
+                @SuppressWarnings("unchecked")
+                Map<String, Integer> answerDistribution = (Map<String, Integer>) question.get("answerDistribution");
+                if (answerDistribution != null && !answerDistribution.isEmpty()) {
+                    content.append("- 答案分布统计：\n");
+                    answerDistribution.entrySet().stream()
+                        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                        .limit(3) // 只显示前3个最常见的答案
+                        .forEach(entry -> {
+                            content.append("  \"").append(entry.getKey()).append("\": ")
+                                   .append(entry.getValue()).append("人\n");
+                        });
+                }
+                
+                content.append("\n");
+            }
+        } else {
+            content.append("该考试没有正确率较低的题目，学生整体表现良好。\n\n");
+        }
+        
+        return content.toString();
+    }
+    
+    /**
+     * 构建最终分析要求的prompt
+     */
+    private String buildFinalAnalysisPrompt(String scope, int examCount) {
+        return String.format(
+            "现在我已经为您提供了完整的教学数据，包括：\n" +
+            "1. 基础统计数据（分析范围：%s）\n" +
+            "2. %d个考试的详细错题分析\n\n" +
+            "请您基于以上所有信息，生成一份专业、全面的教学改进建议报告。要求：\n\n" +
+            "**分析维度：**\n" +
+            "1. **教学效果评估**\n" +
+            "   - 基于成绩数据和错题分析，评估整体教学成效\n" +
+            "   - 识别教学优势和薄弱环节\n" +
+            "   - 分析学生学习状况和知识掌握情况\n\n" +
+            "2. **具体问题诊断**\n" +
+            "   - 分析高错误率题目的共同特征\n" +
+            "   - 识别学生的典型错误模式和思维误区\n" +
+            "   - 找出知识点掌握的薄弱环节\n" +
+            "   - 分析不同题型的答题情况\n\n" +
+            "3. **针对性教学改进建议**\n" +
+            "   - 针对具体错题和错误模式提出教学策略\n" +
+            "   - 建议重点讲解的知识点和教学方法\n" +
+            "   - 提出课堂练习和作业的改进方案\n" +
+            "   - 建议学生个性化辅导重点\n\n" +
+            "4. **考试命题优化建议**\n" +
+            "   - 基于答题情况分析题目设计的合理性\n" +
+            "   - 建议题目难度和类型的调整\n" +
+            "   - 提出更好的题目表达方式\n\n" +
+            "5. **实施计划**\n" +
+            "   - 短期改进措施（1-2周内可实施）\n" +
+            "   - 中期改进计划（1个月内的教学调整）\n" +
+            "   - 长期发展目标（一学期的教学优化）\n\n" +
+            "**输出要求：**\n" +
+            "- 建议要具体可操作，避免空泛理论\n" +
+            "- 要引用具体的错题和数据进行分析\n" +
+            "- 提供多种可选的改进方案\n" +
+            "- 建议要符合实际教学条件\n" +
+            "- 使用清晰的结构化格式\n" +
+            "- 重点关注错误率高的题目和知识点\n\n" +
+            "请开始生成详细的教学改进建议报告。",
+            getScopeDisplayName(scope),
+            examCount
+        );
+    }
+    
+    /**
+     * 调用DeepSeek API进行多轮对话
+     */
+    private String callDeepSeekAPIWithMessages(List<Map<String, Object>> messages) {
+        try {
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", "deepseek-chat");
+            requestBody.put("messages", messages);
+            requestBody.put("temperature", 0.7);
+            requestBody.put("max_tokens", 4000);
+            requestBody.put("stream", false);
+            
+            String response = webClient.post()
+                    .uri(apiUrl)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+            
+            if (response != null) {
+                JsonNode jsonResponse = objectMapper.readTree(response);
+                JsonNode choices = jsonResponse.get("choices");
+                if (choices != null && choices.isArray() && choices.size() > 0) {
+                    JsonNode message = choices.get(0).get("message");
+                    if (message != null) {
+                        String content = message.get("content").asText();
+                        System.out.println("DeepSeek多轮对话响应成功，内容长度: " + content.length());
+                        return content;
+                    }
+                }
+            }
+            
+            System.err.println("DeepSeek多轮对话响应格式异常");
+            return "AI分析服务暂时不可用，请稍后重试。";
+            
+        } catch (Exception e) {
+            System.err.println("调用DeepSeek多轮对话API失败: " + e.getMessage());
+            e.printStackTrace();
+            return "AI分析服务暂时不可用，请稍后重试。";
+        }
+    }
+    
+    /**
+     * 获取题目类型显示名称
+     */
+    private String getQuestionTypeDisplayName(String type) {
+        if (type == null) return "未知类型";
+        switch (type.toLowerCase()) {
+            case "choice": return "选择题";
+            case "multiple_choice": return "多选题";
+            case "true_false": return "判断题";
+            case "fill_blank": return "填空题";
+            case "short_answer": return "简答题";
+            case "essay": return "论述题";
+            default: return type;
+        }
+    }
+    
+    /**
+     * 生成教学改进建议
+     */
+    public String generateTeachingImprovements(String scope, String analysisData, int totalExams, 
+                                             int totalStudents, Map<String, List<Double>> courseScores, 
+                                             Map<String, Map<String, Integer>> difficultyStats) {
+        
+        // 构建分析摘要
+        StringBuilder summary = new StringBuilder();
+        summary.append("**数据概览**\n");
+        summary.append("- 分析范围：").append(getScopeDisplayName(scope)).append("\n");
+        summary.append("- 考试总数：").append(totalExams).append(" 场\n");
+        summary.append("- 学生总数：").append(totalStudents).append(" 人次\n\n");
+        
+        // 分析各课程成绩分布
+        if (!courseScores.isEmpty()) {
+            summary.append("**成绩分析**\n");
+            for (Map.Entry<String, List<Double>> entry : courseScores.entrySet()) {
+                String courseName = entry.getKey();
+                List<Double> scores = entry.getValue();
+                if (scores.isEmpty()) continue;
+                
+                double avg = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                double max = scores.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+                double min = scores.stream().mapToDouble(Double::doubleValue).min().orElse(0.0);
+                
+                // 计算优秀率、良好率、及格率
+                long excellentCount = scores.stream().mapToLong(s -> s >= 90 ? 1 : 0).sum();
+                long goodCount = scores.stream().mapToLong(s -> s >= 80 && s < 90 ? 1 : 0).sum();
+                long passCount = scores.stream().mapToLong(s -> s >= 60 ? 1 : 0).sum();
+                
+                double excellentRate = excellentCount * 100.0 / scores.size();
+                double goodRate = goodCount * 100.0 / scores.size();
+                double passRate = passCount * 100.0 / scores.size();
+                
+                summary.append("- ").append(courseName).append("：\n");
+                summary.append("  平均分：").append(String.format("%.2f", avg));
+                summary.append(" | 及格率：").append(String.format("%.1f%%", passRate));
+                summary.append(" | 优秀率：").append(String.format("%.1f%%", excellentRate)).append("\n");
+            }
+        }
+        
+        // 分析题目难度分布
+        if (!difficultyStats.isEmpty()) {
+            summary.append("\n**题目难度分析**\n");
+            for (Map.Entry<String, Map<String, Integer>> entry : difficultyStats.entrySet()) {
+                String courseName = entry.getKey();
+                Map<String, Integer> stats = entry.getValue();
+                
+                int total = stats.values().stream().mapToInt(Integer::intValue).sum();
+                if (total == 0) continue;
+                
+                summary.append("- ").append(courseName).append("：");
+                summary.append("简单题 ").append(stats.getOrDefault("简单", 0)).append("道");
+                summary.append(" | 中等题 ").append(stats.getOrDefault("中等", 0)).append("道");
+                summary.append(" | 困难题 ").append(stats.getOrDefault("困难", 0)).append("道\n");
+            }
+        }
+        
+        String prompt = String.format(
+            "**智能教学改进建议生成**\n\n" +
+            "您是一位资深的教育专家，请基于以下教学数据分析，为教师提供专业、实用的教学改进建议。\n\n" +
+            "%s\n" +
+            "**详细数据**\n" +
+            "%s\n\n" +
+            "**任务要求：**\n" +
+            "请从以下维度进行深度分析并提出具体可行的改进建议：\n\n" +
+            "1. **教学效果评估**\n" +
+            "   - 分析整体教学成效\n" +
+            "   - 识别优势和不足\n" +
+            "   - 评估学生学习状况\n\n" +
+            "2. **问题诊断与分析**\n" +
+            "   - 学生成绩分布分析\n" +
+            "   - 知识点掌握情况\n" +
+            "   - 常见错误类型\n" +
+            "   - 学习难点识别\n\n" +
+            "3. **教学方法改进**\n" +
+            "   - 课堂教学策略优化\n" +
+            "   - 教学手段多样化建议\n" +
+            "   - 互动方式改进\n" +
+            "   - 因材施教方案\n\n" +
+            "4. **考试与评价优化**\n" +
+            "   - 题目难度调整建议\n" +
+            "   - 考试类型多样化\n" +
+            "   - 评价方式改进\n" +
+            "   - 反馈机制完善\n\n" +
+            "5. **具体实施方案**\n" +
+            "   - 短期改进措施（1-2周内）\n" +
+            "   - 中期改进计划（1个月内）\n" +
+            "   - 长期发展目标（一学期内）\n" +
+            "   - 效果评估指标\n\n" +
+            "**输出要求：**\n" +
+            "- 建议要具体可操作，避免空泛的理论\n" +
+            "- 要针对数据中反映的实际问题\n" +
+            "- 提供多种可选的改进方案\n" +
+            "- 建议要符合实际教学条件\n" +
+            "- 使用清晰的结构化格式\n" +
+            "- 适当使用图标和强调格式提高可读性\n\n" +
+            "请生成一份专业、全面、实用的教学改进建议报告。",
+            summary.toString(), 
+            analysisData
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 获取分析范围的显示名称
+     */
+    private String getScopeDisplayName(String scope) {
+        switch (scope) {
+            case "COURSE": return "单个课程";
+            case "SEMESTER": return "本学期";
+            case "YEAR": return "本学年";
+            default: return "未知范围";
+        }
     }
 } 

@@ -7944,3 +7944,169 @@ section#gen-test .main-content {
         flex: 1;
     }
 }
+
+/* 智能教学改进建议页面样式 - 让卡片占满整行 */
+#improve-suggest .main-content {
+    grid-template-columns: 1fr !important; /* 单列布局，卡片占满整行 */
+    gap: 0 !important;
+}
+
+#improve-suggest .content-card {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+/* 确保在所有屏幕尺寸下都保持单列布局 */
+@media (min-width: 1600px) {
+    #improve-suggest .main-content {
+        grid-template-columns: 1fr !important;
+        gap: 0 !important;
+    }
+}
+
+@media (max-width: 1400px) {
+    #improve-suggest .main-content {
+        grid-template-columns: 1fr !important;
+        gap: 0 !important;
+    }
+}
+
+@media (max-width: 1200px) {
+    #improve-suggest .main-content {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 992px) {
+    #improve-suggest .main-content {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #improve-suggest .main-content {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* 智能教学改进建议内容样式优化 */
+.improvements-content {
+    font-family: 'Noto Sans SC', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+
+.improvements-content h1,
+.improvements-content h2,
+.improvements-content h3,
+.improvements-content h4,
+.improvements-content h5,
+.improvements-content h6 {
+    font-family: inherit;
+    line-height: 1.3;
+    margin-top: 0;
+}
+
+.improvements-content h1:first-child,
+.improvements-content h2:first-child,
+.improvements-content h3:first-child,
+.improvements-content h4:first-child {
+    margin-top: 0 !important;
+}
+
+.improvements-content p {
+    text-align: justify;
+    word-break: break-word;
+    hyphens: auto;
+}
+
+.improvements-content ul,
+.improvements-content ol {
+    margin-bottom: 16px;
+}
+
+.improvements-content li {
+    text-align: justify;
+    word-break: break-word;
+}
+
+.improvements-content li ul,
+.improvements-content li ol {
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+.improvements-content blockquote {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.improvements-content table {
+    font-size: 14px;
+}
+
+.improvements-content table th {
+    font-size: 14px;
+}
+
+.improvements-content table td {
+    font-size: 14px;
+    vertical-align: top;
+}
+
+.improvements-content table tr:hover {
+    background-color: #f8f9fa !important;
+}
+
+.improvements-content code {
+    word-break: break-all;
+}
+
+.improvements-content pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.improvements-content pre code {
+    background: transparent !important;
+    color: inherit !important;
+    padding: 0 !important;
+}
+
+/* 响应式优化 */
+@media (max-width: 768px) {
+    .improvements-content {
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    
+    .improvements-content h1 {
+        font-size: 20px !important;
+    }
+    
+    .improvements-content h2 {
+        font-size: 18px !important;
+    }
+    
+    .improvements-content h3 {
+        font-size: 16px !important;
+    }
+    
+    .improvements-content h4 {
+        font-size: 15px !important;
+    }
+    
+    .improvements-content table {
+        font-size: 12px;
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    .improvements-content pre {
+        font-size: 12px;
+        padding: 12px !important;
+    }
+    
+    .improvements-content code {
+        font-size: 12px;
+    }
+}

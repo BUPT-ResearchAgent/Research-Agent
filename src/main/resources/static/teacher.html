@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="style.css">
     <!-- Marked.js - Markdown解析库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <!-- html2canvas和jsPDF - PDF生成库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         /* 自定义checkbox样式 */
         .checkbox-container {
@@ -1233,48 +1236,48 @@
             </div>
             
             <!-- 第一行：统计数据卡片 -->
-            <div class="stats-container">
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-title">平均分</div>
-                        <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
-                            <i class="fas fa-calculator" style="color: var(--primary-color);"></i>
+                        <div class="stats-container">
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">平均分</div>
+                                    <div class="stat-icon" style="background-color: rgba(52, 152, 219, 0.1);">
+                                        <i class="fas fa-calculator" style="color: var(--primary-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="analysis-avg-score">--</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">最高分</div>
+                                    <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
+                                        <i class="fas fa-trophy" style="color: var(--success-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="analysis-max-score">--</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">及格率</div>
+                                    <div class="stat-icon" style="background-color: rgba(26, 188, 156, 0.1);">
+                                        <i class="fas fa-percentage" style="color: var(--accent-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="analysis-pass-rate">--%</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-header">
+                                    <div class="stat-title">标准差</div>
+                                    <div class="stat-icon" style="background-color: rgba(243, 156, 18, 0.1);">
+                                        <i class="fas fa-chart-line" style="color: var(--warning-color);"></i>
+                                    </div>
+                                </div>
+                                <div class="stat-value" id="analysis-std-dev">--</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="stat-value" id="analysis-avg-score">--</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-title">最高分</div>
-                        <div class="stat-icon" style="background-color: rgba(39, 174, 96, 0.1);">
-                            <i class="fas fa-trophy" style="color: var(--success-color);"></i>
-                        </div>
-                    </div>
-                    <div class="stat-value" id="analysis-max-score">--</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-title">及格率</div>
-                        <div class="stat-icon" style="background-color: rgba(26, 188, 156, 0.1);">
-                            <i class="fas fa-percentage" style="color: var(--accent-color);"></i>
-                        </div>
-                    </div>
-                    <div class="stat-value" id="analysis-pass-rate">--%</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div class="stat-title">标准差</div>
-                        <div class="stat-icon" style="background-color: rgba(243, 156, 18, 0.1);">
-                            <i class="fas fa-chart-line" style="color: var(--warning-color);"></i>
-                        </div>
-                    </div>
-                    <div class="stat-value" id="analysis-std-dev">--</div>
-                </div>
-            </div>
-            
+                        
             <!-- 第二行：成绩分布图表 -->
             <div class="main-content">
                 <div class="content-card">
@@ -1283,7 +1286,7 @@
                     </div>
                     <div class="chart-container">
                         <div id="score-distribution-chart" style="background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #7f8c8d;">
-                            选择考试后显示成绩分布图表
+                                选择考试后显示成绩分布图表
                         </div>
                     </div>
                 </div>
@@ -1332,20 +1335,14 @@
                         <i class="fas fa-lightbulb"></i> 智能教学改进建议
                     </div>
                     <div style="padding: 24px;">
-                        <div class="form-group">
-                            <label>分析范围：</label>
-                            <select id="improve-scope" class="form-select">
-                                <option value="COURSE">单个课程</option>
-                                <option value="SEMESTER">本学期</option>
-                                <option value="YEAR">本学年</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group" id="improve-course-group">
-                            <label>选择课程：</label>
-                            <select id="improve-course-select" class="form-select">
-                                <option value="">请选择课程</option>
-                            </select>
+                        <!-- 选择课程下拉栏独占一行 -->
+                        <div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #e9ecef;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>选择课程：</label>
+                                <select id="improve-course-select" class="form-select">
+                                    <option value="">请选择课程</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div id="improvements-content">
