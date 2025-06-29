@@ -7,6 +7,72 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* 自定义checkbox样式 */
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            position: relative;
+            padding-left: 0;
+            padding-top: 4px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+            line-height: 1.5;
+        }
+
+        .checkbox-container input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+            height: 0;
+            width: 0;
+        }
+
+        .checkmark {
+            position: relative;
+            top: 0;
+            left: 0;
+            height: 20px;
+            width: 20px;
+            min-width: 20px;
+            margin-right: 12px;
+            background-color: #eee;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-container:hover input ~ .checkmark {
+            background-color: #ccc;
+        }
+
+        .checkbox-container input:checked ~ .checkmark {
+            background-color: #e74c3c;
+            border-color: #e74c3c;
+        }
+
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+        }
+
+        .checkbox-container input:checked ~ .checkmark:after {
+            display: block;
+        }
+
+        .checkbox-container .checkmark:after {
+            left: 5px;
+            top: 1px;
+            width: 6px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 3px 3px 0;
+            transform: rotate(45deg);
+        }
+    </style>
 </head>
 <body>
     <!-- 顶部导航栏 -->
@@ -21,11 +87,26 @@
                 <i class="fas fa-bell"></i>
                 <span class="notification-count">1</span>
             </div>
-            <div class="user-profile">
-                <span class="user-name">系统管理员</span>
+            <div class="user-profile" id="user-profile">
+                <span class="user-name" id="current-username">系统管理员</span>
                 <i class="fas fa-caret-down"></i>
+                <div class="user-dropdown" id="user-dropdown">
+                    <div class="dropdown-item" onclick="showChangePasswordModal()">
+                        <i class="fas fa-key"></i>
+                        <span>修改密码</span>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="showDeleteAccountModal()" style="color: #e74c3c;">
+                        <i class="fas fa-user-times"></i>
+                        <span>注销账户</span>
+                    </div>
+                    <div class="dropdown-divider"></div>
+                    <div class="dropdown-item" onclick="handleLogout()">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>退出登录</span>
+                    </div>
+                </div>
             </div>
-            <button id="logout-btn" class="btn btn-danger" style="margin-left:16px;">退出</button>
         </div>
     </header>
 
@@ -74,7 +155,7 @@
                     </div>
                     <div class="stat-value">2,856</div>
                     <div class="stat-change">
-                        <i class="fas fa-arrow-up"></i> 48人 本周
+                        <!-- 动态数据，无变化趋势 -->
                     </div>
                 </div>
                 
@@ -87,7 +168,7 @@
                     </div>
                     <div class="stat-value">1,923</div>
                     <div class="stat-change">
-                        <i class="fas fa-arrow-up"></i> 67.3% 活跃率
+                        <!-- 动态数据，无变化趋势 -->
                     </div>
                 </div>
                 
@@ -100,7 +181,7 @@
                     </div>
                     <div class="stat-value">156</div>
                     <div class="stat-change">
-                        <i class="fas fa-arrow-up"></i> 5人 本月
+                        <!-- 动态数据，无变化趋势 -->
                     </div>
                 </div>
                 
@@ -113,7 +194,7 @@
                     </div>
                     <div class="stat-value">2,695</div>
                     <div class="stat-change">
-                        <i class="fas fa-arrow-up"></i> 43人 本周
+                        <!-- 动态数据，无变化趋势 -->
                     </div>
                 </div>
             </div>
@@ -131,11 +212,7 @@
                         <option value="student">学生</option>
                         <option value="admin">管理员</option>
                     </select>
-                    <select id="status-filter" class="filter-select">
-                        <option value="">全部状态</option>
-                        <option value="active">活跃</option>
-                        <option value="inactive">非活跃</option>
-                    </select>
+
                 </div>
                 <div class="batch-operations">
                     <button id="batch-delete" class="btn btn-danger" disabled>
@@ -233,117 +310,306 @@
     </main>
 
     <!-- 用户编辑弹窗 -->
-    <div id="user-edit-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="edit-modal-title">编辑用户</h3>
-                <button class="modal-close" id="close-edit-modal">
+    <div id="user-edit-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 500px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-user-edit"></i>
+                    </div>
+                    <h3 id="edit-modal-title">编辑用户</h3>
+                </div>
+                <button id="close-edit-modal" class="modal-close-btn">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body">
+            
+            <div class="course-modal-body">
                 <form id="user-edit-form">
-                    <div class="form-group">
-                        <label>用户名</label>
-                        <input type="text" id="edit-username" readonly>
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-user"></i>
+                            用户名
+                        </label>
+                        <input type="text" id="edit-username" class="course-form-input" readonly style="background-color: #f8f9fa; color: #6c757d;">
                     </div>
-                    <div class="form-group">
-                        <label>角色</label>
-                        <select id="edit-role">
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-user-tag"></i>
+                            角色 <span class="required">*</span>
+                        </label>
+                        <select id="edit-role" class="course-form-input">
                             <option value="teacher">教师</option>
                             <option value="student">学生</option>
                             <option value="admin">管理员</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>状态</label>
-                        <select id="edit-status">
-                            <option value="active">活跃</option>
-                            <option value="inactive">非活跃</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>重置密码</label>
-                        <input type="password" id="edit-password" placeholder="留空则不修改密码">
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-key"></i>
+                            重置密码
+                        </label>
+                        <input type="password" id="edit-password" class="course-form-input" placeholder="留空则不修改密码">
+                        <small style="color: #6c757d; font-size: 12px; margin-top: 4px; display: block;">
+                            <i class="fas fa-info-circle"></i> 密码长度至少6位
+                        </small>
                     </div>
                 </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" id="save-user" class="btn btn-primary">保存</button>
-                <button type="button" id="cancel-edit" class="btn btn-secondary">取消</button>
+                
+                <div class="course-modal-actions">
+                    <button type="button" id="cancel-edit" class="course-btn course-btn-cancel">
+                        <i class="fas fa-times"></i>
+                        <span>取消</span>
+                    </button>
+                    <button type="button" id="save-user" class="course-btn course-btn-primary">
+                        <i class="fas fa-save"></i>
+                        <span>保存修改</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- 批量角色修改弹窗 -->
-    <div id="batch-role-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>批量修改角色</h3>
-                <button class="modal-close" id="close-batch-role-modal">
+    <div id="batch-role-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 450px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background-color: rgba(255, 193, 7, 0.1);">
+                        <i class="fas fa-users-cog" style="color: #ffc107;"></i>
+                    </div>
+                    <h3>批量修改角色</h3>
+                </div>
+                <button id="close-batch-role-modal" class="modal-close-btn">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body">
-                <p>将为 <span id="selected-count">0</span> 个用户修改角色</p>
-                <div class="form-group">
-                    <label>新角色</label>
-                    <select id="batch-new-role">
+            
+            <div class="course-modal-body">
+                <div class="batch-info">
+                    <p style="margin-bottom: 1.5rem; color: #6c757d; text-align: center;">
+                        <i class="fas fa-info-circle" style="color: #17a2b8; margin-right: 8px;"></i>
+                        将为 <span id="selected-count" style="color: #007bff; font-weight: bold;">0</span> 个用户修改角色
+                    </p>
+                </div>
+                
+                <div class="course-form-group">
+                    <label class="course-form-label">
+                        <i class="fas fa-user-tag"></i>
+                        新角色 <span class="required">*</span>
+                    </label>
+                    <select id="batch-new-role" class="course-form-input">
+                        <option value="">请选择新角色</option>
                         <option value="teacher">教师</option>
                         <option value="student">学生</option>
                     </select>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" id="confirm-batch-role" class="btn btn-warning">确认修改</button>
-                <button type="button" id="cancel-batch-role" class="btn btn-secondary">取消</button>
+                
+                <div class="course-modal-actions">
+                    <button type="button" id="cancel-batch-role" class="course-btn course-btn-cancel">
+                        <i class="fas fa-times"></i>
+                        <span>取消</span>
+                    </button>
+                    <button type="button" id="confirm-batch-role" class="course-btn course-btn-warning">
+                        <i class="fas fa-check"></i>
+                        <span>确认修改</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- 添加用户弹窗 -->
-    <div id="add-user-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>添加新用户</h3>
-                <button class="modal-close" id="close-add-modal">
+    <div id="add-user-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 500px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background-color: rgba(40, 167, 69, 0.1);">
+                        <i class="fas fa-user-plus" style="color: #28a745;"></i>
+                    </div>
+                    <h3>添加新用户</h3>
+                </div>
+                <button id="close-add-modal" class="modal-close-btn">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body">
+            
+            <div class="course-modal-body">
                 <form id="add-user-form">
-                    <div class="form-group">
-                        <label>用户名 *</label>
-                        <input type="text" id="add-username" placeholder="输入用户名" required>
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-user"></i>
+                            用户名 <span class="required">*</span>
+                        </label>
+                        <input type="text" id="add-username" class="course-form-input" placeholder="输入用户名" required>
                     </div>
-                    <div class="form-group">
-                        <label>密码 *</label>
-                        <input type="password" id="add-password" placeholder="输入密码（至少6位）" required>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            密码 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="add-password" class="course-form-input" placeholder="输入密码（至少6位）" required minlength="6">
                     </div>
-                    <div class="form-group">
-                        <label>确认密码 *</label>
-                        <input type="password" id="add-confirm-password" placeholder="再次输入密码" required>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            确认密码 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="add-confirm-password" class="course-form-input" placeholder="再次输入密码" required minlength="6">
                     </div>
-                    <div class="form-group">
-                        <label>角色 *</label>
-                        <select id="add-role" required>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-user-tag"></i>
+                            角色 <span class="required">*</span>
+                        </label>
+                        <select id="add-role" class="course-form-input" required>
                             <option value="">请选择角色</option>
                             <option value="teacher">教师</option>
                             <option value="student">学生</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>状态</label>
-                        <select id="add-status">
-                            <option value="active">活跃</option>
-                            <option value="inactive">非活跃</option>
-                        </select>
+                    
+
+                </form>
+                
+                <div class="course-modal-actions">
+                    <button type="button" id="cancel-add" class="course-btn course-btn-cancel">
+                        <i class="fas fa-times"></i>
+                        <span>取消</span>
+                    </button>
+                    <button type="button" id="save-new-user" class="course-btn course-btn-primary">
+                        <i class="fas fa-user-plus"></i>
+                        <span>添加用户</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 修改密码模态框 -->
+    <div id="change-password-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 450px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-key"></i>
+                    </div>
+                    <h3>修改密码</h3>
+                </div>
+                <button id="close-password-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <form id="change-password-form">
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            当前密码 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="current-password" class="course-form-input" placeholder="请输入当前密码" required>
+                    </div>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            新密码 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="new-password" class="course-form-input" placeholder="请输入新密码（至少6位）" required minlength="6">
+                    </div>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            确认新密码 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="confirm-password" class="course-form-input" placeholder="请再次输入新密码" required minlength="6">
+                    </div>
+                    
+                    <div class="course-modal-actions">
+                        <button type="button" id="cancel-password-change" class="course-btn course-btn-cancel">
+                            <i class="fas fa-times"></i>
+                            <span>取消</span>
+                        </button>
+                        <button type="submit" class="course-btn course-btn-primary">
+                            <i class="fas fa-save"></i>
+                            <span>确认修改</span>
+                        </button>
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button type="button" id="save-new-user" class="btn btn-primary">添加用户</button>
-                <button type="button" id="cancel-add" class="btn btn-secondary">取消</button>
+        </div>
+    </div>
+
+    <!-- 注销账户模态框 -->
+    <div id="delete-account-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 500px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background-color: rgba(231, 76, 60, 0.1);">
+                        <i class="fas fa-user-times" style="color: #e74c3c;"></i>
+                    </div>
+                    <h3 style="color: #e74c3c;">注销账户</h3>
+                </div>
+                <button id="close-delete-account-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <div class="alert-danger" style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                        <i class="fas fa-exclamation-triangle" style="color: #721c24; font-size: 20px; margin-top: 2px;"></i>
+                        <div style="color: #721c24;">
+                            <h4 style="margin: 0 0 8px 0; font-size: 16px;">危险操作警告</h4>
+                            <p style="margin: 0; font-size: 14px; line-height: 1.4;">
+                                注销管理员账户将永久删除以下所有数据，且<strong>无法恢复</strong>：
+                            </p>
+                            <ul style="margin: 8px 0 0 16px; font-size: 14px;">
+                                <li>管理员资料和账户信息</li>
+                                <li>所有管理配置和设置</li>
+                                <li>系统操作日志记录</li>
+                                <li>用户管理权限</li>
+                                <li>其他相关管理数据</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="delete-account-form">
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-lock"></i>
+                            请输入您的密码以确认注销 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="delete-account-password" class="course-form-input" placeholder="请输入您的登录密码" required>
+                    </div>
+                    
+                    <div class="course-form-group" style="margin-top: 20px;">
+                        <label class="checkbox-container" style="margin-top: 8px;">
+                            <input type="checkbox" id="delete-account-confirm" required>
+                            <span class="checkmark"></span>
+                            <span>我已知晓此操作的风险，确认要永久注销管理员账户</span>
+                        </label>
+                    </div>
+                    
+                    <div class="course-modal-actions">
+                        <button type="button" id="cancel-delete-account" class="course-btn course-btn-cancel">
+                            <i class="fas fa-times"></i>
+                            <span>取消</span>
+                        </button>
+                        <button type="submit" class="course-btn" style="background: #e74c3c; border-color: #e74c3c;">
+                            <i class="fas fa-user-times"></i>
+                            <span>确认注销账户</span>
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -355,6 +621,37 @@
             <div style="display:flex;gap:16px;">
                 <button id="confirm-logout" class="btn btn-primary">确定</button>
                 <button id="cancel-logout" class="btn btn-accent">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认弹窗 -->
+    <div id="confirm-modal" class="course-modal-overlay" style="display: none;">
+        <div class="course-modal-container" style="max-width: 450px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" id="confirm-modal-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3 id="confirm-modal-title">确认操作</h3>
+                </div>
+            </div>
+            
+            <div class="course-modal-body">
+                <div class="confirm-message">
+                    <p id="confirm-modal-message">确定要执行此操作吗？</p>
+                </div>
+                
+                <div class="course-modal-actions">
+                    <button type="button" id="confirm-modal-cancel" class="course-btn course-btn-cancel">
+                        <i class="fas fa-times"></i>
+                        <span>取消</span>
+                    </button>
+                    <button type="button" id="confirm-modal-confirm" class="course-btn course-btn-primary">
+                        <i class="fas fa-check"></i>
+                        <span>确定</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>

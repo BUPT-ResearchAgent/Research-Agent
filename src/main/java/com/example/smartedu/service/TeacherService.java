@@ -594,7 +594,7 @@ public class TeacherService {
                 
                 if (searchResults.isEmpty()) {
                     throw new RuntimeException("无法从知识库中检索到相关内容，请检查知识库数据是否正常");
-                }
+        }
             }
         }
         

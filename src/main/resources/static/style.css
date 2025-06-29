@@ -1586,6 +1586,16 @@ tr:hover {
     color: #dc2626;
 }
 
+.status-online {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.status-offline {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
 .action-buttons {
     display: flex;
     gap: 4px;
@@ -2743,6 +2753,43 @@ input[type="checkbox"].checkbox-sm {
     background: linear-gradient(135deg, #2980b9, #3742fa);
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(52, 152, 219, 0.4);
+}
+
+.course-btn-warning {
+    background: linear-gradient(135deg, #f39c12, #e67e22);
+    color: white;
+    border: 2px solid transparent;
+}
+
+.course-btn-warning:hover {
+    background: linear-gradient(135deg, #e67e22, #d35400);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(243, 156, 18, 0.4);
+}
+
+.course-btn-danger {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    border: 2px solid transparent;
+}
+
+.course-btn-danger:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(231, 76, 60, 0.4);
+}
+
+/* 确认弹窗样式 */
+.confirm-message {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.confirm-message p {
+    margin: 0;
+    color: #495057;
+    line-height: 1.6;
+    font-size: 16px;
 }
 
 .course-btn:active {

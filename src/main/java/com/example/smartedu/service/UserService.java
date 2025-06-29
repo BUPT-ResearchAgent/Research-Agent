@@ -202,6 +202,47 @@ public class UserService {
     }
     
     /**
+     * 根据ID查找用户
+     */
+    public Optional<User> findById(Long userId) {
+        return userRepository.findById(userId);
+    }
+    
+    /**
+     * 更新用户信息
+     */
+    public User updateUser(User user) {
+        user.setUpdatedAt(LocalDateTime.now());
+        return userRepository.save(user);
+    }
+    
+    /**
+     * 获取所有用户（别名方法）
+     */
+    public List<User> findAll() {
+        return userRepository.findAll();
+    }
+    
+    /**
+     * 更新用户角色
+     */
+    public void updateUserRole(Long userId, String newRole) {
+        Optional<User> userOptional = userRepository.findById(userId);
+        if (!userOptional.isPresent()) {
+            throw new RuntimeException("用户不存在");
+        }
+        
+        if (!isValidRole(newRole)) {
+            throw new RuntimeException("无效的角色");
+        }
+        
+        User user = userOptional.get();
+        user.setRole(newRole);
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+    }
+    
+    /**
      * 用户统计数据内部类
      */
     public static class UserStats {
