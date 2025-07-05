@@ -4,10 +4,14 @@ import com.example.smartedu.entity.Teacher;
 import com.example.smartedu.entity.Student;
 import com.example.smartedu.entity.User;
 import com.example.smartedu.entity.Course;
+import com.example.smartedu.entity.Exam;
+import com.example.smartedu.entity.Question;
 import com.example.smartedu.repository.UserRepository;
 import com.example.smartedu.repository.TeacherRepository;
 import com.example.smartedu.repository.StudentRepository;
 import com.example.smartedu.repository.CourseRepository;
+import com.example.smartedu.repository.ExamRepository;
+import com.example.smartedu.repository.QuestionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,12 @@ public class DataInitializationService implements CommandLineRunner {
     
     @Autowired
     private CourseRepository courseRepository;
+    
+    @Autowired
+    private ExamRepository examRepository;
+    
+    @Autowired
+    private QuestionRepository questionRepository;
     
     @Autowired
     private UserService userService;
@@ -161,6 +171,7 @@ public class DataInitializationService implements CommandLineRunner {
                 courseRepository.save(course3);
                 System.out.println("创建示例课程: 物理");
             }
+            
             
         } catch (Exception e) {
             System.err.println("创建示例课程失败: " + e.getMessage());

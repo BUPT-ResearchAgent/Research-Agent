@@ -8308,3 +8308,560 @@ section#gen-test .main-content {
     background: rgba(255, 255, 255, 0.2) !important;
     transform: scale(1.1);
 }
+
+/* 试卷查看模态框样式 */
+.exam-question {
+    background: #ffffff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.question-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.question-number {
+    font-weight: 600;
+    color: #3498db;
+    font-size: 16px;
+}
+
+.question-score {
+    background: #e74c3c;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.question-content {
+    margin-bottom: 16px;
+    line-height: 1.6;
+    color: #2c3e50;
+    font-size: 15px;
+}
+
+.question-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #f8f9fa;
+    transition: all 0.2s ease;
+}
+
+.question-option:hover {
+    background: #e9ecef;
+}
+
+.question-option.correct-option {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+}
+
+.option-label {
+    font-weight: 600;
+    color: #495057;
+    min-width: 20px;
+}
+
+.option-text {
+    flex: 1;
+    color: #2c3e50;
+    line-height: 1.4;
+}
+
+.correct-icon {
+    color: #28a745;
+    font-size: 16px;
+}
+
+.question-answer {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.question-answer strong {
+    color: #856404;
+}
+
+.question-explanation {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.question-explanation strong {
+    color: #0c5460;
+}
+
+.no-questions {
+    text-align: center;
+    color: #6c757d;
+    padding: 40px;
+    font-size: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+/* 试卷查看模态框响应式设计 */
+@media (max-width: 768px) {
+    #exam-view-modal .course-modal-container {
+        max-width: 95% !important;
+        margin: 10px;
+    }
+    
+    .exam-info-grid {
+        grid-template-columns: 1fr !important;
+    }
+    
+    .question-header {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+    
+    .exam-question {
+        padding: 15px;
+    }
+    
+    .question-option {
+        padding: 6px 10px;
+    }
+}
+
+/* 优化建议相关样式 */
+.suggestion-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.view-detail-btn {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.view-detail-btn:hover {
+    background: #2980b9;
+}
+
+.view-detail-btn i {
+    font-size: 10px;
+}
+
+.optimization-summary {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid #3498db;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.summary-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.summary-label {
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.summary-value {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.suggestions-detail {
+    margin-top: 20px;
+}
+
+.suggestion-detail-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.suggestion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.suggestion-title {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.priority-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.priority-高 {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.priority-中 {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.priority-低 {
+    background: #d1fae5;
+    color: #059669;
+}
+
+.suggestion-content {
+    line-height: 1.6;
+    color: #4a5568;
+    font-size: 14px;
+}
+
+/* AI建议样式 */
+.ai-suggestions-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.ai-suggestions-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ai-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+}
+
+.ai-icon i {
+    color: white;
+    font-size: 16px;
+}
+
+.ai-label {
+    font-weight: 600;
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.ai-suggestions-content {
+    padding: 10px 0;
+}
+
+.ai-suggestion-text {
+    line-height: 1.6;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.95);
+    white-space: pre-wrap;
+    text-align: left;
+}
+
+.traditional-suggestions {
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* 教学大纲模态框样式 */
+.outline-content {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 10px;
+    line-height: 1.6;
+    font-size: 14px;
+    color: #333;
+    min-height: 60px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.outline-content p {
+    margin: 0 0 10px 0;
+    padding: 0;
+}
+
+.outline-content p:last-child {
+    margin-bottom: 0;
+}
+
+.outline-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.outline-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.outline-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.outline-content::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+.modal-section {
+    margin-bottom: 25px;
+}
+
+.section-title {
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-title i {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.info-label {
+    font-weight: 500;
+    color: #6c757d;
+    min-width: 80px;
+}
+
+.info-value {
+    color: #2c3e50;
+    font-weight: 400;
+    flex: 1;
+}
+
+/* 知识块模态框样式 */
+.knowledge-chunk {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.knowledge-chunk:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: #ccc;
+}
+
+.chunk-header {
+    background: #f8f9fa;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chunk-number {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.chunk-status {
+    display: flex;
+    align-items: center;
+}
+
+.processed-icon {
+    color: #27ae60;
+    font-size: 16px;
+}
+
+.pending-icon {
+    color: #f39c12;
+    font-size: 16px;
+}
+
+.chunk-content {
+    padding: 16px;
+    line-height: 1.6;
+    color: #2c3e50;
+    font-size: 14px;
+    background: #fff;
+    border-bottom: 1px solid #f0f0f0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.chunk-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chunk-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.chunk-content::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.chunk-content::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+.chunk-info {
+    padding: 12px 16px;
+    background: #f8f9fa;
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.chunk-info span {
+    margin-right: 16px;
+    display: inline-block;
+}
+
+.chunk-info span:last-child {
+    margin-right: 0;
+}
+
+.no-chunks {
+    text-align: center;
+    padding: 40px;
+    color: #999;
+    font-size: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.knowledge-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.knowledge-info-item label {
+    color: #6c757d;
+    font-size: 14px;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.knowledge-info-item label i {
+    margin-right: 6px;
+}
+
+.knowledge-info-item span {
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    #knowledge-view-modal .course-modal-container {
+        max-width: 95vw;
+        margin: 20px auto;
+    }
+    
+    .knowledge-info-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .chunk-header {
+        padding: 10px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .chunk-content {
+        padding: 12px;
+        font-size: 13px;
+    }
+    
+    .chunk-info {
+        padding: 10px 12px;
+    }
+    
+    .chunk-info span {
+        margin-right: 12px;
+        margin-bottom: 4px;
+    }
+}

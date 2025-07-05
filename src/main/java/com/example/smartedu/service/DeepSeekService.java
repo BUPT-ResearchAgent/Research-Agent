@@ -1375,4 +1375,63 @@ public class DeepSeekService {
             default: return "未知范围";
         }
     }
+
+    /**
+     * 生成课程优化建议
+     */
+    public String generateCourseOptimizationSuggestions(String courseName, String courseDescription, 
+                                                       double passRate, int totalAttempts, int passedAttempts,
+                                                       String topErrorKnowledgePoint, double errorRate,
+                                                       int examCount, List<String> recentExamTitles) {
+        
+        String prompt = String.format(
+            "**课程优化建议分析任务**\n\n" +
+            "您是一位资深的教育专家和课程设计顾问，请根据以下课程数据为《%s》课程提供专业的优化建议。\n\n" +
+            "**课程基本信息：**\n" +
+            "- 课程名称：%s\n" +
+            "- 课程描述：%s\n\n" +
+            "**学习效果统计：**\n" +
+            "- 总体通过率：%.2f%%\n" +
+            "- 总参与人次：%d\n" +
+            "- 通过人次：%d\n" +
+            "- 未通过人次：%d\n\n" +
+            "**知识点掌握情况：**\n" +
+            "- 最高错误率知识点：%s\n" +
+            "- 该知识点错误率：%.2f%%\n\n" +
+            "**考试安排情况：**\n" +
+            "- 考试总数：%d\n" +
+            "- 最近考试：%s\n\n" +
+            "**请提供以下三个方面的专业建议：**\n\n" +
+            "1. **教学质量优化建议**\n" +
+            "   - 基于通过率分析教学效果\n" +
+            "   - 针对性的教学改进措施\n" +
+            "   - 教学方法和策略建议\n\n" +
+            "2. **重点知识点强化建议**\n" +
+            "   - 分析高错误率知识点的原因\n" +
+            "   - 提供具体的教学改进方案\n" +
+            "   - 推荐辅助学习资源和方法\n\n" +
+            "3. **考试评估体系优化建议**\n" +
+            "   - 基于考试频次和效果的分析\n" +
+            "   - 考试设计和安排的改进建议\n" +
+            "   - 多元化评估方式的建议\n\n" +
+            "**输出要求：**\n" +
+            "- 每个建议都要具体可操作，避免空泛的表述\n" +
+            "- 结合数据分析，提供有针对性的解决方案\n" +
+            "- 建议应该分为短期（1-2周）、中期（1-2个月）、长期（一学期）三个实施阶段\n" +
+            "- 每个建议都应该包含预期效果和衡量标准\n" +
+            "- 语言要专业但易懂，适合教育工作者理解和实施\n" +
+            "- 使用清晰的结构化格式，便于阅读和实施\n\n" +
+            "请基于以上数据，为这门课程提供详细的AI优化建议。",
+            courseName, courseName, 
+            courseDescription != null ? courseDescription : "暂无描述",
+            passRate, totalAttempts, passedAttempts, (totalAttempts - passedAttempts),
+            topErrorKnowledgePoint != null ? topErrorKnowledgePoint : "暂无数据",
+            errorRate,
+            examCount,
+            recentExamTitles != null && !recentExamTitles.isEmpty() ? 
+                String.join("、", recentExamTitles) : "暂无最近考试"
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
 } 
