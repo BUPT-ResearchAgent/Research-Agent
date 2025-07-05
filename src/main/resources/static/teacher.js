@@ -405,8 +405,17 @@ async function loadSectionData(sectionId) {
 // 加载控制面板数据
 async function loadDashboardData() {
     try {
+        console.log('开始加载控制面板数据...');
+        
         // 加载课程列表
+        console.log('加载课程列表...');
         const coursesResponse = await TeacherAPI.getCourses();
+        console.log('课程列表响应:', coursesResponse);
+        
+        if (!coursesResponse.success) {
+            throw new Error('课程列表加载失败: ' + coursesResponse.message);
+        }
+        
         let courses = coursesResponse.data || [];
         
         // 根据课程ID去重，防止显示重复课程
@@ -420,10 +429,19 @@ async function loadDashboardData() {
         }
         
         currentCourses = uniqueCourses;
+        console.log('当前课程数据:', currentCourses);
         
         // 加载统计数据
+        console.log('加载统计数据...');
         const statsResponse = await TeacherAPI.getDashboardStats();
+        console.log('统计数据响应:', statsResponse);
+        
+        if (!statsResponse.success) {
+            throw new Error('统计数据加载失败: ' + statsResponse.message);
+        }
+        
         const stats = statsResponse.data || {};
+        console.log('统计数据:', stats);
         
         // 更新统计卡片
         updateStatsCards(stats);
@@ -435,12 +453,25 @@ async function loadDashboardData() {
         updateKnowledgeCourseSelect();
         
         // 加载通知数据以更新首页最新通知显示
+        try {
+            console.log('加载通知数据...');
         await loadNoticesData();
+        } catch (noticeError) {
+            console.warn('通知数据加载失败，但不影响主界面:', noticeError);
+        }
+        
+        // 加载系统通知
+        try {
+            console.log('加载系统通知...');
+            await loadSystemNotices();
+        } catch (systemNoticeError) {
+            console.warn('系统通知数据加载失败，但不影响主界面:', systemNoticeError);
+        }
         
         console.log('控制面板数据加载完成');
     } catch (error) {
         console.error('加载控制面板数据失败:', error);
-        showNotification('数据加载失败', 'error');
+        showNotification('数据加载失败: ' + error.message, 'error');
     }
 }
 
@@ -459,17 +490,17 @@ function updateStatsCards(stats) {
         avgScoreElement.textContent = avgScore.toFixed(1) + '%';
     }
     
-    // 更新已结束考试
+    // 更新待批改试卷数量
     const pendingElement = document.querySelector('.stat-card:nth-child(3) .stat-value');
     if (pendingElement) {
-        pendingElement.textContent = stats.pendingGrades || '0';
+        pendingElement.textContent = stats.pendingGradeCount || '0';
     }
     
-    // 更新课程完成率
-    const completionElement = document.querySelector('.stat-card:nth-child(4) .stat-value');
-    if (completionElement) {
-        const completionRate = stats.completionRate || 0;
-        completionElement.textContent = completionRate.toFixed(0) + '%';
+    // 更新课程数
+    const courseCountElement = document.querySelector('.stat-card:nth-child(4) .stat-value');
+    if (courseCountElement) {
+        const courseCount = stats.courseCount || 0;
+        courseCountElement.textContent = courseCount.toString();
     }
 }
 
@@ -489,10 +520,110 @@ function updateKnowledgeCourseSelect() {
         courseSelect.appendChild(option);
     });
     
-    // 如果有课程，默认选择第一个
+    // 移除旧的事件监听器，避免重复绑定
+    courseSelect.removeEventListener('change', handleCourseSelectChange);
+    
+    // 添加课程选择变化事件监听器
+    courseSelect.addEventListener('change', handleCourseSelectChange);
+    
+    // 如果有课程，默认选择第一个并加载知识点掌握情况
     if (currentCourses.length > 0) {
         courseSelect.value = currentCourses[0].id;
+        loadKnowledgeMastery(currentCourses[0].id);
     }
+}
+
+// 独立的事件处理函数，便于移除监听器
+function handleCourseSelectChange() {
+    const selectedCourseId = this.value;
+    if (selectedCourseId) {
+        loadKnowledgeMastery(selectedCourseId);
+    } else {
+        clearKnowledgeMasteryDisplay();
+    }
+}
+
+// 加载知识点掌握情况
+async function loadKnowledgeMastery(courseId) {
+    try {
+        console.log('加载课程', courseId, '的知识点掌握情况...');
+        
+        const response = await TeacherAPI.getKnowledgeMastery(courseId);
+        console.log('知识点掌握情况响应:', response);
+        
+        if (response.success) {
+            displayKnowledgeMastery(response.data);
+        } else {
+            console.error('获取知识点掌握情况失败:', response.message);
+            clearKnowledgeMasteryDisplay();
+        }
+    } catch (error) {
+        console.error('加载知识点掌握情况失败:', error);
+        clearKnowledgeMasteryDisplay();
+    }
+}
+
+// 显示知识点掌握情况
+function displayKnowledgeMastery(masteryData) {
+    const chartContainer = document.querySelector('.knowledge-mastery-card .chart-bars');
+    if (!chartContainer) return;
+    
+    if (!masteryData || masteryData.length === 0) {
+        chartContainer.innerHTML = `
+            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-chart-bar" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                <p>暂无知识点掌握数据</p>
+                <p>完成课程测评后这里会显示学生的知识点掌握情况</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // 最多显示前10个知识点，避免界面过于拥挤
+    const displayData = masteryData.slice(0, 10);
+    
+    let barsHtml = '';
+    displayData.forEach(item => {
+        const masteryRate = item.masteryRate || 0;
+        const level = item.level || '需要强化';
+        
+        // 根据掌握率设置颜色
+        let barClass = 'low';
+        if (masteryRate >= 80) {
+            barClass = 'high';
+        } else if (masteryRate >= 60) {
+            barClass = 'medium';
+        }
+        
+        barsHtml += `
+            <div class="bar-container">
+                <div class="bar-label">${item.knowledgePoint}</div>
+                <div class="bar ${barClass}" style="width: ${masteryRate}%;">
+                    <div class="bar-value">${masteryRate.toFixed(1)}%</div>
+                </div>
+                <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">
+                    ${level} (${item.totalAnswers}次答题)
+                </div>
+            </div>
+        `;
+    });
+    
+    chartContainer.innerHTML = barsHtml;
+    
+    console.log('知识点掌握情况显示完成，共', displayData.length, '个知识点');
+}
+
+// 清空知识点掌握情况显示
+function clearKnowledgeMasteryDisplay() {
+    const chartContainer = document.querySelector('.knowledge-mastery-card .chart-bars');
+    if (!chartContainer) return;
+    
+    chartContainer.innerHTML = `
+        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+            <i class="fas fa-chart-bar" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+            <p>请选择课程查看知识点掌握情况</p>
+        </div>
+    `;
 }
 
 // 更新最近课程表格
@@ -11459,5 +11590,282 @@ async function clearAllReports() {
         console.error('清空报告失败:', error);
         showNotification('清空失败，请重试', 'error');
     }
+}
+
+// ==================== 系统通知功能 ====================
+
+// 全局变量存储系统通知
+let systemNotices = [];
+
+// 获取系统通知
+async function loadSystemNotices() {
+    try {
+        const response = await fetch('/api/notices/system', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            systemNotices = result.data || [];
+            console.log('📢 获取系统通知:', systemNotices.length, '条');
+            
+            // 更新首页通知显示
+            updateSystemNoticesDisplay();
+        } else {
+            console.error('获取系统通知失败:', result.message);
+        }
+        
+    } catch (error) {
+        console.error('获取系统通知失败:', error);
+        // 静默失败，不显示错误通知
+    }
+}
+
+// 更新首页系统通知显示
+function updateSystemNoticesDisplay() {
+    const container = document.getElementById('recent-notices-container');
+    const viewAllBtn = document.getElementById('view-all-notices-btn');
+    
+    if (!container) return;
+    
+    // 筛选适用于教师的通知
+    const teacherNotices = systemNotices.filter(notice => 
+        notice.targetType === 'ALL' || notice.targetType === 'TEACHER'
+    );
+    
+    if (teacherNotices.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                <p>暂无系统通知</p>
+                <p>管理员发布通知后会在这里显示</p>
+            </div>
+        `;
+        if (viewAllBtn) viewAllBtn.style.display = 'none';
+        return;
+    }
+    
+    // 取最新的2条通知
+    const recentNotices = [...teacherNotices]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 2);
+    
+    const noticesHtml = recentNotices.map(notice => {
+        const targetText = getTargetTypeText(notice.targetType);
+        const statusText = notice.pushTime === 'scheduled' ? '定时推送' : '立即推送';
+        const truncatedContent = notice.content.length > 60 ? 
+            notice.content.substring(0, 60) + '...' : notice.content;
+        
+        const displayTime = notice.pushTime === 'scheduled' && notice.scheduledTime 
+            ? notice.scheduledTime 
+            : notice.createdAt;
+        
+        return `
+            <div class="recent-notice-card" onclick="viewSystemNoticeDetail(${notice.id})">
+                <div class="recent-notice-header">
+                    <div class="recent-notice-title">${notice.title}</div>
+                    <div class="recent-notice-time">${formatShortDate(displayTime)}</div>
+                </div>
+                <div class="recent-notice-content">${truncatedContent}</div>
+                <div class="recent-notice-footer">
+                    <div class="recent-notice-course">
+                        <i class="fas fa-bullhorn" style="color: #f39c12; margin-right: 4px;"></i>
+                        系统通知
+                    </div>
+                    <div class="recent-notice-course">对象：${targetText}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = `
+        <div class="recent-notices-list">
+            ${noticesHtml}
+        </div>
+    `;
+    
+    // 显示或隐藏"查看全部"按钮
+    if (viewAllBtn) {
+        if (teacherNotices.length > 2) {
+            viewAllBtn.style.display = 'inline-flex';
+            viewAllBtn.innerHTML = `<i class="fas fa-list"></i> 查看全部 (${teacherNotices.length})`;
+        } else {
+            viewAllBtn.style.display = 'none';
+        }
+    }
+}
+
+// 获取通知对象文本
+function getTargetTypeText(targetType) {
+    switch (targetType) {
+        case 'ALL':
+            return '全体成员';
+        case 'TEACHER':
+            return '教师';
+        case 'STUDENT':
+            return '学生';
+        default:
+            return '未知';
+    }
+}
+
+// 查看系统通知详情
+function viewSystemNoticeDetail(noticeId) {
+    const notice = systemNotices.find(n => n.id === noticeId);
+    if (!notice) return;
+    
+    const targetText = getTargetTypeText(notice.targetType);
+    const pushTimeText = notice.pushTime === 'scheduled' ? '定时推送' : '立即推送';
+    
+    const displayTime = notice.pushTime === 'scheduled' && notice.scheduledTime 
+        ? notice.scheduledTime 
+        : notice.createdAt;
+    
+    const modalHtml = `
+        <div id="system-notice-detail-modal" class="course-modal-overlay" style="display: flex;">
+            <div class="course-modal-container" style="max-width: 600px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <div class="modal-icon" style="background: #f39c12;">
+                            <i class="fas fa-bullhorn"></i>
+                        </div>
+                        <h3>系统通知</h3>
+                    </div>
+                    <button id="close-system-notice-detail" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="course-modal-body">
+                    <div class="notice-detail">
+                        <div class="detail-row">
+                            <label>标题：</label>
+                            <span>${notice.title}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>内容：</label>
+                            <div class="notice-content" style="max-height: 200px; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 4px; white-space: pre-wrap;">${notice.content}</div>
+                        </div>
+                        <div class="detail-row">
+                            <label>通知对象：</label>
+                            <span>${targetText}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>推送方式：</label>
+                            <span>${pushTimeText}${notice.pushTime === 'scheduled' && notice.scheduledTime ? 
+                                ` (${formatDateTime(notice.scheduledTime)})` : ''}</span>
+                        </div>
+                        <div class="detail-row">
+                            <label>发布时间：</label>
+                            <span>${formatDateTime(displayTime)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 绑定关闭事件
+    document.getElementById('close-system-notice-detail').addEventListener('click', function() {
+        document.getElementById('system-notice-detail-modal').remove();
+    });
+    
+    // 点击背景关闭
+    document.getElementById('system-notice-detail-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    });
+}
+
+// 显示所有系统通知
+function showAllSystemNotices() {
+    const teacherNotices = systemNotices.filter(notice => 
+        notice.targetType === 'ALL' || notice.targetType === 'TEACHER'
+    );
+    
+    if (teacherNotices.length === 0) {
+        showNotification('暂无系统通知', 'info');
+        return;
+    }
+    
+    const noticesHtml = teacherNotices.map(notice => {
+        const targetText = getTargetTypeText(notice.targetType);
+        const displayTime = notice.pushTime === 'scheduled' && notice.scheduledTime 
+            ? notice.scheduledTime 
+            : notice.createdAt;
+        
+        return `
+            <tr style="cursor: pointer;" onclick="viewSystemNoticeDetail(${notice.id})">
+                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${notice.title}</td>
+                <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${notice.content}</td>
+                <td>${targetText}</td>
+                <td>${formatDateTime(displayTime)}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    const modalHtml = `
+        <div id="all-system-notices-modal" class="course-modal-overlay" style="display: flex;">
+            <div class="course-modal-container" style="max-width: 900px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <div class="modal-icon" style="background: #f39c12;">
+                            <i class="fas fa-bullhorn"></i>
+                        </div>
+                        <h3>系统通知 (${teacherNotices.length}条)</h3>
+                    </div>
+                    <button id="close-all-system-notices" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="course-modal-body">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>标题</th>
+                                    <th>内容</th>
+                                    <th>对象</th>
+                                    <th>发布时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${noticesHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 绑定关闭事件
+    document.getElementById('close-all-system-notices').addEventListener('click', function() {
+        document.getElementById('all-system-notices-modal').remove();
+    });
+    
+    // 点击背景关闭
+    document.getElementById('all-system-notices-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    });
+}
+
+// 重写查看全部通知函数，显示系统通知
+function showAllTeacherNotices() {
+    showAllSystemNotices();
 }
 

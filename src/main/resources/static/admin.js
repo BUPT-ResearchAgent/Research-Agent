@@ -3367,3 +3367,159 @@ function hideLoading() {
         loadingDiv.remove();
     }
 }
+
+// ==================== 发布通知相关函数 ====================
+
+// 打开发布通知模态框
+function showPublishNoticeModal() {
+    const modal = document.getElementById('publish-notice-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        // 重置表单
+        document.getElementById('publish-notice-form').reset();
+        // 隐藏定时发送选项
+        document.getElementById('scheduled-time-group').style.display = 'none';
+    }
+}
+
+// 关闭发布通知模态框
+function closePublishNoticeModal() {
+    const modal = document.getElementById('publish-notice-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        // 重置表单
+        document.getElementById('publish-notice-form').reset();
+    }
+}
+
+// 处理推送时间选择
+function handlePushTimeChange() {
+    const pushTimeSelect = document.getElementById('push-time');
+    const scheduledTimeGroup = document.getElementById('scheduled-time-group');
+    
+    if (pushTimeSelect.value === 'scheduled') {
+        scheduledTimeGroup.style.display = 'block';
+        // 设置最小时间为当前时间
+        const now = new Date();
+        now.setMinutes(now.getMinutes() + 10); // 最少10分钟后
+        const minTime = now.toISOString().slice(0, 16);
+        document.getElementById('scheduled-time').min = minTime;
+    } else {
+        scheduledTimeGroup.style.display = 'none';
+    }
+}
+
+// 提交通知
+async function submitNotice() {
+    const form = document.getElementById('publish-notice-form');
+    const formData = new FormData(form);
+    
+    // 验证表单
+    const title = formData.get('title');
+    const content = formData.get('content');
+    const targetAudience = formData.get('targetAudience');
+    const pushTime = formData.get('pushTime');
+    const scheduledTime = formData.get('scheduledTime');
+    
+    if (!title || !title.trim()) {
+        showNotification('请输入通知标题', 'error');
+        return;
+    }
+    
+    if (!content || !content.trim()) {
+        showNotification('请输入通知内容', 'error');
+        return;
+    }
+    
+    if (!targetAudience) {
+        showNotification('请选择通知对象', 'error');
+        return;
+    }
+    
+    if (pushTime === 'scheduled' && (!scheduledTime || !scheduledTime.trim())) {
+        showNotification('请选择定时发送时间', 'error');
+        return;
+    }
+    
+    // 验证定时发送时间
+    if (pushTime === 'scheduled') {
+        const scheduledDateTime = new Date(scheduledTime);
+        const now = new Date();
+        
+        if (scheduledDateTime <= now) {
+            showNotification('定时发送时间必须晚于当前时间', 'error');
+            return;
+        }
+    }
+    
+    try {
+        showLoading('正在发布通知...');
+        
+        const requestData = {
+            title: title.trim(),
+            content: content.trim(),
+            targetAudience: targetAudience,
+            pushTime: pushTime
+        };
+        
+        if (pushTime === 'scheduled') {
+            requestData.scheduledTime = scheduledTime;
+        }
+        
+        const response = await fetch('/api/admin/notices', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(requestData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification('通知发布成功', 'success');
+            closePublishNoticeModal();
+            // 可以在这里刷新通知列表或者其他界面
+        } else {
+            showNotification(result.message || '发布通知失败', 'error');
+        }
+        
+    } catch (error) {
+        console.error('发布通知失败:', error);
+        showNotification('发布通知失败，请检查网络连接', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+// 初始化发布通知功能
+function initPublishNotice() {
+    // 绑定发布通知按钮事件
+    const publishNoticeBtn = document.getElementById('publish-notice');
+    if (publishNoticeBtn) {
+        publishNoticeBtn.addEventListener('click', showPublishNoticeModal);
+    }
+    
+    // 绑定推送时间选择事件
+    const pushTimeSelect = document.getElementById('push-time');
+    if (pushTimeSelect) {
+        pushTimeSelect.addEventListener('change', handlePushTimeChange);
+    }
+    
+    // 绑定模态框关闭事件
+    const modal = document.getElementById('publish-notice-modal');
+    if (modal) {
+        // 点击遮罩关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closePublishNoticeModal();
+            }
+        });
+    }
+}
+
+// 在页面加载时初始化发布通知功能
+document.addEventListener('DOMContentLoaded', () => {
+    initPublishNotice();
+});

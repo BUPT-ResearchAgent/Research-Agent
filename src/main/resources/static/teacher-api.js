@@ -5,6 +5,8 @@ class TeacherAPI {
     // 通用请求方法 - 依赖服务器session，不需要手动传递用户ID
     static async request(url, options = {}) {
         try {
+            console.log(`发起API请求: ${url}`, options);
+            
             const response = await fetch(`${API_BASE_URL}${url}`, {
                 headers: {
                     'Content-Type': 'application/json',
@@ -14,13 +16,19 @@ class TeacherAPI {
                 ...options
             });
             
+            console.log(`API响应状态: ${response.status}`, response);
+            
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorText = await response.text();
+                console.error(`HTTP错误 ${response.status}:`, errorText);
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
             }
             
-            return await response.json();
+            const result = await response.json();
+            console.log(`API响应数据:`, result);
+            return result;
         } catch (error) {
-            console.error('API请求失败:', error);
+            console.error('API请求失败:', url, error);
             throw error;
         }
     }
@@ -56,6 +64,11 @@ class TeacherAPI {
     // 获取控制面板统计数据
     static async getDashboardStats() {
         return this.request('/api/teacher/dashboard/stats');
+    }
+
+    // 获取知识点掌握情况
+    static async getKnowledgeMastery(courseId) {
+        return this.request(`/api/teacher/knowledge-mastery/${courseId}`);
     }
 
     // 获取通知列表

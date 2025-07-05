@@ -67,6 +67,9 @@ public class StudentController {
     @Autowired
     private QuestionRepository questionRepository;
     
+    @Autowired
+    private KnowledgeRepository knowledgeRepository;
+    
     /**
      * 获取学生信息
      */
@@ -1750,6 +1753,466 @@ public class StudentController {
                 "message", "AI助手暂时无法回答，请稍后重试",
                 "error", e.getMessage()
             ));
+        }
+    }
+    
+    /**
+     * 获取课程知识图谱
+     */
+    @GetMapping("/courses/{courseId}/knowledge-graph")
+    public ApiResponse<Map<String, Object>> getCourseKnowledgeGraph(@PathVariable Long courseId) {
+        try {
+            log.info("开始构建课程 {} 的知识图谱", courseId);
+            
+            // 1. 检查课程是否存在
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+            Course course = courseOpt.get();
+            
+            // 2. 获取课程的所有知识块
+            List<Knowledge> knowledgeList = knowledgeRepository.findByCourseIdAndProcessed(courseId, true);
+            
+            if (knowledgeList.isEmpty()) {
+                log.info("课程 {} 没有已处理的知识块", courseId);
+                return ApiResponse.error("该课程暂无知识库数据，请先上传课程资料");
+            }
+            
+            log.info("找到 {} 个知识块", knowledgeList.size());
+            
+            // 3. 构建知识图谱数据
+            Map<String, Object> knowledgeGraph = buildKnowledgeGraph(course, knowledgeList);
+            
+            return ApiResponse.success("获取知识图谱成功", knowledgeGraph);
+            
+        } catch (Exception e) {
+            log.error("获取课程知识图谱失败", e);
+            return ApiResponse.error("获取知识图谱失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 构建知识图谱数据结构
+     */
+    private Map<String, Object> buildKnowledgeGraph(Course course, List<Knowledge> knowledgeList) {
+        Map<String, Object> graphData = new HashMap<>();
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        List<Map<String, Object>> links = new ArrayList<>();
+        
+        // 分析知识块内容，提取关键概念
+        List<String> concepts = extractConcepts(knowledgeList);
+        Map<String, Integer> conceptFrequency = calculateConceptFrequency(knowledgeList, concepts);
+        
+        // 1. 创建核心课程节点
+        Map<String, Object> courseNode = new HashMap<>();
+        courseNode.put("id", "course_" + course.getId());
+        courseNode.put("label", course.getName());
+        courseNode.put("type", "course");
+        courseNode.put("size", 50);
+        courseNode.put("color", "#3498db");
+        courseNode.put("x", 0);
+        courseNode.put("y", 0);
+        nodes.add(courseNode);
+        
+        // 2. 创建概念节点
+        int nodeIndex = 1;
+        double angleStep = 2 * Math.PI / Math.min(concepts.size(), 20); // 最多显示20个概念
+        for (int i = 0; i < Math.min(concepts.size(), 20); i++) {
+            String concept = concepts.get(i);
+            Integer frequency = conceptFrequency.get(concept);
+            
+            Map<String, Object> conceptNode = new HashMap<>();
+            conceptNode.put("id", "concept_" + nodeIndex);
+            conceptNode.put("label", concept);
+            conceptNode.put("type", "concept");
+            conceptNode.put("frequency", frequency);
+            
+            // 根据频率设置节点大小和颜色
+            int size = Math.max(15, Math.min(40, 15 + frequency * 3));
+            conceptNode.put("size", size);
+            
+            // 根据概念类型设置颜色
+            String color = getConceptColor(concept, frequency);
+            conceptNode.put("color", color);
+            
+            // 圆形分布
+            double angle = i * angleStep;
+            double radius = 150;
+            double x = radius * Math.cos(angle);
+            double y = radius * Math.sin(angle);
+            conceptNode.put("x", x);
+            conceptNode.put("y", y);
+            
+            nodes.add(conceptNode);
+            
+            // 创建课程到概念的连接
+            Map<String, Object> link = new HashMap<>();
+            link.put("source", "course_" + course.getId());
+            link.put("target", "concept_" + nodeIndex);
+            link.put("type", "contains");
+            link.put("weight", frequency);
+            links.add(link);
+            
+            nodeIndex++;
+        }
+        
+        // 3. 创建概念间的关联
+        createConceptRelations(nodes, links, knowledgeList);
+        
+        // 4. 添加详细知识点节点（选择性添加重要的）
+        addDetailNodes(nodes, links, knowledgeList, concepts);
+        
+        graphData.put("nodes", nodes);
+        graphData.put("links", links);
+        graphData.put("stats", createGraphStats(course, knowledgeList, concepts));
+        
+        log.info("构建的知识图谱包含 {} 个节点和 {} 个连接", nodes.size(), links.size());
+        
+        return graphData;
+    }
+    
+    /**
+     * 从知识块中提取关键概念
+     */
+    private List<String> extractConcepts(List<Knowledge> knowledgeList) {
+        Map<String, Integer> conceptCount = new HashMap<>();
+        
+        for (Knowledge knowledge : knowledgeList) {
+            String content = knowledge.getContent();
+            if (content == null || content.trim().isEmpty()) {
+                continue;
+            }
+            
+            // 简单的关键词提取算法
+            List<String> keywords = extractKeywords(content);
+            for (String keyword : keywords) {
+                conceptCount.put(keyword, conceptCount.getOrDefault(keyword, 0) + 1);
+            }
+        }
+        
+        // 按频次排序，取前20个
+        return conceptCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .limit(20)
+                .map(Map.Entry::getKey)
+                .collect(java.util.stream.Collectors.toList());
+    }
+    
+    /**
+     * 简单的关键词提取
+     */
+    private List<String> extractKeywords(String content) {
+        List<String> keywords = new ArrayList<>();
+        
+        // 移除标点符号，分词
+        String cleanContent = content.replaceAll("[\\p{Punct}\\s]+", " ");
+        String[] words = cleanContent.split("\\s+");
+        
+        for (String word : words) {
+            word = word.trim();
+            // 过滤条件：长度大于1，不是纯数字，不是常见停用词
+            if (word.length() > 1 && !word.matches("\\d+") && !isStopWord(word)) {
+                keywords.add(word);
+            }
+        }
+        
+        return keywords;
+    }
+    
+    /**
+     * 简单的停用词检查
+     */
+    private boolean isStopWord(String word) {
+        String[] stopWords = {"的", "是", "在", "了", "有", "和", "就", "不", "人", "都", "一", "个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好", "自己", "这", "那", "什么", "可以", "知道", "我", "他", "她", "它", "们", "这个", "那个", "这些", "那些", "能", "能够", "可能", "应该", "需要", "关于", "对于", "由于", "因为", "所以", "但是", "然而", "而且", "或者", "以及", "包括", "例如", "如果", "虽然", "虽然", "尽管", "除了", "除非", "直到", "当", "之后", "之前", "期间", "同时", "首先", "然后", "最后", "总之", "因此", "所以", "结果"};
+        for (String stopWord : stopWords) {
+            if (stopWord.equals(word)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * 计算概念频率
+     */
+    private Map<String, Integer> calculateConceptFrequency(List<Knowledge> knowledgeList, List<String> concepts) {
+        Map<String, Integer> frequency = new HashMap<>();
+        
+        for (String concept : concepts) {
+            int count = 0;
+            for (Knowledge knowledge : knowledgeList) {
+                if (knowledge.getContent() != null && knowledge.getContent().contains(concept)) {
+                    count++;
+                }
+            }
+            frequency.put(concept, count);
+        }
+        
+        return frequency;
+    }
+    
+    /**
+     * 根据概念类型和频率获取颜色
+     */
+    private String getConceptColor(String concept, int frequency) {
+        // 根据频率分类
+        if (frequency >= 5) {
+            return "#2ecc71"; // 绿色 - 核心概念
+        } else if (frequency >= 3) {
+            return "#f39c12"; // 橙色 - 重要概念
+        } else {
+            return "#9b59b6"; // 紫色 - 一般概念
+        }
+    }
+    
+    /**
+     * 创建概念间的关联
+     */
+    private void createConceptRelations(List<Map<String, Object>> nodes, List<Map<String, Object>> links, List<Knowledge> knowledgeList) {
+        // 简单的共现关系检测
+        List<String> conceptIds = nodes.stream()
+                .filter(node -> "concept".equals(node.get("type")))
+                .map(node -> (String) node.get("id"))
+                .collect(java.util.stream.Collectors.toList());
+        
+        for (int i = 0; i < conceptIds.size(); i++) {
+            for (int j = i + 1; j < conceptIds.size(); j++) {
+                String concept1Id = conceptIds.get(i);
+                String concept2Id = conceptIds.get(j);
+                
+                // 获取概念名称
+                String concept1 = getConceptName(nodes, concept1Id);
+                String concept2 = getConceptName(nodes, concept2Id);
+                
+                // 检查共现频率
+                int cooccurrence = countCooccurrence(knowledgeList, concept1, concept2);
+                
+                if (cooccurrence >= 2) { // 至少共现2次才建立连接
+                    Map<String, Object> link = new HashMap<>();
+                    link.put("source", concept1Id);
+                    link.put("target", concept2Id);
+                    link.put("type", "related");
+                    link.put("weight", cooccurrence);
+                    links.add(link);
+                }
+            }
+        }
+    }
+    
+    /**
+     * 获取概念名称
+     */
+    private String getConceptName(List<Map<String, Object>> nodes, String conceptId) {
+        return nodes.stream()
+                .filter(node -> conceptId.equals(node.get("id")))
+                .findFirst()
+                .map(node -> (String) node.get("label"))
+                .orElse("");
+    }
+    
+    /**
+     * 计算两个概念的共现次数
+     */
+    private int countCooccurrence(List<Knowledge> knowledgeList, String concept1, String concept2) {
+        int count = 0;
+        for (Knowledge knowledge : knowledgeList) {
+            String content = knowledge.getContent();
+            if (content != null && content.contains(concept1) && content.contains(concept2)) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    /**
+     * 添加详细知识点节点
+     */
+    private void addDetailNodes(List<Map<String, Object>> nodes, List<Map<String, Object>> links, 
+                               List<Knowledge> knowledgeList, List<String> concepts) {
+        // 选择一些重要的知识块作为详细节点
+        List<Knowledge> importantChunks = knowledgeList.stream()
+                .filter(k -> k.getContent() != null && k.getContent().length() > 100)
+                .limit(10) // 最多添加10个详细节点
+                .collect(java.util.stream.Collectors.toList());
+        
+        int detailIndex = 1;
+        for (Knowledge chunk : importantChunks) {
+            Map<String, Object> detailNode = new HashMap<>();
+            detailNode.put("id", "detail_" + detailIndex);
+            detailNode.put("label", "知识点 " + detailIndex);
+            detailNode.put("type", "detail");
+            detailNode.put("content", chunk.getContent().substring(0, Math.min(200, chunk.getContent().length())));
+            detailNode.put("size", 10);
+            detailNode.put("color", "#34495e");
+            
+            // 随机位置（外围）
+            double angle = Math.random() * 2 * Math.PI;
+            double radius = 250 + Math.random() * 50;
+            detailNode.put("x", radius * Math.cos(angle));
+            detailNode.put("y", radius * Math.sin(angle));
+            
+            nodes.add(detailNode);
+            
+            // 连接到相关概念
+            for (String concept : concepts.subList(0, Math.min(5, concepts.size()))) {
+                if (chunk.getContent().contains(concept)) {
+                    String conceptId = findConceptId(nodes, concept);
+                    if (conceptId != null) {
+                        Map<String, Object> link = new HashMap<>();
+                        link.put("source", conceptId);
+                        link.put("target", "detail_" + detailIndex);
+                        link.put("type", "detail");
+                        link.put("weight", 1);
+                        links.add(link);
+                    }
+                }
+            }
+            
+            detailIndex++;
+        }
+    }
+    
+    /**
+     * 根据概念名称查找概念ID
+     */
+    private String findConceptId(List<Map<String, Object>> nodes, String conceptLabel) {
+        return nodes.stream()
+                .filter(node -> "concept".equals(node.get("type")) && conceptLabel.equals(node.get("label")))
+                .findFirst()
+                .map(node -> (String) node.get("id"))
+                .orElse(null);
+    }
+    
+    /**
+     * 创建图谱统计信息
+     */
+    private Map<String, Object> createGraphStats(Course course, List<Knowledge> knowledgeList, List<String> concepts) {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("courseName", course.getName());
+        stats.put("totalKnowledgeChunks", knowledgeList.size());
+        stats.put("extractedConcepts", concepts.size());
+        stats.put("lastUpdated", new java.util.Date());
+        
+        // 计算总字数
+        int totalWords = knowledgeList.stream()
+                .mapToInt(k -> k.getContent() != null ? k.getContent().length() : 0)
+                .sum();
+        stats.put("totalWords", totalWords);
+        
+        return stats;
+    }
+    
+    /**
+     * 获取学生的各科成绩分析
+     */
+    @GetMapping("/grade-analysis")
+    public ApiResponse<List<Map<String, Object>>> getGradeAnalysis(@RequestParam Long userId) {
+        try {
+            System.out.println("开始获取学生 " + userId + " 的各科成绩分析...");
+            
+            // 验证学生是否存在
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // 获取学生的所有考试结果
+            List<ExamResult> examResults = examResultRepository.findByStudentOrderBySubmitTimeDesc(student);
+            
+            if (examResults.isEmpty()) {
+                return ApiResponse.success("获取成绩分析成功", List.of());
+            }
+            
+            // 按课程分组统计成绩
+            Map<String, Map<String, Object>> courseGradeStats = new HashMap<>();
+            
+            for (ExamResult examResult : examResults) {
+                if (examResult.getSubmitTime() != null) { // 只统计已提交的考试
+                    Exam exam = examResult.getExam();
+                    Course course = exam.getCourse();
+                    String courseName = course.getName();
+                    
+                    // 初始化课程统计
+                    courseGradeStats.putIfAbsent(courseName, new HashMap<String, Object>() {{
+                        put("courseName", courseName);
+                        put("courseCode", course.getCourseCode());
+                        put("totalExams", 0);
+                        put("totalScore", 0.0);
+                        put("highestScore", 0.0);
+                        put("lowestScore", 100.0);
+                        put("averageScore", 0.0);
+                        put("gradeLevel", "待提升");
+                        put("examDetails", new ArrayList<Map<String, Object>>());
+                    }});
+                    
+                    Map<String, Object> courseStats = courseGradeStats.get(courseName);
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> examDetails = (List<Map<String, Object>>) courseStats.get("examDetails");
+                    
+                    // 计算成绩（使用最终得分或AI得分）
+                    double score = 0;
+                    if (examResult.getFinalScore() != null) {
+                        score = examResult.getFinalScore();
+                    } else if (examResult.getAiScore() != null) {
+                        score = examResult.getAiScore();
+                    }
+                    
+                    // 更新统计数据
+                    courseStats.put("totalExams", (Integer) courseStats.get("totalExams") + 1);
+                    courseStats.put("totalScore", (Double) courseStats.get("totalScore") + score);
+                    courseStats.put("highestScore", Math.max((Double) courseStats.get("highestScore"), score));
+                    courseStats.put("lowestScore", Math.min((Double) courseStats.get("lowestScore"), score));
+                    
+                    // 添加考试详情
+                    Map<String, Object> examDetail = new HashMap<>();
+                    examDetail.put("examTitle", exam.getTitle());
+                    examDetail.put("score", score);
+                    examDetail.put("totalScore", examResult.getTotalScore());
+                    examDetail.put("submitTime", examResult.getSubmitTime());
+                    examDetail.put("gradeStatus", examResult.getGradeStatus());
+                    examDetails.add(examDetail);
+                }
+            }
+            
+            // 计算平均分和等级
+            List<Map<String, Object>> gradeAnalysisList = new ArrayList<>();
+            for (Map<String, Object> courseStats : courseGradeStats.values()) {
+                int totalExams = (Integer) courseStats.get("totalExams");
+                double totalScore = (Double) courseStats.get("totalScore");
+                double averageScore = totalScore / totalExams;
+                
+                courseStats.put("averageScore", Math.round(averageScore * 10.0) / 10.0);
+                
+                // 设置等级
+                String gradeLevel;
+                if (averageScore >= 90) {
+                    gradeLevel = "优秀";
+                } else if (averageScore >= 80) {
+                    gradeLevel = "良好";
+                } else {
+                    gradeLevel = "待提升";
+                }
+                courseStats.put("gradeLevel", gradeLevel);
+                
+                gradeAnalysisList.add(courseStats);
+            }
+            
+            // 按平均分排序
+            gradeAnalysisList.sort((a, b) -> Double.compare(
+                (Double) b.get("averageScore"), 
+                (Double) a.get("averageScore")
+            ));
+            
+            System.out.println("成绩分析完成，共分析了 " + gradeAnalysisList.size() + " 门课程");
+            return ApiResponse.success("获取成绩分析成功", gradeAnalysisList);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("获取成绩分析失败: " + e.getMessage());
+            return ApiResponse.error("获取成绩分析失败：" + e.getMessage());
         }
     }
 } 

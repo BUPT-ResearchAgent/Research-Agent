@@ -2,6 +2,7 @@
 let currentUser = null;
 let allExams = [];
 let allCourses = [];
+let studentNotices = [];
 
 // 调试函数：检查currentUser状态
 window.checkCurrentUser = function() {
@@ -1646,6 +1647,9 @@ function switchCourseTab(tabName) {
             case 'exams':
                 loadCourseExams(currentCourseDetail.id);
                 break;
+            case 'knowledge-graph':
+                loadCourseKnowledgeGraph(currentCourseDetail.id);
+                break;
         }
     }
 }
@@ -1900,19 +1904,50 @@ async function loadStudentNotices() {
             return [];
         }
 
-        const response = await fetch(`/api/student/notices?userId=${currentUser.userId}`, {
+        // 首先尝试加载系统通知
+        const systemResponse = await fetch('/api/notices/system', {
             method: 'GET',
             credentials: 'include'
         });
         
-        const result = await response.json();
-        
-        if (result.success) {
-            return result.data || [];
-        } else {
-            console.error('获取学生通知失败:', result.message);
-            return [];
+        let systemNotices = [];
+        if (systemResponse.ok) {
+            const systemResult = await systemResponse.json();
+            if (systemResult.success) {
+                systemNotices = systemResult.data || [];
+                console.log('📢 学生获取系统通知:', systemNotices.length, '条');
+            }
         }
+        
+        // 尝试加载课程通知（如果API存在）
+        let courseNotices = [];
+        try {
+            const courseResponse = await fetch(`/api/student/notices?userId=${currentUser.userId}`, {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            if (courseResponse.ok) {
+                const courseResult = await courseResponse.json();
+                if (courseResult.success) {
+                    courseNotices = courseResult.data || [];
+                    console.log('📚 学生获取课程通知:', courseNotices.length, '条');
+                }
+            }
+        } catch (courseError) {
+            console.log('课程通知API不存在或失败，仅显示系统通知');
+        }
+        
+        // 合并系统通知和课程通知
+        const allNotices = [...systemNotices, ...courseNotices];
+        
+        // 按创建时间排序
+        allNotices.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        // 存储到全局变量
+        studentNotices = allNotices;
+        
+        return allNotices;
         
     } catch (error) {
         console.error('加载学生通知失败:', error);
@@ -1943,21 +1978,29 @@ async function updateDashboardRecentNotices() {
         const recentNotices = allNotices.slice(0, 2);
         
         const noticesHtml = recentNotices.map(notice => {
-            const courseName = notice.courseName || '未知课程';
             const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
                 ? notice.scheduledTime 
                 : notice.createdAt;
             const truncatedContent = notice.content.length > 80 ? notice.content.substring(0, 80) + '...' : notice.content;
             
+            // 判断是系统通知还是课程通知
+            const isSystemNotice = notice.targetType && (notice.targetType === 'ALL' || notice.targetType === 'STUDENT');
+            const noticeType = isSystemNotice ? '系统通知' : (notice.courseName || '课程通知');
+            const iconClass = isSystemNotice ? 'fas fa-bullhorn' : 'fas fa-book';
+            const iconColor = isSystemNotice ? '#f39c12' : 'var(--primary-color)';
+            
             return `
-                <div class="recent-notice-card">
+                <div class="recent-notice-card" onclick="viewStudentNoticeDetail(${notice.id})" style="cursor: pointer;">
                     <div class="recent-notice-header">
                         <div class="recent-notice-title">${notice.title}</div>
                         <div class="recent-notice-time">${formatPushTime(pushTime)}</div>
                     </div>
                     <div class="recent-notice-content">${truncatedContent}</div>
                     <div class="recent-notice-footer">
-                        <div class="recent-notice-course">${courseName}</div>
+                        <div class="recent-notice-course">
+                            <i class="${iconClass}" style="color: ${iconColor}; margin-right: 4px;"></i>
+                            ${noticeType}
+                        </div>
                     </div>
                 </div>
             `;
@@ -2025,20 +2068,29 @@ async function showAllNotices() {
         
         // 显示所有通知
         const noticesHtml = allNotices.map(notice => {
-            const courseName = notice.courseName || '未知课程';
             const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
                 ? notice.scheduledTime 
                 : notice.createdAt;
             
+            // 判断是系统通知还是课程通知
+            const isSystemNotice = notice.targetType && (notice.targetType === 'ALL' || notice.targetType === 'STUDENT');
+            const noticeType = isSystemNotice ? '系统通知' : '课程通知';
+            const noticeSource = isSystemNotice ? getTargetTypeText(notice.targetType) : (notice.courseName || '未知课程');
+            const iconClass = isSystemNotice ? 'fas fa-bullhorn' : 'fas fa-book';
+            const iconColor = isSystemNotice ? '#f39c12' : '#5a67d8';
+            
             return `
-                <div class="notice-item" style="margin-bottom: 16px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: #fff;">
+                <div class="notice-item" onclick="viewStudentNoticeDetail(${notice.id})" style="cursor: pointer; margin-bottom: 16px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: #fff; transition: box-shadow 0.2s ease;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'" onmouseout="this.style.boxShadow='none'">
                     <div class="notice-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                         <h4 class="notice-title" style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 600;">${notice.title}</h4>
                         <span class="notice-date" style="color: #7f8c8d; font-size: 12px; white-space: nowrap; margin-left: 16px;">${formatPushTime(pushTime)}</span>
                     </div>
-                    <div class="notice-content" style="color: #34495e; line-height: 1.6; margin-bottom: 12px;">${notice.content}</div>
+                    <div class="notice-content" style="color: #34495e; line-height: 1.6; margin-bottom: 12px; white-space: pre-wrap;">${notice.content}</div>
                     <div class="notice-footer" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #7f8c8d;">
-                        <span class="notice-course" style="color: #5a67d8; font-weight: 500;">课程：${courseName}</span>
+                        <span class="notice-course" style="color: ${iconColor}; font-weight: 500;">
+                            <i class="${iconClass}" style="margin-right: 4px;"></i>
+                            ${noticeType}：${noticeSource}
+                        </span>
                     </div>
                 </div>
             `;
@@ -2063,6 +2115,76 @@ async function showAllNotices() {
 function closeAllNoticesModal() {
     const modal = document.getElementById('all-notices-modal');
     modal.style.display = 'none';
+}
+
+// 查看学生通知详情
+function viewStudentNoticeDetail(noticeId) {
+    // 在全局变量中查找通知
+    const notice = studentNotices.find(n => n.id === noticeId);
+    
+    if (!notice) {
+        console.error('未找到通知:', noticeId);
+        showNotification('通知不存在', 'error');
+        return;
+    }
+    
+    // 判断是系统通知还是课程通知
+    const isSystemNotice = notice.targetType && (notice.targetType === 'ALL' || notice.targetType === 'STUDENT');
+    const noticeType = isSystemNotice ? '系统通知' : '课程通知';
+    const noticeSource = isSystemNotice ? getTargetTypeText(notice.targetType) : (notice.courseName || '未知课程');
+    const iconClass = isSystemNotice ? 'fas fa-bullhorn' : 'fas fa-book';
+    const iconColor = isSystemNotice ? '#f39c12' : '#5a67d8';
+    
+    const pushTime = (notice.pushTime === 'scheduled' && notice.scheduledTime) 
+        ? notice.scheduledTime 
+        : notice.createdAt;
+    
+    // 创建弹窗内容
+    const modalContent = `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="closeNoticeDetailModal()">
+            <div style="background: white; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; border-radius: 12px; padding: 0; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);" onclick="event.stopPropagation();">
+                <div style="padding: 24px; border-bottom: 1px solid #e9ecef;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+                        <h3 style="margin: 0; color: #2c3e50; font-size: 20px; font-weight: 600; flex: 1;">${notice.title}</h3>
+                        <button onclick="closeNoticeDetailModal()" style="background: none; border: none; color: #7f8c8d; font-size: 20px; cursor: pointer; padding: 0; margin-left: 16px;">&times;</button>
+                    </div>
+                    <div style="display: flex; align-items: center; color: #7f8c8d; font-size: 14px; margin-bottom: 8px;">
+                        <i class="fas fa-clock" style="margin-right: 6px;"></i>
+                        <span>${formatPushTime(pushTime)}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; color: ${iconColor}; font-size: 14px; font-weight: 500;">
+                        <i class="${iconClass}" style="margin-right: 6px;"></i>
+                        <span>${noticeType}：${noticeSource}</span>
+                    </div>
+                </div>
+                <div style="padding: 24px;">
+                    <div style="color: #34495e; line-height: 1.6; font-size: 16px; white-space: pre-wrap;">${notice.content}</div>
+                </div>
+                <div style="padding: 16px 24px; border-top: 1px solid #e9ecef; text-align: right;">
+                    <button onclick="closeNoticeDetailModal()" style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 14px;">关闭</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 插入弹窗到页面
+    const modalElement = document.createElement('div');
+    modalElement.id = 'notice-detail-modal';
+    modalElement.innerHTML = modalContent;
+    document.body.appendChild(modalElement);
+    
+    // 防止页面滚动
+    document.body.style.overflow = 'hidden';
+}
+
+// 关闭通知详情弹窗
+function closeNoticeDetailModal() {
+    const modal = document.getElementById('notice-detail-modal');
+    if (modal) {
+        modal.remove();
+    }
+    // 恢复页面滚动
+    document.body.style.overflow = 'auto';
 }
 
 // 设置全部通知弹窗事件监听器
@@ -3293,6 +3415,9 @@ async function updateDashboardStats() {
             // 更新最新通知显示
             await updateDashboardRecentNotices();
             
+            // 加载各科成绩分析
+            await loadGradeAnalysis();
+            
         } else {
             console.error('获取课程数据失败:', result.message);
         }
@@ -4441,6 +4566,624 @@ function formatAIMessageText(message) {
         .replace(/`(.*?)`/g, '<code style="background: #f8f9fa; padding: 2px 4px; border-radius: 2px; font-family: monospace; font-size: 13px;">$1</code>');
 }
 
+// 获取通知对象文本
+function getTargetTypeText(targetType) {
+    switch (targetType) {
+        case 'ALL':
+            return '全体成员';
+        case 'TEACHER':
+            return '教师';
+        case 'STUDENT':
+            return '学生';
+        default:
+            return '未知';
+    }
+}
+
+// ==================== 知识图谱功能 ====================
+
+// 全局变量用于存储知识图谱实例
+let knowledgeGraphInstance = null;
+let knowledgeGraphData = null;
+
+// 加载课程知识图谱
+async function loadCourseKnowledgeGraph(courseId) {
+    try {
+        console.log('加载课程知识图谱:', courseId);
+        
+        // 显示加载状态
+        showKnowledgeGraphLoading();
+        
+        // 调用后端API获取知识图谱数据
+        const response = await fetch(`/api/student/courses/${courseId}/knowledge-graph`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            console.log('成功获取知识图谱数据:', result.data);
+            knowledgeGraphData = result.data;
+            renderRealKnowledgeGraph(result.data);
+        } else {
+            console.log('知识图谱数据为空或获取失败:', result.message);
+            
+            // 检查是否是因为没有知识库数据
+            if (result.message && result.message.includes('暂无知识库数据')) {
+                showKnowledgeGraphEmpty();
+            } else {
+                // 其他错误，显示模拟数据
+                renderMockKnowledgeGraph();
+            }
+        }
+        
+    } catch (error) {
+        console.error('加载知识图谱失败:', error);
+        // API调用失败，显示模拟数据
+        renderMockKnowledgeGraph();
+    }
+}
+
+// 显示知识图谱加载状态
+function showKnowledgeGraphLoading() {
+    const loadingElement = document.getElementById('knowledge-graph-loading');
+    const emptyElement = document.getElementById('knowledge-graph-empty');
+    const canvasElement = document.getElementById('knowledge-graph-canvas');
+    
+    if (loadingElement) loadingElement.style.display = 'flex';
+    if (emptyElement) emptyElement.style.display = 'none';
+    if (canvasElement) canvasElement.style.display = 'none';
+}
+
+// 显示知识图谱空状态
+function showKnowledgeGraphEmpty() {
+    const loadingElement = document.getElementById('knowledge-graph-loading');
+    const emptyElement = document.getElementById('knowledge-graph-empty');
+    const canvasElement = document.getElementById('knowledge-graph-canvas');
+    
+    if (loadingElement) loadingElement.style.display = 'none';
+    if (emptyElement) emptyElement.style.display = 'flex';
+    if (canvasElement) canvasElement.style.display = 'none';
+}
+
+// 渲染知识图谱
+function renderKnowledgeGraph(data) {
+    const loadingElement = document.getElementById('knowledge-graph-loading');
+    const emptyElement = document.getElementById('knowledge-graph-empty');
+    const canvasElement = document.getElementById('knowledge-graph-canvas');
+    
+    if (loadingElement) loadingElement.style.display = 'none';
+    if (emptyElement) emptyElement.style.display = 'none';
+    if (canvasElement) canvasElement.style.display = 'block';
+    
+    // 这里实现实际的知识图谱渲染逻辑
+    // 可以使用 D3.js、vis.js 或其他图形库
+    renderActualKnowledgeGraph(data);
+}
+
+// 渲染真实的知识图谱数据
+function renderRealKnowledgeGraph(data) {
+    const loadingElement = document.getElementById('knowledge-graph-loading');
+    const emptyElement = document.getElementById('knowledge-graph-empty');
+    const canvasElement = document.getElementById('knowledge-graph-canvas');
+    
+    if (loadingElement) loadingElement.style.display = 'none';
+    if (emptyElement) emptyElement.style.display = 'none';
+    if (canvasElement) canvasElement.style.display = 'block';
+    
+    console.log('开始渲染真实知识图谱，数据:', data);
+    
+    try {
+        // 清空容器
+        canvasElement.innerHTML = '';
+        
+        const nodes = data.nodes || [];
+        const links = data.links || [];
+        const stats = data.stats || {};
+        
+        // 创建SVG容器
+        const containerRect = canvasElement.getBoundingClientRect();
+        const width = containerRect.width || 600;
+        const height = containerRect.height || 600;
+        
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.style.background = 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)';
+        canvasElement.appendChild(svg);
+        
+        // 计算节点位置的缩放比例
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const scale = Math.min(width, height) / 600; // 基于600px标准缩放
+        
+        // 绘制连接线
+        links.forEach(link => {
+            const sourceNode = nodes.find(n => n.id === link.source);
+            const targetNode = nodes.find(n => n.id === link.target);
+            
+            if (sourceNode && targetNode) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', centerX + (sourceNode.x || 0) * scale);
+                line.setAttribute('y1', centerY + (sourceNode.y || 0) * scale);
+                line.setAttribute('x2', centerX + (targetNode.x || 0) * scale);
+                line.setAttribute('y2', centerY + (targetNode.y || 0) * scale);
+                line.setAttribute('stroke', getLineColor(link.type));
+                line.setAttribute('stroke-width', Math.max(1, (link.weight || 1) * 0.5));
+                line.setAttribute('opacity', '0.6');
+                
+                // 添加数据属性用于拖拽时更新连接线
+                line.setAttribute('data-source', link.source);
+                line.setAttribute('data-target', link.target);
+                
+                svg.appendChild(line);
+            }
+        });
+        
+        // 绘制节点
+        nodes.forEach(node => {
+            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            g.setAttribute('transform', `translate(${centerX + (node.x || 0) * scale}, ${centerY + (node.y || 0) * scale})`);
+            g.style.cursor = 'pointer';
+            
+            // 创建节点圆圈
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            const radius = Math.max(8, (node.size || 20) * scale * 0.4);
+            circle.setAttribute('r', radius);
+            circle.setAttribute('fill', node.color || '#3498db');
+            circle.setAttribute('stroke', '#fff');
+            circle.setAttribute('stroke-width', '2');
+            
+            // 根据节点类型添加特殊效果
+            if (node.type === 'course') {
+                circle.setAttribute('stroke-width', '3');
+                circle.setAttribute('filter', 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))');
+            }
+            
+            g.appendChild(circle);
+            
+            // 添加文本标签
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('dy', radius + 15);
+            text.setAttribute('font-size', Math.max(10, 12 * scale));
+            text.setAttribute('font-family', 'Arial, sans-serif');
+            text.setAttribute('fill', '#2c3e50');
+            text.setAttribute('font-weight', node.type === 'course' ? 'bold' : 'normal');
+            
+            // 处理长文本
+            const label = node.label || node.id;
+            if (label.length > 8) {
+                text.textContent = label.substring(0, 8) + '...';
+            } else {
+                text.textContent = label;
+            }
+            
+            g.appendChild(text);
+            
+            // 添加交互事件
+            g.addEventListener('click', (e) => {
+                if (!isDragging) {
+                    showNodeDetails(node);
+                }
+            });
+            
+            g.addEventListener('mouseenter', () => {
+                if (!isDragging) {
+                    circle.setAttribute('stroke-width', '4');
+                    circle.setAttribute('filter', 'drop-shadow(0 6px 12px rgba(0,0,0,0.3))');
+                }
+            });
+            
+            g.addEventListener('mouseleave', () => {
+                if (!isDragging) {
+                    circle.setAttribute('stroke-width', node.type === 'course' ? '3' : '2');
+                    circle.setAttribute('filter', node.type === 'course' ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' : '');
+                }
+            });
+            
+            // 添加拖拽功能
+            g.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                isDragging = false;
+                draggedNode = { element: g, node: node, links: [] };
+                
+                // 计算鼠标相对于节点的偏移
+                const rect = svg.getBoundingClientRect();
+                const currentTransform = g.getAttribute('transform');
+                const match = currentTransform.match(/translate\(([^,]+),([^)]+)\)/);
+                const currentX = match ? parseFloat(match[1]) : 0;
+                const currentY = match ? parseFloat(match[2]) : 0;
+                
+                dragOffset.x = (e.clientX - rect.left) - currentX;
+                dragOffset.y = (e.clientY - rect.top) - currentY;
+                
+                // 收集相关的连接线
+                draggedNode.links = Array.from(svg.querySelectorAll('line')).filter(line => {
+                    const sourceId = line.getAttribute('data-source');
+                    const targetId = line.getAttribute('data-target');
+                    return sourceId === node.id || targetId === node.id;
+                });
+                
+                // 改变节点样式
+                circle.setAttribute('stroke-width', '5');
+                circle.setAttribute('filter', 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))');
+                g.style.cursor = 'grabbing';
+                
+                // 阻止文本选择
+                document.body.style.userSelect = 'none';
+            });
+            
+            svg.appendChild(g);
+        });
+        
+        // 添加图例
+        addGraphLegend(canvasElement, stats);
+        
+        // 添加全局拖拽事件监听器
+        svg.addEventListener('mousemove', (e) => {
+            if (draggedNode) {
+                e.preventDefault();
+                isDragging = true;
+                
+                const rect = svg.getBoundingClientRect();
+                const newX = (e.clientX - rect.left) - dragOffset.x;
+                const newY = (e.clientY - rect.top) - dragOffset.y;
+                
+                // 更新节点位置
+                draggedNode.element.setAttribute('transform', `translate(${newX}, ${newY})`);
+                
+                // 更新节点在nodes数组中的坐标
+                draggedNode.node.x = (newX - centerX) / scale;
+                draggedNode.node.y = (newY - centerY) / scale;
+                
+                // 更新相关连接线
+                updateNodeConnections(draggedNode.node, newX, newY, nodes, centerX, centerY, scale);
+            }
+        });
+        
+        svg.addEventListener('mouseup', (e) => {
+            if (draggedNode) {
+                // 恢复节点样式
+                const circle = draggedNode.element.querySelector('circle');
+                const nodeType = draggedNode.node.type;
+                circle.setAttribute('stroke-width', nodeType === 'course' ? '3' : '2');
+                circle.setAttribute('filter', nodeType === 'course' ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' : '');
+                draggedNode.element.style.cursor = 'pointer';
+                
+                // 清理拖拽状态
+                draggedNode = null;
+                document.body.style.userSelect = '';
+                
+                // 延迟重置isDragging，防止立即触发click事件
+                setTimeout(() => {
+                    isDragging = false;
+                }, 100);
+            }
+        });
+        
+        // 防止拖拽时鼠标离开SVG区域导致的问题
+        document.addEventListener('mouseup', () => {
+            if (draggedNode) {
+                svg.dispatchEvent(new MouseEvent('mouseup'));
+            }
+        });
+        
+        showNotification(`知识图谱加载成功！包含 ${nodes.length} 个知识点`, 'success');
+        
+    } catch (error) {
+        console.error('渲染知识图谱失败:', error);
+        showNotification('知识图谱渲染失败', 'error');
+        // 渲染失败时显示模拟数据
+        renderMockKnowledgeGraph();
+    }
+}
+
+// 更新节点连接线
+function updateNodeConnections(node, nodeX, nodeY, allNodes, centerX, centerY, scale) {
+    const svg = document.querySelector('#knowledge-graph-canvas svg');
+    if (!svg) return;
+    
+    const lines = svg.querySelectorAll('line');
+    lines.forEach(line => {
+        const sourceId = line.getAttribute('data-source');
+        const targetId = line.getAttribute('data-target');
+        
+        if (sourceId === node.id) {
+            // 当前节点是连接线的起点
+            line.setAttribute('x1', nodeX);
+            line.setAttribute('y1', nodeY);
+            
+            // 找到目标节点更新终点
+            const targetNode = allNodes.find(n => n.id === targetId);
+            if (targetNode) {
+                line.setAttribute('x2', centerX + (targetNode.x || 0) * scale);
+                line.setAttribute('y2', centerY + (targetNode.y || 0) * scale);
+            }
+        } else if (targetId === node.id) {
+            // 当前节点是连接线的终点
+            line.setAttribute('x2', nodeX);
+            line.setAttribute('y2', nodeY);
+            
+            // 找到源节点更新起点
+            const sourceNode = allNodes.find(n => n.id === sourceId);
+            if (sourceNode) {
+                line.setAttribute('x1', centerX + (sourceNode.x || 0) * scale);
+                line.setAttribute('y1', centerY + (sourceNode.y || 0) * scale);
+            }
+        }
+    });
+}
+
+// 获取连接线颜色
+function getLineColor(linkType) {
+    switch (linkType) {
+        case 'contains':
+            return '#3498db';
+        case 'related':
+            return '#95a5a6';
+        case 'detail':
+            return '#e74c3c';
+        default:
+            return '#bdc3c7';
+    }
+}
+
+// 显示节点详情
+function showNodeDetails(node) {
+    let details = `<h4>${node.label}</h4>`;
+    details += `<p><strong>类型:</strong> ${getNodeTypeText(node.type)}</p>`;
+    
+    if (node.frequency) {
+        details += `<p><strong>出现频率:</strong> ${node.frequency} 次</p>`;
+    }
+    
+    if (node.content) {
+        details += `<p><strong>内容预览:</strong></p>`;
+        details += `<div style="max-height: 150px; overflow-y: auto; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 12px;">${node.content}</div>`;
+    }
+    
+    // 创建简单的提示框
+    const popup = document.createElement('div');
+    popup.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 16px;
+        max-width: 400px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        z-index: 10000;
+    `;
+    popup.innerHTML = details + `<button onclick="this.parentElement.remove()" style="margin-top: 12px; padding: 6px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">关闭</button>`;
+    
+    document.body.appendChild(popup);
+    
+    // 3秒后自动关闭
+    setTimeout(() => {
+        if (popup.parentElement) {
+            popup.remove();
+        }
+    }, 3000);
+}
+
+// 获取节点类型文本
+function getNodeTypeText(type) {
+    switch (type) {
+        case 'course':
+            return '课程';
+        case 'concept':
+            return '核心概念';
+        case 'detail':
+            return '详细知识点';
+        default:
+            return '未知';
+    }
+}
+
+// 添加图例
+function addGraphLegend(container, stats) {
+    const legendDiv = document.createElement('div');
+    legendDiv.style.cssText = `
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 12px;
+        font-size: 12px;
+        max-width: 200px;
+    `;
+    
+    legendDiv.innerHTML = `
+        <h5 style="margin: 0 0 8px 0; color: #2c3e50;">图谱信息</h5>
+        <p style="margin: 2px 0;"><span style="color: #3498db;">●</span> 课程核心</p>
+        <p style="margin: 2px 0;"><span style="color: #2ecc71;">●</span> 核心概念</p>
+        <p style="margin: 2px 0;"><span style="color: #f39c12;">●</span> 重要概念</p>
+        <p style="margin: 2px 0;"><span style="color: #9b59b6;">●</span> 一般概念</p>
+        <p style="margin: 2px 0;"><span style="color: #34495e;">●</span> 详细知识点</p>
+        <hr style="margin: 8px 0; border: none; border-top: 1px solid #eee;">
+        <p style="margin: 2px 0; font-size: 11px;">知识块: ${stats.totalKnowledgeChunks || 0}</p>
+        <p style="margin: 2px 0; font-size: 11px;">概念数: ${stats.extractedConcepts || 0}</p>
+    `;
+    
+    container.appendChild(legendDiv);
+}
+
+// 渲染模拟知识图谱（用于演示）
+function renderMockKnowledgeGraph() {
+    const loadingElement = document.getElementById('knowledge-graph-loading');
+    const emptyElement = document.getElementById('knowledge-graph-empty');
+    const canvasElement = document.getElementById('knowledge-graph-canvas');
+    
+    if (loadingElement) loadingElement.style.display = 'none';
+    if (emptyElement) emptyElement.style.display = 'none';
+    if (canvasElement) canvasElement.style.display = 'block';
+    
+    // 创建一个简单的模拟知识图谱
+    canvasElement.innerHTML = `
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 30px;">
+                <!-- 核心概念节点 -->
+                <div style="position: relative;">
+                    <div class="graph-node core-concept" style="background: #3498db; color: white; padding: 15px 25px; border-radius: 25px; font-weight: bold; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);">
+                        ${currentCourseDetail?.name || '课程核心概念'}
+                    </div>
+                </div>
+                
+                <!-- 连接线和子概念 -->
+                <div style="display: flex; gap: 80px; align-items: center;">
+                    <div class="graph-node concept" style="background: #2ecc71; color: white; padding: 12px 20px; border-radius: 20px; box-shadow: 0 3px 8px rgba(46, 204, 113, 0.3);">
+                        基础理论
+                    </div>
+                    <div class="graph-node concept" style="background: #f39c12; color: white; padding: 12px 20px; border-radius: 20px; box-shadow: 0 3px 8px rgba(243, 156, 18, 0.3);">
+                        实践应用
+                    </div>
+                    <div class="graph-node concept" style="background: #9b59b6; color: white; padding: 12px 20px; border-radius: 20px; box-shadow: 0 3px 8px rgba(155, 89, 182, 0.3);">
+                        相关技术
+                    </div>
+                </div>
+                
+                <!-- 详细知识点 -->
+                <div style="display: flex; gap: 40px; flex-wrap: wrap; justify-content: center;">
+                    <div class="graph-node detail" style="background: #34495e; color: white; padding: 8px 15px; border-radius: 15px; font-size: 12px;">
+                        知识点 A
+                    </div>
+                    <div class="graph-node detail" style="background: #34495e; color: white; padding: 8px 15px; border-radius: 15px; font-size: 12px;">
+                        知识点 B
+                    </div>
+                    <div class="graph-node detail" style="background: #34495e; color: white; padding: 8px 15px; border-radius: 15px; font-size: 12px;">
+                        知识点 C
+                    </div>
+                    <div class="graph-node detail" style="background: #34495e; color: white; padding: 8px 15px; border-radius: 15px; font-size: 12px;">
+                        知识点 D
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 添加简单的连接线效果 -->
+            <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1;">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#bdc3c7" />
+                    </marker>
+                </defs>
+                <line x1="50%" y1="35%" x2="30%" y2="55%" stroke="#bdc3c7" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.6"/>
+                <line x1="50%" y1="35%" x2="50%" y2="55%" stroke="#bdc3c7" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.6"/>
+                <line x1="50%" y1="35%" x2="70%" y2="55%" stroke="#bdc3c7" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.6"/>
+            </svg>
+        </div>
+        
+        <div style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #7f8c8d;">
+            <i class="fas fa-info-circle" style="margin-right: 4px;"></i>
+            演示版知识图谱
+        </div>
+    `;
+    
+    // 添加节点点击和拖拽事件
+    const nodes = canvasElement.querySelectorAll('.graph-node');
+    nodes.forEach((node, index) => {
+        node.style.cursor = 'pointer';
+        node.style.position = 'relative';
+        node.style.userSelect = 'none';
+        
+        let isDragging = false;
+        let startX, startY, startLeft, startTop;
+        
+        node.addEventListener('mousedown', function(e) {
+            isDragging = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            const rect = this.getBoundingClientRect();
+            const containerRect = canvasElement.getBoundingClientRect();
+            startLeft = rect.left - containerRect.left;
+            startTop = rect.top - containerRect.top;
+            
+            this.style.position = 'absolute';
+            this.style.left = startLeft + 'px';
+            this.style.top = startTop + 'px';
+            this.style.zIndex = '1000';
+            this.style.transform = 'scale(1.1)';
+            this.style.transition = 'none';
+            
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            
+            e.preventDefault();
+        });
+        
+        function onMouseMove(e) {
+            isDragging = true;
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            
+            node.style.left = (startLeft + deltaX) + 'px';
+            node.style.top = (startTop + deltaY) + 'px';
+        }
+        
+        function onMouseUp() {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            
+            node.style.zIndex = '';
+            node.style.transform = 'scale(1)';
+            node.style.transition = 'transform 0.2s ease';
+            
+            // 延迟重置拖拽状态，防止触发点击事件
+            setTimeout(() => {
+                isDragging = false;
+            }, 100);
+        }
+        
+        node.addEventListener('click', function() {
+            if (!isDragging) {
+                const nodeName = this.textContent.trim();
+                showNotification(`点击了节点：${nodeName}`, 'info');
+            }
+        });
+        
+        node.addEventListener('mouseenter', function() {
+            if (!isDragging) {
+                this.style.transform = 'scale(1.05)';
+                this.style.transition = 'transform 0.2s ease';
+            }
+        });
+        
+        node.addEventListener('mouseleave', function() {
+            if (!isDragging) {
+                this.style.transform = 'scale(1)';
+            }
+        });
+    });
+}
+
+// 实际的知识图谱渲染函数（待实现具体图形库）
+function renderActualKnowledgeGraph(data) {
+    // 这里可以使用 D3.js、vis.js 等图形库来实现复杂的知识图谱
+    // 暂时使用模拟展示
+    renderMockKnowledgeGraph();
+}
+
+// 刷新知识图谱
+function refreshKnowledgeGraph() {
+    if (currentCourseDetail) {
+        showNotification('正在刷新知识图谱...', 'info');
+        loadCourseKnowledgeGraph(currentCourseDetail.id);
+    }
+}
+
+// 拖拽相关的全局变量
+let draggedNode = null;
+let dragOffset = { x: 0, y: 0 };
+let isDragging = false;
+
 // 在页面加载时初始化AI聊天功能
 document.addEventListener('DOMContentLoaded', function() {
     // 监听考试结果模态框的关闭事件
@@ -4455,3 +5198,112 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
+
+// ==================== 学生成绩分析功能 ====================
+
+// 加载学生各科成绩分析
+async function loadGradeAnalysis() {
+    try {
+        if (!currentUser || !currentUser.userId) {
+            console.log('loadGradeAnalysis - 用户未登录');
+            return;
+        }
+
+        const response = await fetch(`/api/student/grade-analysis?userId=${currentUser.userId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            const gradeData = result.data || [];
+            displayGradeAnalysis(gradeData);
+        } else {
+            console.error('获取成绩分析失败:', result.message);
+            showGradeAnalysisEmpty();
+        }
+    } catch (error) {
+        console.error('加载成绩分析失败:', error);
+        showGradeAnalysisEmpty();
+    }
+}
+
+// 显示成绩分析图表
+function displayGradeAnalysis(gradeData) {
+    const chartContainer = document.querySelector('.chart-bars');
+    
+    if (!chartContainer) {
+        console.error('未找到图表容器');
+        return;
+    }
+
+    if (gradeData.length === 0) {
+        showGradeAnalysisEmpty();
+        return;
+    }
+
+    // 清空现有内容
+    chartContainer.innerHTML = '';
+
+    // 创建图表
+    const chartHTML = gradeData.map(course => {
+        const averageScore = course.averageScore || 0;
+        const gradeLevel = course.gradeLevel || '待提升';
+        const examCount = course.totalExams || 0;
+        
+        // 根据成绩等级确定颜色
+        let colorClass = 'low'; // 默认红色
+        if (averageScore >= 90) {
+            colorClass = 'high'; // 绿色
+        } else if (averageScore >= 80) {
+            colorClass = 'medium'; // 橙色
+        }
+
+        // 计算条形图的宽度百分比
+        const barWidth = Math.min(averageScore, 100);
+
+        return `
+            <div class="chart-bar-item" style="margin-bottom: 16px;">
+                <div class="chart-bar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div class="course-info">
+                        <span class="course-name" style="font-weight: 500; color: var(--secondary-color);">${course.courseName}</span>
+                        <span class="course-code" style="font-size: 12px; color: #7f8c8d; margin-left: 8px;">${course.courseCode}</span>
+                    </div>
+                    <div class="score-info" style="text-align: right;">
+                        <span class="average-score" style="font-weight: 600; color: var(--primary-color);">${averageScore}分</span>
+                        <div class="grade-level" style="font-size: 12px; color: #7f8c8d;">
+                            ${gradeLevel} (${examCount}次考试)
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-bar-container" style="width: 100%; height: 8px; background: #ecf0f1; border-radius: 4px; overflow: hidden;">
+                    <div class="chart-bar ${colorClass}" style="width: ${barWidth}%; height: 100%; transition: width 0.8s ease;"></div>
+                </div>
+                <div class="score-details" style="display: flex; justify-content: space-between; font-size: 12px; color: #7f8c8d; margin-top: 4px;">
+                    <span>最高: ${course.highestScore || 0}分</span>
+                    <span>最低: ${course.lowestScore || 0}分</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    chartContainer.innerHTML = chartHTML;
+}
+
+// 显示成绩分析空状态
+function showGradeAnalysisEmpty() {
+    const chartContainer = document.querySelector('.chart-bars');
+    
+    if (!chartContainer) {
+        return;
+    }
+
+    chartContainer.innerHTML = `
+        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+            <i class="fas fa-chart-bar" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+            <p>暂无成绩数据</p>
+            <p>请完成课程学习和测评后查看</p>
+        </div>
+    `;
+}

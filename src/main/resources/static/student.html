@@ -166,9 +166,8 @@
         </div>
         
         <div class="user-controls">
-            <div class="notifications">
-                <i class="fas fa-bell"></i>
-                <!-- 移除通知数量显示 -->
+            <div class="user-icon">
+                <i class="fas fa-user-graduate"></i>
             </div>
             <div class="user-profile" id="user-profile">
                 <span class="user-name" id="current-username">学生</span>
@@ -535,6 +534,9 @@
                         <button class="course-tab" data-tab="exams" onclick="switchCourseTab('exams')">
                             <i class="fas fa-clipboard-check"></i> 测评考试
                         </button>
+                        <button class="course-tab" data-tab="knowledge-graph" onclick="switchCourseTab('knowledge-graph')">
+                            <i class="fas fa-project-diagram"></i> 知识图谱
+                        </button>
                     </div>
                 </div>
                 
@@ -576,6 +578,59 @@
                             <div id="exams-container" style="display: none;">
                                 <!-- 考试列表将在这里动态生成 -->
                             </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 知识图谱内容 -->
+                <div id="course-knowledge-graph" class="course-tab-content">
+                    <div style="padding: 24px;">
+                        <div class="knowledge-graph-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 style="margin: 0; color: #2c3e50;">
+                                <i class="fas fa-project-diagram" style="margin-right: 8px; color: var(--primary-color);"></i>
+                                课程知识图谱
+                            </h3>
+                            <div class="graph-controls">
+                                <button class="btn btn-sm btn-primary" onclick="refreshKnowledgeGraph()">
+                                    <i class="fas fa-sync-alt"></i> 刷新
+                                </button>
+                                <span class="drag-hint" style="color: #6c757d; font-size: 13px; margin-left: 12px;">
+                                    <i class="fas fa-arrows-alt" style="margin-right: 4px;"></i>
+                                    拖拽节点可自由移动
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div id="knowledge-graph-container" style="position: relative; width: 100%; height: 600px; border: 1px solid #e9ecef; border-radius: 8px; background: #fafafa;">
+                            <!-- 知识图谱将在这里渲染 -->
+                            <div id="knowledge-graph-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #7f8c8d;">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                                <p>正在加载知识图谱...</p>
+                                <p style="font-size: 14px;">分析课程内容并构建知识关系网络</p>
+                            </div>
+                            
+                            <div id="knowledge-graph-empty" style="display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #7f8c8d;">
+                                <i class="fas fa-project-diagram" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                                <p>暂无知识图谱数据</p>
+                                <p style="font-size: 14px;">需要先上传课程资料才能生成知识图谱</p>
+                            </div>
+                            
+                            <div id="knowledge-graph-canvas" style="display: none; width: 100%; height: 100%;"></div>
+                        </div>
+                        
+                        <div class="knowledge-graph-info" style="margin-top: 16px; padding: 16px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--primary-color);">
+                            <h4 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 14px;">
+                                <i class="fas fa-info-circle" style="margin-right: 6px;"></i>
+                                图谱说明
+                            </h4>
+                            <ul style="margin: 0; padding-left: 16px; font-size: 13px; color: #6c757d;">
+                                <li>🔵 蓝色节点：课程核心概念</li>
+                                <li>🟢 绿色节点：核心概念（高频）</li>
+                                <li>🟠 橙色节点：重要概念（中频）</li>
+                                <li>🟣 紫色节点：一般概念（低频）</li>
+                                <li>⚫ 深灰节点：详细知识点</li>
+                                <li>🖱️ 点击节点查看详情，拖拽可自由移动节点</li>
+                            </ul>
                         </div>
                     </div>
                 </div>

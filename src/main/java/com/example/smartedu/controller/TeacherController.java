@@ -797,7 +797,152 @@ public class TeacherController {
     @GetMapping("/dashboard/stats")
     public ApiResponse<Map<String, Object>> getDashboardStats(jakarta.servlet.http.HttpSession session) {
         try {
+            System.out.println("开始获取教师控制面板统计数据...");
+            
             // 从session获取用户ID
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                System.out.println("用户未登录");
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                System.out.println("用户权限不足，角色: " + role);
+                return ApiResponse.error("权限不足");
+            }
+            
+            System.out.println("用户ID: " + userId + ", 角色: " + role);
+            
+            // 通过用户ID获取教师信息
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                System.out.println("教师信息不存在，用户ID: " + userId);
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Teacher teacher = teacherOpt.get();
+            System.out.println("教师信息: " + teacher.getRealName() + " (ID: " + teacher.getId() + ")");
+            
+            // 获取教师的课程
+            List<Course> courses = teacherService.getTeacherCourses(teacher.getId());
+            System.out.println("教师课程数量: " + courses.size());
+            
+            // 获取课程ID列表
+            List<Long> courseIds = courses.stream().map(Course::getId).collect(Collectors.toList());
+            
+            // 统计数据
+            Map<String, Object> stats = new HashMap<>();
+            stats.put("courseCount", courses.size());
+            
+            // 统计在线学生数量
+            int onlineStudentCount = 0;
+            try {
+                onlineStudentCount = teacherService.getTeacherOnlineStudentCountByUserId(userId);
+                System.out.println("在线学生数量: " + onlineStudentCount);
+            } catch (Exception e) {
+                System.out.println("获取在线学生数量失败: " + e.getMessage());
+                onlineStudentCount = 0;
+            }
+            stats.put("totalStudents", onlineStudentCount);
+            
+            // 统计资料数量
+            int materialCount = 0;
+            try {
+            for (Course course : courses) {
+                materialCount += teacherService.getCourseMaterials(course.getId()).size();
+                }
+                System.out.println("资料数量: " + materialCount);
+            } catch (Exception e) {
+                System.out.println("获取资料数量失败: " + e.getMessage());
+                materialCount = 0;
+            }
+            stats.put("materialCount", materialCount);
+            
+            // 统计考试数量
+            int examCount = 0;
+            try {
+            for (Long courseId : courseIds) {
+                examCount += examRepository.findByCourseIdOrderByCreatedAtDesc(courseId).size();
+                }
+                System.out.println("考试数量: " + examCount);
+            } catch (Exception e) {
+                System.out.println("获取考试数量失败: " + e.getMessage());
+                examCount = 0;
+            }
+            stats.put("examCount", examCount);
+            
+            // 统计待批改的考试数量
+            long pendingGradeCount = 0;
+            try {
+            if (!courseIds.isEmpty()) {
+                for (Long courseId : courseIds) {
+                    List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+                    for (Exam exam : exams) {
+                        pendingGradeCount += examResultRepository.findByExamAndGradeStatus(exam, "PENDING").size();
+                    }
+                }
+                }
+                System.out.println("待批改考试数量: " + pendingGradeCount);
+            } catch (Exception e) {
+                System.out.println("获取待批改考试数量失败: " + e.getMessage());
+                pendingGradeCount = 0;
+            }
+            stats.put("pendingGradeCount", pendingGradeCount);
+            
+            // 计算平均正确率
+            double averageScore = 0.0;
+            try {
+                int totalGradedExams = 0;
+                double totalScore = 0.0;
+                
+                if (!courseIds.isEmpty()) {
+                    for (Long courseId : courseIds) {
+                        List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+                        for (Exam exam : exams) {
+                            List<ExamResult> results = examResultRepository.findByExamAndGradeStatus(exam, "GRADED");
+                            for (ExamResult result : results) {
+                                if (result.getFinalScore() != null && result.getTotalScore() != null && result.getTotalScore() > 0) {
+                                    totalScore += (result.getFinalScore() / result.getTotalScore()) * 100;
+                                    totalGradedExams++;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (totalGradedExams > 0) {
+                    averageScore = totalScore / totalGradedExams;
+                }
+                System.out.println("平均正确率: " + averageScore + "%");
+            } catch (Exception e) {
+                System.out.println("计算平均正确率失败: " + e.getMessage());
+                averageScore = 0.0;
+            }
+            stats.put("averageScore", averageScore);
+            
+            // 课程数已经在上面设置了，不需要额外计算
+            System.out.println("课程数: " + courses.size());
+            
+            System.out.println("统计数据获取完成: " + stats);
+            return ApiResponse.success("获取统计数据成功", stats);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("获取统计数据失败: " + e.getMessage());
+            return ApiResponse.error("获取统计数据失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取指定课程的知识点掌握情况
+     */
+    @GetMapping("/knowledge-mastery/{courseId}")
+    public ApiResponse<List<Map<String, Object>>> getKnowledgeMastery(@PathVariable Long courseId,
+                                                                      jakarta.servlet.http.HttpSession session) {
+        try {
+            System.out.println("开始获取课程 " + courseId + " 的知识点掌握情况...");
+            
+            // 验证用户权限
             Long userId = (Long) session.getAttribute("userId");
             if (userId == null) {
                 return ApiResponse.error("未登录，请先登录");
@@ -808,58 +953,122 @@ public class TeacherController {
                 return ApiResponse.error("权限不足");
             }
             
-            // 通过用户ID获取教师信息
+            // 验证教师是否有权限访问该课程
             Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
             if (!teacherOpt.isPresent()) {
                 return ApiResponse.error("教师信息不存在");
             }
             
             Teacher teacher = teacherOpt.get();
+            List<Course> teacherCourses = teacherService.getTeacherCourses(teacher.getId());
+            boolean hasAccess = teacherCourses.stream().anyMatch(course -> course.getId().equals(courseId));
             
-            // 获取教师的课程
-            List<Course> courses = teacherService.getTeacherCourses(teacher.getId());
-            
-            // 获取课程ID列表
-            List<Long> courseIds = courses.stream().map(Course::getId).collect(Collectors.toList());
-            
-            // 统计数据
-            Map<String, Object> stats = new HashMap<>();
-            stats.put("courseCount", courses.size());
-            
-            // 统计在线学生数量
-            int onlineStudentCount = teacherService.getTeacherOnlineStudentCountByUserId(userId);
-            stats.put("totalStudents", onlineStudentCount);
-            
-            // 统计资料数量
-            int materialCount = 0;
-            for (Course course : courses) {
-                materialCount += teacherService.getCourseMaterials(course.getId()).size();
+            if (!hasAccess) {
+                return ApiResponse.error("您没有权限访问该课程");
             }
-            stats.put("materialCount", materialCount);
             
-            // 统计考试数量
-            int examCount = 0;
-            for (Long courseId : courseIds) {
-                examCount += examRepository.findByCourseIdOrderByCreatedAtDesc(courseId).size();
+            // 获取该课程的所有考试
+            List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+            if (exams.isEmpty()) {
+                return ApiResponse.success("获取知识点掌握情况成功", List.of());
             }
-            stats.put("examCount", examCount);
             
-            // 统计待批改的考试数量
-            long pendingGradeCount = 0;
-            if (!courseIds.isEmpty()) {
-                for (Long courseId : courseIds) {
-                    List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
-                    for (Exam exam : exams) {
-                        pendingGradeCount += examResultRepository.findByExamAndGradeStatus(exam, "PENDING").size();
+            // 统计知识点掌握情况
+            Map<String, Map<String, Object>> knowledgeStats = new HashMap<>();
+            
+            for (Exam exam : exams) {
+                List<Question> questions = questionRepository.findByExamId(exam.getId());
+                List<ExamResult> examResults = examResultRepository.findByExam(exam);
+                
+                for (Question question : questions) {
+                    String knowledgePoint = question.getKnowledgePoint();
+                    if (knowledgePoint == null || knowledgePoint.trim().isEmpty()) {
+                        knowledgePoint = "通用知识点";
+                    }
+                    
+                    final String finalKnowledgePoint = knowledgePoint;
+                    
+                    // 初始化知识点统计
+                    knowledgeStats.putIfAbsent(knowledgePoint, new HashMap<String, Object>() {{
+                        put("knowledgePoint", finalKnowledgePoint);
+                        put("totalQuestions", 0);
+                        put("correctAnswers", 0);
+                        put("totalAnswers", 0);
+                        put("masteryRate", 0.0);
+                        put("level", "需要强化");
+                    }});
+                    
+                    Map<String, Object> stats = knowledgeStats.get(knowledgePoint);
+                    stats.put("totalQuestions", (Integer) stats.get("totalQuestions") + 1);
+                    
+                    // 统计该题的答题情况
+                    for (ExamResult examResult : examResults) {
+                        List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultIdAndQuestionId(examResult.getId(), question.getId());
+                        for (StudentAnswer answer : studentAnswers) {
+                            stats.put("totalAnswers", (Integer) stats.get("totalAnswers") + 1);
+                            
+                            // 判断答案是否正确
+                            boolean isCorrect = false;
+                            switch (question.getType()) {
+                                case "SINGLE_CHOICE":
+                                case "TRUE_FALSE":
+                                    isCorrect = question.getAnswer().equals(answer.getAnswer());
+                                    break;
+                                case "MULTIPLE_CHOICE":
+                                    // 多选题需要完全匹配
+                                    isCorrect = question.getAnswer().equals(answer.getAnswer());
+                                    break;
+                                case "FILL_BLANK":
+                                case "SHORT_ANSWER":
+                                    // 填空题和简答题通过分数判断
+                                    isCorrect = answer.getScore() != null && answer.getScore() > 0;
+                                    break;
+                            }
+                            
+                            if (isCorrect) {
+                                stats.put("correctAnswers", (Integer) stats.get("correctAnswers") + 1);
+                            }
+                        }
                     }
                 }
             }
-            stats.put("pendingGradeCount", pendingGradeCount);
             
-            return ApiResponse.success("获取统计数据成功", stats);
+            // 计算掌握率并设置等级
+            List<Map<String, Object>> masteryList = new ArrayList<>();
+            for (Map<String, Object> stats : knowledgeStats.values()) {
+                int totalAnswers = (Integer) stats.get("totalAnswers");
+                if (totalAnswers > 0) {
+                    int correctAnswers = (Integer) stats.get("correctAnswers");
+                    double masteryRate = (double) correctAnswers / totalAnswers * 100;
+                    stats.put("masteryRate", Math.round(masteryRate * 10.0) / 10.0);
+                    
+                    // 设置掌握等级
+                    String level;
+                    if (masteryRate >= 80) {
+                        level = "优秀掌握";
+                    } else if (masteryRate >= 60) {
+                        level = "良好掌握";
+                    } else {
+                        level = "需要强化";
+                    }
+                    stats.put("level", level);
+                }
+                masteryList.add(stats);
+            }
+            
+            // 按掌握率排序
+            masteryList.sort((a, b) -> Double.compare(
+                (Double) b.get("masteryRate"), 
+                (Double) a.get("masteryRate")
+            ));
+            
+            System.out.println("知识点掌握情况统计完成，共 " + masteryList.size() + " 个知识点");
+            return ApiResponse.success("获取知识点掌握情况成功", masteryList);
+            
         } catch (Exception e) {
             e.printStackTrace();
-            return ApiResponse.error("获取统计数据失败：" + e.getMessage());
+            System.out.println("获取知识点掌握情况失败: " + e.getMessage());
+            return ApiResponse.error("获取知识点掌握情况失败：" + e.getMessage());
         }
     }
 
@@ -2313,4 +2522,5 @@ public class TeacherController {
             ));
         }
     }
+
 } 

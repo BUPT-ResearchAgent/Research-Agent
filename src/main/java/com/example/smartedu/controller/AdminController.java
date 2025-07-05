@@ -67,6 +67,9 @@ public class AdminController {
     private TeachingOutlineRepository teachingOutlineRepository;
     
     @Autowired
+    private NoticeRepository noticeRepository;
+    
+    @Autowired
     private ExamService examService;
     
     @Autowired
@@ -1468,7 +1471,7 @@ public class AdminController {
                 
                 if (examCount > 0) {
                     double avgPassRate = totalPassRate / examCount;
-                    suggestion.put("passRate", Math.round(avgPassRate * 100.0) / 100.0);
+                        suggestion.put("passRate", Math.round(avgPassRate * 100.0) / 100.0);
                     
                     if (avgPassRate < 60) {
                         suggestion.put("suggestion", "通过率较低(" + Math.round(avgPassRate * 100.0) / 100.0 + "%)，急需改进教学方法");
@@ -1539,7 +1542,7 @@ public class AdminController {
                 .sorted(Map.Entry.comparingByKey())
                 .limit(8)
                 .forEach(entry -> {
-                    Map<String, Object> trend = new HashMap<>();
+            Map<String, Object> trend = new HashMap<>();
                     trend.put("week", entry.getKey());
                     
                     List<ExamResult> weekResults = entry.getValue();
@@ -1559,7 +1562,7 @@ public class AdminController {
                         trend.put("correctRate", 0.0);
                     }
                     
-                    correctnessTrend.add(trend);
+            correctnessTrend.add(trend);
                 });
         } else {
             // 使用基于现有StudentAnswer数据的统计，生成最近8周的模拟数据
@@ -1840,7 +1843,7 @@ public class AdminController {
             return ApiResponse.error("获取优化建议失败：" + e.getMessage());
         }
     }
-
+    
     /**
      * 测试数据状态
      */
@@ -2064,5 +2067,131 @@ public class AdminController {
     private boolean isAdmin(HttpSession session) {
         String role = (String) session.getAttribute("role");
         return "admin".equals(role);
+    }
+    
+    /**
+     * 发布通知
+     */
+    @PostMapping("/notices")
+    public ApiResponse<String> publishNotice(@RequestBody Map<String, Object> request, HttpSession session) {
+        try {
+            // 验证管理员权限
+            if (!isAdmin(session)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 获取请求参数
+            String title = (String) request.get("title");
+            String content = (String) request.get("content");
+            String targetAudience = (String) request.get("targetAudience"); // TEACHER, STUDENT, ALL
+            String pushTime = (String) request.get("pushTime"); // now, scheduled
+            String scheduledTimeStr = (String) request.get("scheduledTime");
+            
+            // 验证必填参数
+            if (title == null || title.trim().isEmpty()) {
+                return ApiResponse.error("通知标题不能为空");
+            }
+            if (content == null || content.trim().isEmpty()) {
+                return ApiResponse.error("通知内容不能为空");
+            }
+            if (targetAudience == null || targetAudience.trim().isEmpty()) {
+                return ApiResponse.error("通知对象不能为空");
+            }
+            
+            // 验证通知对象
+            if (!Arrays.asList("TEACHER", "STUDENT", "ALL").contains(targetAudience)) {
+                return ApiResponse.error("通知对象必须是 TEACHER、STUDENT 或 ALL");
+            }
+            
+            // 创建通知
+            Notice notice = new Notice();
+            notice.setTitle(title.trim());
+            notice.setContent(content.trim());
+            notice.setTargetType(targetAudience);
+            notice.setPushTime(pushTime != null ? pushTime : "now");
+            notice.setStatus("published");
+            notice.setCreatedAt(LocalDateTime.now());
+            notice.setUpdatedAt(LocalDateTime.now());
+            
+            // 处理定时发布
+            if ("scheduled".equals(pushTime) && scheduledTimeStr != null && !scheduledTimeStr.trim().isEmpty()) {
+                try {
+                    LocalDateTime scheduledTime = LocalDateTime.parse(scheduledTimeStr);
+                    notice.setScheduledTime(scheduledTime);
+                } catch (Exception e) {
+                    return ApiResponse.error("定时发布时间格式错误");
+                }
+            }
+            
+            // 保存通知
+            noticeRepository.save(notice);
+            
+            System.out.println("📢 管理员发布通知成功:");
+            System.out.println("  标题: " + title);
+            System.out.println("  对象: " + targetAudience);
+            System.out.println("  推送时间: " + pushTime);
+            
+            return ApiResponse.success("通知发布成功");
+            
+        } catch (Exception e) {
+            System.err.println("❌ 发布通知失败: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.error("发布通知失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取通知列表
+     */
+    @GetMapping("/notices")
+    public ApiResponse<List<Map<String, Object>>> getNotices(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String targetAudience,
+            HttpSession session) {
+        
+        try {
+            // 验证管理员权限
+            if (!isAdmin(session)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 获取通知列表
+            List<Notice> notices;
+            if (targetAudience != null && !targetAudience.trim().isEmpty()) {
+                notices = noticeRepository.findByTargetTypeOrderByCreatedAtDesc(targetAudience);
+            } else {
+                notices = noticeRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+            }
+            
+            // 应用分页
+            int startIndex = page * size;
+            int endIndex = Math.min(startIndex + size, notices.size());
+            List<Notice> paginatedNotices = notices.subList(startIndex, endIndex);
+            
+            // 构建返回数据
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Notice notice : paginatedNotices) {
+                Map<String, Object> noticeData = new HashMap<>();
+                noticeData.put("id", notice.getId());
+                noticeData.put("title", notice.getTitle());
+                noticeData.put("content", notice.getContent());
+                noticeData.put("targetType", notice.getTargetType());
+                noticeData.put("pushTime", notice.getPushTime());
+                noticeData.put("scheduledTime", notice.getScheduledTime());
+                noticeData.put("status", notice.getStatus());
+                noticeData.put("createdAt", notice.getCreatedAt());
+                noticeData.put("updatedAt", notice.getUpdatedAt());
+                
+                result.add(noticeData);
+            }
+            
+            return ApiResponse.success(result);
+            
+        } catch (Exception e) {
+            System.err.println("❌ 获取通知列表失败: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.error("获取通知列表失败：" + e.getMessage());
+        }
     }
 } 
