@@ -95,6 +95,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         if (result.success && result.data) {
             currentUser = result.data;
+            // 为了兼容性，添加userId字段
+            if (currentUser.id && !currentUser.userId) {
+                currentUser.userId = currentUser.id;
+            }
             console.log('currentUser 加载成功:', currentUser);
         } else {
             console.log('登录检查API返回:', result);
