@@ -19,6 +19,9 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.Base64;
+import java.io.IOException;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -70,6 +73,8 @@ public class AuthController {
             String username = request.get("username");
             String password = request.get("password");
             String realName = request.get("realName");
+            String email = request.get("email");
+            String phone = request.get("phone");
             String teacherCode = request.get("teacherCode");
             String department = request.get("department");
             String title = request.get("title");
@@ -77,6 +82,13 @@ public class AuthController {
             if (username == null || password == null || realName == null) {
                 return ApiResponse.error("请填写完整的基本信息");
             }
+            
+            // 创建用户账号时包含邮箱和手机号
+            User user = userService.register(username, password, "teacher");
+            user.setRealName(realName);
+            user.setEmail(email);
+            user.setPhone(phone);
+            userService.updateUser(user);
             
             Teacher teacher = teacherManagementService.registerTeacher(
                 username, password, realName, teacherCode, department, title);
@@ -104,6 +116,8 @@ public class AuthController {
             String username = request.get("username");
             String password = request.get("password");
             String realName = request.get("realName");
+            String email = request.get("email");
+            String phone = request.get("phone");
             String studentId = request.get("studentId");
             String className = request.get("className");
             String major = request.get("major");
@@ -122,6 +136,13 @@ public class AuthController {
                     return ApiResponse.error("入学年份格式不正确");
                 }
             }
+            
+            // 创建用户账号时包含邮箱和手机号
+            User user = userService.register(username, password, "student");
+            user.setRealName(realName);
+            user.setEmail(email);
+            user.setPhone(phone);
+            userService.updateUser(user);
             
             Student student = studentManagementService.registerStudent(
                 username, password, realName, studentId, className, major, grade, entranceYear);
@@ -207,21 +228,29 @@ public class AuthController {
     }
     
     /**
-     * 检查登录状态
+     * 检查登录状态并返回完整用户信息
      */
     @GetMapping("/check")
-    public ApiResponse<Map<String, Object>> checkLogin(HttpSession session) {
+    public ApiResponse<User> checkLogin(HttpSession session) {
         Long userId = (Long) session.getAttribute("userId");
         if (userId == null) {
             return ApiResponse.error("未登录");
         }
         
-        Map<String, Object> result = new HashMap<>();
-        result.put("userId", userId);
-        result.put("username", session.getAttribute("username"));
-        result.put("role", session.getAttribute("role"));
-        
-        return ApiResponse.success("已登录", result);
+        try {
+            Optional<User> userOpt = userService.findById(userId);
+            if (!userOpt.isPresent()) {
+                return ApiResponse.error("用户不存在");
+            }
+            
+            User user = userOpt.get();
+            // 隐藏密码
+            user.setPassword(null);
+            
+            return ApiResponse.success("已登录", user);
+        } catch (Exception e) {
+            return ApiResponse.error("获取用户信息失败：" + e.getMessage());
+        }
     }
     
     /**
@@ -256,16 +285,160 @@ public class AuthController {
     }
     
     /**
-     * 修改密码
+     * 上传头像
      */
-    @PostMapping("/change-password")
-    public ApiResponse<Void> changePassword(@RequestBody Map<String, String> request) {
+    @PostMapping("/upload-avatar")
+    public ApiResponse<User> uploadAvatar(@RequestParam("avatar") MultipartFile avatar, 
+                                          HttpSession session) {
         try {
-            Long userId = Long.valueOf(request.get("userId"));
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录");
+            }
+            
+            if (avatar.isEmpty()) {
+                return ApiResponse.error("请选择头像文件");
+            }
+            
+            // 验证文件类型
+            String contentType = avatar.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                return ApiResponse.error("只支持图片格式");
+            }
+            
+            // 验证文件大小（限制为2MB）
+            if (avatar.getSize() > 2 * 1024 * 1024) {
+                return ApiResponse.error("头像文件大小不能超过2MB");
+            }
+            
+            // 将图片转换为Base64存储
+            String base64Avatar = "data:" + contentType + ";base64," + 
+                                Base64.getEncoder().encodeToString(avatar.getBytes());
+            
+            // 更新用户头像
+            Optional<User> userOpt = userService.findById(userId);
+            if (!userOpt.isPresent()) {
+                return ApiResponse.error("用户不存在");
+            }
+            
+            User user = userOpt.get();
+            user.setAvatarUrl(base64Avatar);
+            User updatedUser = userService.updateUser(user);
+            
+            // 更新session中的用户信息
+            session.setAttribute("user", updatedUser);
+            
+            // 隐藏密码
+            updatedUser.setPassword(null);
+            
+            return ApiResponse.success("头像上传成功", updatedUser);
+        } catch (IOException e) {
+            return ApiResponse.error("头像上传失败：" + e.getMessage());
+        } catch (Exception e) {
+            return ApiResponse.error("头像上传失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 更新个人信息
+     */
+    @PutMapping("/profile")
+    public ApiResponse<User> updateProfile(@RequestBody Map<String, String> request, 
+                                         HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录");
+            }
+            
+            Optional<User> userOpt = userService.findById(userId);
+            if (!userOpt.isPresent()) {
+                return ApiResponse.error("用户不存在");
+            }
+            
+            User user = userOpt.get();
+            
+            // 更新可编辑的字段
+            if (request.containsKey("realName")) {
+                String realName = request.get("realName");
+                if (realName == null || realName.trim().isEmpty()) {
+                    return ApiResponse.error("真实姓名不能为空");
+                }
+                user.setRealName(realName.trim());
+            }
+            if (request.containsKey("email")) {
+                String email = request.get("email");
+                if (email != null && !email.trim().isEmpty()) {
+                    // 简单的邮箱格式验证
+                    if (!email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+                        return ApiResponse.error("邮箱格式不正确");
+                    }
+                    user.setEmail(email.trim());
+                } else {
+                    user.setEmail(null);
+                }
+            }
+            if (request.containsKey("phone")) {
+                String phone = request.get("phone");
+                if (phone != null && !phone.trim().isEmpty()) {
+                    // 简单的手机号格式验证
+                    if (!phone.matches("^1[3-9]\\d{9}$")) {
+                        return ApiResponse.error("手机号格式不正确");
+                    }
+                    user.setPhone(phone.trim());
+                } else {
+                    user.setPhone(null);
+                }
+            }
+            
+            // 处理密码修改
             String oldPassword = request.get("oldPassword");
             String newPassword = request.get("newPassword");
             
-            if (userId == null || oldPassword == null || newPassword == null) {
+            if (newPassword != null && !newPassword.trim().isEmpty()) {
+                if (oldPassword == null || oldPassword.trim().isEmpty()) {
+                    return ApiResponse.error("请输入当前密码");
+                }
+                
+                // 验证当前密码
+                if (!userService.verifyPassword(oldPassword, user.getPassword())) {
+                    return ApiResponse.error("当前密码不正确");
+                }
+                
+                // 设置新密码
+                user.setPassword(userService.hashPassword(newPassword));
+            }
+            
+            User updatedUser = userService.updateUser(user);
+            
+            // 更新session中的用户信息
+            session.setAttribute("user", updatedUser);
+            
+            // 隐藏密码
+            updatedUser.setPassword(null);
+            
+            return ApiResponse.success("个人信息更新成功", updatedUser);
+        } catch (Exception e) {
+            return ApiResponse.error("更新个人信息失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 修改密码
+     */
+    @PostMapping("/change-password")
+    public ApiResponse<Void> changePassword(@RequestBody Map<String, String> request, 
+                                          HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录");
+            }
+            
+            String oldPassword = request.get("oldPassword");
+            String newPassword = request.get("newPassword");
+            
+            if (oldPassword == null || newPassword == null) {
                 return ApiResponse.error("请填写完整信息");
             }
             

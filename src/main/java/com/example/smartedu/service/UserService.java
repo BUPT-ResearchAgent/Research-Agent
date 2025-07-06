@@ -176,7 +176,7 @@ public class UserService {
     /**
      * 密码加密
      */
-    private String hashPassword(String password) {
+    public String hashPassword(String password) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             String saltedPassword = password + SALT;
@@ -190,7 +190,7 @@ public class UserService {
     /**
      * 密码验证
      */
-    private boolean verifyPassword(String plainPassword, String hashedPassword) {
+    public boolean verifyPassword(String plainPassword, String hashedPassword) {
         return hashPassword(plainPassword).equals(hashedPassword);
     }
     

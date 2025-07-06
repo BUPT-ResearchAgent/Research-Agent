@@ -31,6 +31,9 @@ public class User {
     @Column(name = "phone")
     private String phone;
     
+    @Column(name = "avatar_url", length = 500000)
+    private String avatarUrl; // 头像URL或Base64编码的图片数据
+    
     @Column(name = "created_at")
     private LocalDateTime createdAt;
     
@@ -119,6 +122,14 @@ public class User {
     
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+    
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+    
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
     }
     
     public LocalDateTime getCreatedAt() {

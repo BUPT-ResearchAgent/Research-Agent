@@ -176,6 +176,10 @@ document.addEventListener('DOMContentLoaded', function() {
         showRegisterBtn.addEventListener('click', function(e) {
             e.preventDefault();
             registerModal.style.display = 'flex';
+            // 初始化头像上传功能
+            initAvatarUpload();
+            // 初始化密码强度检测
+            initPasswordStrength();
         });
     }
     
@@ -203,12 +207,16 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             const username = document.getElementById('register-username').value.trim();
+            const realName = document.getElementById('register-realname').value.trim();
+            const email = document.getElementById('register-email').value.trim();
+            const phone = document.getElementById('register-phone').value.trim();
             const password = document.getElementById('register-password').value.trim();
             const confirmPassword = document.getElementById('register-confirm-password').value.trim();
             const role = document.getElementById('register-role').value;
+            const avatarFile = document.getElementById('register-avatar').files[0];
             
             // 前端验证
-            if (!validateRegisterForm(username, password, confirmPassword, role)) {
+            if (!validateRegisterForm(username, realName, email, phone, password, confirmPassword, role)) {
                 return;
             }
             
@@ -222,20 +230,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 准备注册数据
                 const registerData = {
                     username: username,
+                    realName: realName,
+                    email: email,
+                    phone: phone,
                     password: password,
                     role: role
                 };
                 
                 // 根据角色添加额外字段
                 if (role === 'teacher') {
-                    // 教师注册需要额外信息，这里先使用默认值
-                    registerData.realName = `${username}教师`;
                     registerData.teacherCode = `T${Date.now().toString().slice(-6)}`;
                     registerData.department = '未设置';
                     registerData.title = '讲师';
                 } else if (role === 'student') {
-                    // 学生注册需要额外信息
-                    registerData.realName = `${username}同学`;
                     registerData.studentId = `S${Date.now().toString().slice(-6)}`;
                     registerData.className = '未设置';
                     registerData.major = '未设置';
@@ -255,9 +262,68 @@ document.addEventListener('DOMContentLoaded', function() {
                 const result = await response.json();
                 
                 if (result.success) {
-                    showMessage('注册成功！请登录', 'success');
+                    // 如果有头像文件，上传头像
+                    if (avatarFile) {
+                        try {
+                            // 先登录以获取session
+                            const loginResponse = await fetch(`${API_BASE}/auth/login`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                credentials: 'include',
+                                body: JSON.stringify({
+                                    username: username,
+                                    password: password,
+                                    role: role
+                                })
+                            });
+                            
+                            const loginResult = await loginResponse.json();
+                            
+                            if (loginResult.success) {
+                                // 上传头像
+                                const formData = new FormData();
+                                formData.append('avatar', avatarFile);
+                                
+                                const avatarResponse = await fetch(`${API_BASE}/auth/upload-avatar`, {
+                                    method: 'POST',
+                                    credentials: 'include',
+                                    body: formData
+                                });
+                                
+                                const avatarResult = await avatarResponse.json();
+                                
+                                if (avatarResult.success) {
+                                    showMessage('注册成功并上传头像！请重新登录', 'success');
+                                } else {
+                                    showMessage('注册成功但头像上传失败，请稍后在个人信息中上传', 'warning');
+                                }
+                                
+                                // 退出登录
+                                await fetch(`${API_BASE}/auth/logout`, {
+                                    method: 'POST',
+                                    credentials: 'include'
+                                });
+                            } else {
+                                showMessage('注册成功但头像上传失败，请稍后在个人信息中上传', 'warning');
+                            }
+                        } catch (avatarError) {
+                            console.error('头像上传错误:', avatarError);
+                            showMessage('注册成功但头像上传失败，请稍后在个人信息中上传', 'warning');
+                        }
+                    } else {
+                        showMessage('注册成功！请登录', 'success');
+                    }
+                    
                     registerModal.style.display = 'none';
                     registerForm.reset();
+                    
+                    // 重置头像预览
+                    const avatarPreview = document.getElementById('avatar-preview');
+                    if (avatarPreview) {
+                        avatarPreview.innerHTML = '<i class="fas fa-user"></i>';
+                    }
                     
                     // 自动填充登录表单
                     document.getElementById('login-username').value = username;
@@ -418,7 +484,7 @@ async function checkLoginStatus() {
 }
 
 // 注册表单验证
-function validateRegisterForm(username, password, confirmPassword, role) {
+function validateRegisterForm(username, realName, email, phone, password, confirmPassword, role) {
     // 用户名验证
     if (!username) {
         showMessage('请输入账号', 'error');
@@ -431,6 +497,32 @@ function validateRegisterForm(username, password, confirmPassword, role) {
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
         showMessage('账号只能包含字母、数字和下划线', 'error');
         return false;
+    }
+    
+    // 真实姓名验证
+    if (!realName) {
+        showMessage('请输入真实姓名', 'error');
+        return false;
+    }
+    if (realName.length < 2 || realName.length > 20) {
+        showMessage('真实姓名长度应在2-20位之间', 'error');
+        return false;
+    }
+    
+    // 邮箱验证（可选）
+    if (email && email.trim() !== '') {
+        if (!/^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) {
+            showMessage('邮箱格式不正确', 'error');
+            return false;
+        }
+    }
+    
+    // 手机号验证（可选）
+    if (phone && phone.trim() !== '') {
+        if (!/^1[3-9]\d{9}$/.test(phone)) {
+            showMessage('手机号格式不正确', 'error');
+            return false;
+        }
     }
     
     // 密码验证
@@ -464,4 +556,83 @@ function validateRegisterForm(username, password, confirmPassword, role) {
     }
     
     return true;
+}
+
+// 初始化头像上传功能
+function initAvatarUpload() {
+    const avatarInput = document.getElementById('register-avatar');
+    const avatarPreview = document.getElementById('avatar-preview');
+    
+    if (avatarInput && avatarPreview) {
+        avatarInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // 验证文件类型
+                if (!file.type.startsWith('image/')) {
+                    showMessage('请选择图片文件', 'error');
+                    return;
+                }
+                
+                // 验证文件大小（2MB限制）
+                if (file.size > 2 * 1024 * 1024) {
+                    showMessage('头像文件大小不能超过2MB', 'error');
+                    return;
+                }
+                
+                // 预览图片
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    avatarPreview.innerHTML = `<img src="${e.target.result}" alt="头像预览">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+}
+
+// 初始化密码强度检测
+function initPasswordStrength() {
+    const passwordInput = document.getElementById('register-password');
+    const strengthFill = document.getElementById('strength-fill');
+    const strengthText = document.getElementById('strength-text');
+    
+    if (passwordInput && strengthFill && strengthText) {
+        passwordInput.addEventListener('input', function(e) {
+            const password = e.target.value;
+            const strength = calculatePasswordStrength(password);
+            
+            // 清除之前的样式
+            strengthFill.className = 'strength-fill';
+            strengthText.className = 'strength-text';
+            
+            // 应用新样式
+            strengthFill.classList.add(strength.level);
+            strengthText.classList.add(strength.level);
+            strengthText.textContent = `密码强度：${strength.text}`;
+        });
+    }
+}
+
+// 计算密码强度
+function calculatePasswordStrength(password) {
+    let score = 0;
+    let level = 'weak';
+    let text = '弱';
+    
+    if (password.length >= 8) score += 1;
+    if (password.length >= 12) score += 1;
+    if (/[a-z]/.test(password)) score += 1;
+    if (/[A-Z]/.test(password)) score += 1;
+    if (/[0-9]/.test(password)) score += 1;
+    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    
+    if (score >= 4) {
+        level = 'strong';
+        text = '强';
+    } else if (score >= 2) {
+        level = 'medium';
+        text = '中';
+    }
+    
+    return { level, text, score };
 }

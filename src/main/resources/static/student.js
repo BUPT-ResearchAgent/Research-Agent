@@ -113,7 +113,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     // 设置用户名
-    document.querySelector('.user-name').textContent = currentUser.username;
+    document.querySelector('.user-name').textContent = currentUser.realName || currentUser.username;
+    
+    // 设置用户头像
+    const avatarElement = document.getElementById('user-avatar');
+    if (avatarElement) {
+        if (currentUser.avatarUrl && currentUser.avatarUrl.trim() !== '') {
+            avatarElement.innerHTML = `<img src="${currentUser.avatarUrl}" alt="用户头像" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+        } else {
+            avatarElement.innerHTML = '<i class="fas fa-user-graduate"></i>';
+        }
+    }
 
     // 设置用户下拉菜单
     setupUserDropdown();

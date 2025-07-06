@@ -336,6 +336,127 @@
             transform: translateY(-1px);
         }
         
+        /* 头像上传样式 */
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+            font-size: 14px;
+        }
+        
+        .avatar-upload-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px;
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            background: #f9fafb;
+            transition: all 0.3s ease;
+        }
+        
+        .avatar-upload-container:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        
+        .avatar-preview {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: #9ca3af;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        
+        .avatar-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .form-file-input {
+            display: none;
+        }
+        
+        .btn-upload-avatar {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-upload-avatar:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+        }
+        
+        /* 密码强度指示器 */
+        .password-strength {
+            margin-top: 8px;
+        }
+        
+        .strength-bar {
+            width: 100%;
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+        
+        .strength-fill {
+            height: 100%;
+            width: 0%;
+            transition: all 0.3s ease;
+            border-radius: 2px;
+        }
+        
+        .strength-fill.weak {
+            width: 33%;
+            background: #ef4444;
+        }
+        
+        .strength-fill.medium {
+            width: 66%;
+            background: #f59e0b;
+        }
+        
+        .strength-fill.strong {
+            width: 100%;
+            background: #10b981;
+        }
+        
+        .strength-text {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .strength-text.weak {
+            color: #ef4444;
+        }
+        
+        .strength-text.medium {
+            color: #f59e0b;
+        }
+        
+        .strength-text.strong {
+            color: #10b981;
+        }
+        
                     @media (max-width: 768px) {
                 .top-section {
                     flex-direction: column;
@@ -440,12 +561,45 @@
         <form id="register-form" class="register-form">
             <h2>注册新用户</h2>
             
+            <!-- 头像上传 -->
+            <div class="form-group">
+                <label class="form-label">头像（可选）</label>
+                <div class="avatar-upload-container">
+                    <div class="avatar-preview" id="avatar-preview">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <input type="file" id="register-avatar" class="form-file-input" accept="image/*">
+                    <button type="button" class="btn-upload-avatar" onclick="document.getElementById('register-avatar').click()">
+                        <i class="fas fa-camera"></i>
+                        选择头像
+                    </button>
+                </div>
+            </div>
+            
             <div class="form-group">
                 <input type="text" id="register-username" class="form-input" placeholder="请输入账号" required>
             </div>
             
             <div class="form-group">
+                <input type="text" id="register-realname" class="form-input" placeholder="请输入真实姓名" required>
+            </div>
+            
+            <div class="form-group">
+                <input type="email" id="register-email" class="form-input" placeholder="请输入邮箱（可选）">
+            </div>
+            
+            <div class="form-group">
+                <input type="tel" id="register-phone" class="form-input" placeholder="请输入手机号（可选）">
+            </div>
+            
+            <div class="form-group">
                 <input type="password" id="register-password" class="form-input" placeholder="请输入密码" required>
+                <div class="password-strength" id="password-strength">
+                    <div class="strength-bar">
+                        <div class="strength-fill" id="strength-fill"></div>
+                    </div>
+                    <div class="strength-text" id="strength-text">密码强度：弱</div>
+                </div>
             </div>
             
             <div class="form-group">

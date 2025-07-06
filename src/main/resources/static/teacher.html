@@ -279,22 +279,24 @@
         </div>
         
         <div class="user-controls">
-            <div class="user-icon">
-                <i class="fas fa-chalkboard-teacher"></i>
+            <div class="user-avatar-container" id="user-avatar-container">
+                <div class="user-avatar" id="user-avatar">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                </div>
             </div>
             <div class="user-profile" id="user-profile">
                 <span class="user-name" id="current-username">用户</span>
                 <i class="fas fa-caret-down"></i>
                 <div class="user-dropdown" id="user-dropdown">
-                    <div class="dropdown-item" onclick="showChangePasswordModal()">
-                        <i class="fas fa-key"></i>
-                        <span>修改密码</span>
-            </div>
+                    <div class="dropdown-item" data-action="edit-profile">
+                        <i class="fas fa-user-edit"></i>
+                        <span>编辑个人信息</span>
+                    </div>
                     <div class="dropdown-divider"></div>
                     <div class="dropdown-item" onclick="showDeleteAccountModal()" style="color: #e74c3c;">
                         <i class="fas fa-user-times"></i>
                         <span>注销账户</span>
-            </div>
+                    </div>
                     <div class="dropdown-divider"></div>
                     <div class="dropdown-item" onclick="handleLogout()">
                         <i class="fas fa-sign-out-alt"></i>
@@ -2889,9 +2891,118 @@ D. D. 8
         </div>
     </div>
 
+    <!-- 个人信息编辑模态框 -->
+    <div id="profile-modal" class="course-modal-overlay">
+        <div class="course-modal-container" style="max-width: 600px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-user-edit"></i>
+                    </div>
+                    <h3>编辑个人信息</h3>
+                </div>
+                <button id="close-profile-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <form id="profile-form">
+                    <!-- 头像上传 -->
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-user-circle"></i>
+                            头像
+                        </label>
+                        <div class="avatar-upload-section">
+                            <div class="current-avatar" id="profile-avatar-preview">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="avatar-upload-controls">
+                                <input type="file" id="profile-avatar" name="avatar" accept="image/*" style="display: none;">
+                                <label for="profile-avatar" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-camera"></i>
+                                    更换头像
+                                </label>
+                                <button type="button" id="remove-avatar" class="btn btn-sm btn-secondary">
+                                    <i class="fas fa-trash"></i>
+                                    删除头像
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 基本信息 -->
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-user"></i>
+                            用户名
+                        </label>
+                        <input type="text" id="profile-username" name="username" class="course-form-input" readonly style="background-color: #f8f9fa; color: #6c757d;">
+                    </div>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-id-card"></i>
+                            真实姓名 <span class="required">*</span>
+                        </label>
+                        <input type="text" id="profile-realname" name="realName" class="course-form-input" required>
+                    </div>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-envelope"></i>
+                            邮箱
+                        </label>
+                        <input type="email" id="profile-email" name="email" class="course-form-input">
+                    </div>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-phone"></i>
+                            手机号
+                        </label>
+                        <input type="tel" id="profile-phone" name="phone" class="course-form-input">
+                    </div>
+                    
+                    <!-- 密码修改 -->
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-key"></i>
+                            修改密码
+                        </label>
+                        <div class="password-change-section">
+                            <input type="password" id="profile-old-password" name="oldPassword" class="course-form-input" placeholder="请输入当前密码">
+                            <input type="password" id="profile-new-password" name="newPassword" class="course-form-input" placeholder="请输入新密码（可选）">
+                            <input type="password" id="profile-confirm-password" name="confirmPassword" class="course-form-input" placeholder="确认新密码">
+                            <div class="password-strength" id="profile-password-strength">
+                                <div class="strength-bar">
+                                    <div class="strength-fill" id="profile-strength-fill"></div>
+                                </div>
+                                <div class="strength-text" id="profile-strength-text">密码强度：弱</div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="course-modal-footer">
+                <button type="button" id="cancel-profile" class="btn btn-secondary">
+                    <i class="fas fa-times"></i>
+                    取消
+                </button>
+                <button type="button" id="save-profile" class="btn btn-primary">
+                    <i class="fas fa-save"></i>
+                    保存修改
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript 文件引入 -->
     <script src="teacher-api.js"></script>
     <script src="teacher.js"></script>
+    <script src="profile.js"></script>
     
     <script>
     // 临时的历史通知函数

@@ -4894,7 +4894,17 @@ async function loadCurrentUser() {
         // 更新页面显示的用户名
         const usernameElement = document.getElementById('current-username');
         if (usernameElement) {
-            usernameElement.textContent = userData.username || '教师';
+            usernameElement.textContent = userData.realName || userData.username || '教师';
+        }
+        
+        // 更新页面显示的头像
+        const avatarElement = document.getElementById('user-avatar');
+        if (avatarElement) {
+            if (userData.avatarUrl && userData.avatarUrl.trim() !== '') {
+                avatarElement.innerHTML = `<img src="${userData.avatarUrl}" alt="用户头像" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+            } else {
+                avatarElement.innerHTML = '<i class="fas fa-chalkboard-teacher"></i>';
+            }
         }
         
         console.log('当前用户:', userData);

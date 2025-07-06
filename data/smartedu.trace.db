@@ -4204,3 +4204,12 @@ Caused by: org.h2.mvstore.MVStoreException: The file is locked: C:/Users/1/Deskt
 	at org.h2.mvstore.SingleFileStore.open(SingleFileStore.java:81)
 	at org.h2.mvstore.MVStore.<init>(MVStore.java:286)
 	... 58 more
+2025-07-06 13:56:20.787933+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLDataException: Value too long for column "AVATAR_URL CHARACTER VARYING(255)": "'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgFBgcGBQgHBgcJCAgJDBMM... (178947)"; SQL statement:
+update users set avatar_url=?,created_at=?,email=?,last_login=?,login_count=?,password=?,phone=?,real_name=?,role=?,status=?,updated_at=?,username=? where id=? [22001-232]
+2025-07-06 13:56:22.295910+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLDataException: Value too long for column "AVATAR_URL CHARACTER VARYING(255)": "'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgFBgcGBQgHBgcJCAgJDBMM... (178947)"; SQL statement:
+update users set avatar_url=?,created_at=?,email=?,last_login=?,login_count=?,password=?,phone=?,real_name=?,role=?,status=?,updated_at=?,username=? where id=? [22001-232]
+2025-07-06 13:56:22.893619+08:00 jdbc[4]: exception
+org.h2.jdbc.JdbcSQLDataException: Value too long for column "AVATAR_URL CHARACTER VARYING(255)": "'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgFBgcGBQgHBgcJCAgJDBMM... (178947)"; SQL statement:
+update users set avatar_url=?,created_at=?,email=?,last_login=?,login_count=?,password=?,phone=?,real_name=?,role=?,status=?,updated_at=?,username=? where id=? [22001-232]
