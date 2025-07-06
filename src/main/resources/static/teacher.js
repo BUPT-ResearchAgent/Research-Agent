@@ -9,6 +9,11 @@ let currentPage = 1;
 let pageSize = 10;
 let totalPages = 1;
 
+// 知识点掌握情况相关变量
+let knowledgeMasteryRefreshInterval = null;
+let currentSelectedCourseId = null;
+let lastKnowledgeMasteryData = null;
+
 // 知识库相关变量
 let knowledgeCurrentCourses = [];
 let knowledgeStats = {
@@ -536,31 +541,369 @@ function updateKnowledgeCourseSelect() {
 // 独立的事件处理函数，便于移除监听器
 function handleCourseSelectChange() {
     const selectedCourseId = this.value;
+    currentSelectedCourseId = selectedCourseId;
+    
     if (selectedCourseId) {
         loadKnowledgeMastery(selectedCourseId);
+        // 启动自动刷新
+        startKnowledgeMasteryAutoRefresh(selectedCourseId);
     } else {
         clearKnowledgeMasteryDisplay();
+        // 停止自动刷新
+        stopKnowledgeMasteryAutoRefresh();
+    }
+}
+
+// 启动知识点掌握情况自动刷新
+function startKnowledgeMasteryAutoRefresh(courseId) {
+    // 停止之前的定时器
+    stopKnowledgeMasteryAutoRefresh();
+    
+    // 每30秒刷新一次知识点掌握情况
+    knowledgeMasteryRefreshInterval = setInterval(() => {
+        if (currentSelectedCourseId === courseId) {
+            loadKnowledgeMastery(courseId, true); // 静默刷新
+        }
+    }, 30000);
+    
+    console.log('已启动知识点掌握情况自动刷新，每30秒更新一次');
+}
+
+// 停止知识点掌握情况自动刷新
+function stopKnowledgeMasteryAutoRefresh() {
+    if (knowledgeMasteryRefreshInterval) {
+        clearInterval(knowledgeMasteryRefreshInterval);
+        knowledgeMasteryRefreshInterval = null;
+        console.log('已停止知识点掌握情况自动刷新');
     }
 }
 
 // 加载知识点掌握情况
-async function loadKnowledgeMastery(courseId) {
+async function loadKnowledgeMastery(courseId, isSilentRefresh = false) {
     try {
-        console.log('加载课程', courseId, '的知识点掌握情况...');
+        if (!isSilentRefresh) {
+            console.log('========== 知识点掌握情况调试 ==========');
+            console.log('加载课程', courseId, '的知识点掌握情况...');
+        }
+        
+        // 显示加载状态（非静默刷新时）
+        if (!isSilentRefresh) {
+            showKnowledgeMasteryLoading();
+        }
         
         const response = await TeacherAPI.getKnowledgeMastery(courseId);
-        console.log('知识点掌握情况响应:', response);
+        
+        if (!isSilentRefresh) {
+            console.log('API响应:', response);
+        }
         
         if (response.success) {
-            displayKnowledgeMastery(response.data);
+            const masteryData = response.data;
+            
+            if (!isSilentRefresh) {
+                console.log('知识点掌握数据:', masteryData);
+                console.log('数据长度:', masteryData ? masteryData.length : 'null');
+                
+                if (!masteryData || masteryData.length === 0) {
+                    console.log('⚠️ 知识点掌握数据为空，可能的原因：');
+                    console.log('1. 该课程还没有发布考试');
+                    console.log('2. 考试题目没有设置知识点');
+                    console.log('3. 没有学生参与答题');
+                    console.log('4. 学生答题数据没有保存成功');
+                    
+                    // 进一步检查课程信息
+                    await debugCourseInfo(courseId);
+                }
+            }
+            
+            // 检查数据是否有变化
+            const hasDataChanged = hasKnowledgeMasteryDataChanged(masteryData);
+            
+            displayKnowledgeMastery(masteryData);
+            lastKnowledgeMasteryData = JSON.parse(JSON.stringify(masteryData)); // 深拷贝
+            
+            // 如果是静默刷新且数据有变化，显示通知
+            if (isSilentRefresh && hasDataChanged) {
+                showKnowledgeMasteryUpdateNotification();
+            }
+            
+            // 更新最后刷新时间
+            updateKnowledgeMasteryRefreshTime();
+            
+            if (!isSilentRefresh) {
+                console.log('知识点掌握情况加载成功');
+                console.log('==========================================');
+            }
         } else {
             console.error('获取知识点掌握情况失败:', response.message);
-            clearKnowledgeMasteryDisplay();
+            if (!isSilentRefresh) {
+                clearKnowledgeMasteryDisplay();
+                showNotification('获取知识点掌握情况失败: ' + response.message, 'error');
+            }
         }
     } catch (error) {
         console.error('加载知识点掌握情况失败:', error);
-        clearKnowledgeMasteryDisplay();
+        if (!isSilentRefresh) {
+            clearKnowledgeMasteryDisplay();
+            showNotification('加载知识点掌握情况失败', 'error');
+        }
     }
+}
+
+// 调试课程信息
+async function debugCourseInfo(courseId) {
+    try {
+        console.log('========== 课程调试信息 ==========');
+        console.log('正在检查课程', courseId, '的详细信息...');
+        
+        // 获取课程的考试列表
+        const examsResponse = await fetch(`/api/teacher/exams?courseId=${courseId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (examsResponse.ok) {
+            const examsResult = await examsResponse.json();
+            if (examsResult.success) {
+                const exams = examsResult.data || [];
+                console.log('课程考试列表:', exams);
+                console.log('考试数量:', exams.length);
+                
+                if (exams.length === 0) {
+                    console.log('❌ 该课程还没有创建考试');
+                    showKnowledgeMasteryDiagnostic('该课程还没有创建考试，请先在"考核内容生成"→"生成测评"中创建考试。');
+                    return;
+                }
+                
+                // 检查考试发布状态
+                const publishedExams = exams.filter(exam => exam.isPublished);
+                console.log('已发布考试数量:', publishedExams.length);
+                
+                if (publishedExams.length === 0) {
+                    console.log('❌ 没有已发布的考试');
+                    showKnowledgeMasteryDiagnostic('该课程有考试但都未发布，请在"测评管理"中发布考试后学生才能参与答题。');
+                    return;
+                }
+                
+                // 检查考试是否有题目和知识点
+                let hasQuestionsWithKnowledge = false;
+                let hasStudentAnswers = false;
+                
+                for (const exam of publishedExams) {
+                    console.log(`检查考试 "${exam.title}" (ID: ${exam.id}):`);
+                    
+                    if (exam.totalQuestions && exam.totalQuestions > 0) {
+                        console.log(`  - 题目数量: ${exam.totalQuestions}`);
+                        hasQuestionsWithKnowledge = true;
+                        
+                        // 检查学生答题情况
+                        const hasAnswers = await checkStudentAnswers(exam.id, exam.title);
+                        if (hasAnswers) {
+                            hasStudentAnswers = true;
+                        }
+                    }
+                }
+                
+                if (!hasQuestionsWithKnowledge) {
+                    console.log('❌ 考试没有题目或题目没有设置知识点');
+                    showKnowledgeMasteryDiagnostic('考试题目可能没有设置知识点。请在编辑题目时为每道题设置对应的知识点。');
+                    return;
+                }
+                
+                if (!hasStudentAnswers) {
+                    console.log('❌ 没有学生答题数据');
+                    showKnowledgeMasteryDiagnostic('考试已发布但没有学生提交答案，或答案数据未正确保存。请提醒学生参与考试答题。');
+                    return;
+                }
+                
+                console.log('✅ 数据看起来正常，可能需要等待系统处理...');
+                showKnowledgeMasteryDiagnostic('数据检查正常，但知识点掌握情况仍为空。可能是数据处理延迟，请稍后重试。');
+            } else {
+                console.error('获取考试列表失败:', examsResult.message);
+                showKnowledgeMasteryDiagnostic('无法获取课程考试信息：' + examsResult.message);
+            }
+        } else {
+            console.error('获取考试列表请求失败');
+            showKnowledgeMasteryDiagnostic('无法连接到服务器获取考试信息，请检查网络连接。');
+        }
+        
+        console.log('================================');
+    } catch (error) {
+        console.error('调试课程信息失败:', error);
+        showKnowledgeMasteryDiagnostic('系统调试过程中出现错误：' + error.message);
+    }
+}
+
+// 检查学生答题情况
+async function checkStudentAnswers(examId, examTitle) {
+    try {
+        // 尝试获取考试的成绩统计
+        const statsResponse = await fetch(`/api/teacher/analysis/${examId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (statsResponse.ok) {
+            const statsResult = await statsResponse.json();
+            if (statsResult.success && statsResult.data) {
+                const participantCount = statsResult.data.participantCount || 0;
+                console.log(`  - 考试 "${examTitle}" 的参与学生: ${participantCount}`);
+                
+                if (participantCount > 0) {
+                    console.log('✅ 有学生参与答题');
+                    return true;
+                }
+            }
+        }
+        
+        // 备用方法：检查成绩列表
+        const gradesResponse = await fetch(`/api/teacher/grades`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (gradesResponse.ok) {
+            const gradesResult = await gradesResponse.json();
+            if (gradesResult.success) {
+                const grades = gradesResult.data || [];
+                const examGrades = grades.filter(g => g.examId === examId && g.submitTime);
+                console.log(`  - 考试 "${examTitle}" 的已提交答案: ${examGrades.length}`);
+                
+                return examGrades.length > 0;
+            }
+        }
+        
+        console.log('❌ 没有学生提交答案');
+        return false;
+    } catch (error) {
+        console.error('检查学生答题情况失败:', error);
+        return false;
+    }
+}
+
+// 显示知识点掌握情况诊断信息
+function showKnowledgeMasteryDiagnostic(message) {
+    const chartContainer = document.querySelector('.knowledge-mastery-card .chart-bars');
+    if (!chartContainer) return;
+    
+    chartContainer.innerHTML = `
+        <div style="text-align: center; padding: 48px 0; color: #e74c3c;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; color: #f39c12;"></i>
+            <h3 style="color: #2c3e50; margin-bottom: 16px;">诊断结果</h3>
+            <p style="color: #7f8c8d; line-height: 1.6; max-width: 500px; margin: 0 auto 20px;">${message}</p>
+            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="manualRefreshKnowledgeMastery()" class="btn btn-sm btn-primary">
+                    <i class="fas fa-sync-alt"></i> 重新检查
+                </button>
+                <button onclick="showSection('gen-test')" class="btn btn-sm btn-accent">
+                    <i class="fas fa-plus"></i> 创建考试
+                </button>
+                <button onclick="showSection('test-manage')" class="btn btn-sm btn-success">
+                    <i class="fas fa-cog"></i> 管理考试
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// 检查知识点掌握情况数据是否有变化
+function hasKnowledgeMasteryDataChanged(newData) {
+    if (!lastKnowledgeMasteryData) {
+        return true; // 初次加载视为有变化
+    }
+    
+    // 简单的数据比较
+    if (!newData || newData.length !== lastKnowledgeMasteryData.length) {
+        return true;
+    }
+    
+    // 比较每个知识点的掌握率
+    for (let i = 0; i < newData.length; i++) {
+        const newItem = newData[i];
+        const oldItem = lastKnowledgeMasteryData[i];
+        
+        if (!oldItem || 
+            newItem.knowledgePoint !== oldItem.knowledgePoint ||
+            newItem.masteryRate !== oldItem.masteryRate ||
+            newItem.totalAnswers !== oldItem.totalAnswers) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// 显示知识点掌握情况加载状态
+function showKnowledgeMasteryLoading() {
+    const chartContainer = document.querySelector('.knowledge-mastery-card .chart-bars');
+    if (!chartContainer) return;
+    
+    chartContainer.innerHTML = `
+        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px; color: #3498db;"></i>
+            <p>正在加载知识点掌握情况...</p>
+        </div>
+    `;
+}
+
+// 显示知识点掌握情况更新通知
+function showKnowledgeMasteryUpdateNotification() {
+    const notification = document.createElement('div');
+    notification.className = 'knowledge-mastery-update-notification';
+    notification.innerHTML = `
+        <i class="fas fa-sync-alt"></i>
+        <span>知识点掌握情况已更新</span>
+    `;
+    
+    // 添加样式
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #27ae60;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        animation: slideInRight 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // 3秒后自动移除
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideOutRight 0.3s ease-in';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+    }, 3000);
+}
+
+// 更新知识点掌握情况刷新时间
+function updateKnowledgeMasteryRefreshTime() {
+    const refreshTimeElement = document.querySelector('.knowledge-mastery-refresh-time');
+    if (refreshTimeElement) {
+        const now = new Date();
+        refreshTimeElement.textContent = `最后更新: ${formatTime(now)}`;
+    }
+}
+
+// 格式化时间
+function formatTime(date) {
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
 }
 
 // 显示知识点掌握情况
@@ -574,6 +917,9 @@ function displayKnowledgeMastery(masteryData) {
                 <i class="fas fa-chart-bar" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
                 <p>暂无知识点掌握数据</p>
                 <p>完成课程测评后这里会显示学生的知识点掌握情况</p>
+                <button onclick="manualRefreshKnowledgeMastery()" class="btn btn-sm btn-primary" style="margin-top: 16px;">
+                    <i class="fas fa-sync-alt"></i> 刷新数据
+                </button>
             </div>
         `;
         return;
@@ -583,11 +929,11 @@ function displayKnowledgeMastery(masteryData) {
     const displayData = masteryData.slice(0, 10);
     
     let barsHtml = '';
-    displayData.forEach(item => {
+    displayData.forEach((item, index) => {
         const masteryRate = item.masteryRate || 0;
         const level = item.level || '需要强化';
         
-        // 根据掌握率设置颜色
+        // 根据掌握率设置颜色和动画
         let barClass = 'low';
         if (masteryRate >= 80) {
             barClass = 'high';
@@ -596,21 +942,69 @@ function displayKnowledgeMastery(masteryData) {
         }
         
         barsHtml += `
-            <div class="bar-container">
-                <div class="bar-label">${item.knowledgePoint}</div>
+            <div class="bar-container" style="animation: fadeInUp 0.3s ease-out ${index * 0.1}s both;">
+                <div class="bar-label">
+                    <span>${item.knowledgePoint}</span>
+                    <span class="mastery-trend" id="trend-${index}"></span>
+                </div>
                 <div class="bar ${barClass}" style="width: ${masteryRate}%;">
                     <div class="bar-value">${masteryRate.toFixed(1)}%</div>
                 </div>
                 <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">
-                    ${level} (${item.totalAnswers}次答题)
+                    ${level} (${item.totalAnswers}次答题, ${item.totalQuestions}题)
                 </div>
             </div>
         `;
     });
     
-    chartContainer.innerHTML = barsHtml;
+    // 添加刷新按钮和时间信息
+    const refreshControlsHtml = `
+        <div class="knowledge-mastery-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 10px; background: rgba(52, 152, 219, 0.1); border-radius: 6px;">
+            <div class="refresh-info">
+                <span class="knowledge-mastery-refresh-time" style="font-size: 12px; color: #7f8c8d;">最后更新: ${formatTime(new Date())}</span>
+                <span style="margin: 0 8px; color: #bdc3c7;">|</span>
+                <span style="font-size: 12px; color: #27ae60;">
+                    <i class="fas fa-sync-alt fa-spin" style="margin-right: 4px;"></i>
+                    自动同步中
+                </span>
+            </div>
+            <button onclick="manualRefreshKnowledgeMastery()" class="btn btn-sm btn-primary" title="手动刷新数据">
+                <i class="fas fa-sync-alt"></i> 刷新
+            </button>
+        </div>
+    `;
+    
+    chartContainer.innerHTML = refreshControlsHtml + barsHtml;
     
     console.log('知识点掌握情况显示完成，共', displayData.length, '个知识点');
+}
+
+// 手动刷新知识点掌握情况
+async function manualRefreshKnowledgeMastery() {
+    if (!currentSelectedCourseId) {
+        showNotification('请先选择课程', 'warning');
+        return;
+    }
+    
+    // 显示刷新状态
+    const refreshBtn = document.querySelector('.knowledge-mastery-controls button');
+    if (refreshBtn) {
+        const originalHtml = refreshBtn.innerHTML;
+        refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 刷新中...';
+        refreshBtn.disabled = true;
+        
+        await loadKnowledgeMastery(currentSelectedCourseId);
+        
+        // 恢复按钮状态
+        setTimeout(() => {
+            refreshBtn.innerHTML = originalHtml;
+            refreshBtn.disabled = false;
+        }, 500);
+    } else {
+        await loadKnowledgeMastery(currentSelectedCourseId);
+    }
+    
+    showNotification('知识点掌握情况已刷新', 'success');
 }
 
 // 清空知识点掌握情况显示
@@ -624,6 +1018,10 @@ function clearKnowledgeMasteryDisplay() {
             <p>请选择课程查看知识点掌握情况</p>
         </div>
     `;
+    
+    // 停止自动刷新
+    stopKnowledgeMasteryAutoRefresh();
+    lastKnowledgeMasteryData = null;
 }
 
 // 更新最近课程表格
@@ -11878,4 +12276,22 @@ function showAllSystemNotices() {
 function showAllTeacherNotices() {
     showAllSystemNotices();
 }
+
+// 在页面卸载时清理定时器
+window.addEventListener('beforeunload', () => {
+    stopKnowledgeMasteryAutoRefresh();
+});
+
+// 在页面切换时管理自动刷新
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // 页面隐藏时停止自动刷新
+        stopKnowledgeMasteryAutoRefresh();
+    } else {
+        // 页面显示时恢复自动刷新
+        if (currentSelectedCourseId) {
+            startKnowledgeMasteryAutoRefresh(currentSelectedCourseId);
+        }
+    }
+});
 

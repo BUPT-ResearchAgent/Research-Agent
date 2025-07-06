@@ -155,6 +155,98 @@
         .required {
             color: #e74c3c;
         }
+        
+        /* 知识图谱全屏样式 */
+        .knowledge-graph-fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 0;
+            animation: fullscreenZoomIn 0.3s ease-out;
+        }
+        
+        @keyframes fullscreenZoomIn {
+            from {
+                transform: scale(0.9);
+                opacity: 0.8;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        .knowledge-graph-exit-fullscreen {
+            animation: fullscreenZoomOut 0.3s ease-in;
+        }
+        
+        @keyframes fullscreenZoomOut {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+            to {
+                transform: scale(0.9);
+                opacity: 0.8;
+            }
+        }
+        
+        /* 知识图谱增强背景 */
+        .knowledge-graph-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .knowledge-graph-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.08) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        
+        @keyframes gradientShift {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+        
+        /* 知识图谱节点增强样式 */
+        .graph-node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+            filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+        }
+        
+        .graph-node:hover {
+            transform: scale(1.1);
+            filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.4));
+        }
+        
+        .graph-node.dragging {
+            transform: scale(1.15);
+            filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.5));
+        }
     </style>
 </head>
 <body>
@@ -596,6 +688,9 @@
                                 <button class="btn btn-sm btn-primary" onclick="refreshKnowledgeGraph()">
                                     <i class="fas fa-sync-alt"></i> 刷新
                                 </button>
+                                <button class="btn btn-sm btn-success" onclick="toggleFullscreenKnowledgeGraph()" style="margin-left: 8px;">
+                                    <i class="fas fa-expand"></i> 全屏
+                                </button>
                                 <span class="drag-hint" style="color: #6c757d; font-size: 13px; margin-left: 12px;">
                                     <i class="fas fa-arrows-alt" style="margin-right: 4px;"></i>
                                     拖拽节点可自由移动
@@ -603,21 +698,31 @@
                             </div>
                         </div>
                         
-                        <div id="knowledge-graph-container" style="position: relative; width: 100%; height: 600px; border: 1px solid #e9ecef; border-radius: 8px; background: #fafafa;">
+                        <div id="knowledge-graph-container" class="knowledge-graph-container" style="position: relative; width: 100%; height: 600px; border: 1px solid #e9ecef; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                             <!-- 知识图谱将在这里渲染 -->
-                            <div id="knowledge-graph-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #7f8c8d;">
-                                <i class="fas fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                            <div id="knowledge-graph-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #fff;">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 16px; color: #fff;"></i>
                                 <p>正在加载知识图谱...</p>
                                 <p style="font-size: 14px;">分析课程内容并构建知识关系网络</p>
                             </div>
                             
-                            <div id="knowledge-graph-empty" style="display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #7f8c8d;">
-                                <i class="fas fa-project-diagram" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                            <div id="knowledge-graph-empty" style="display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #fff;">
+                                <i class="fas fa-project-diagram" style="font-size: 48px; margin-bottom: 16px; color: #fff;"></i>
                                 <p>暂无知识图谱数据</p>
                                 <p style="font-size: 14px;">需要先上传课程资料才能生成知识图谱</p>
                             </div>
                             
                             <div id="knowledge-graph-canvas" style="display: none; width: 100%; height: 100%;"></div>
+                            
+                            <!-- 全屏时的顶部控制栏 -->
+                            <div id="fullscreen-controls" style="display: none; position: absolute; top: 20px; right: 20px; z-index: 1000; background: rgba(0,0,0,0.8); border-radius: 8px; padding: 8px;">
+                                <button class="btn btn-sm btn-danger" onclick="exitFullscreenKnowledgeGraph()" style="margin-right: 8px;">
+                                    <i class="fas fa-times"></i> 退出全屏
+                                </button>
+                                <button class="btn btn-sm btn-primary" onclick="refreshKnowledgeGraph()">
+                                    <i class="fas fa-sync-alt"></i> 刷新
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="knowledge-graph-info" style="margin-top: 16px; padding: 16px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--primary-color);">

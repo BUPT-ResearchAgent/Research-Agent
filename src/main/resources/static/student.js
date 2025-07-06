@@ -4628,14 +4628,14 @@ async function loadCourseKnowledgeGraph(courseId) {
                 showKnowledgeGraphEmpty();
             } else {
                 // 其他错误，显示模拟数据
-                renderMockKnowledgeGraph();
+                renderSimpleKnowledgeGraph();
             }
         }
         
     } catch (error) {
         console.error('加载知识图谱失败:', error);
         // API调用失败，显示模拟数据
-        renderMockKnowledgeGraph();
+        renderSimpleKnowledgeGraph();
     }
 }
 
@@ -4676,6 +4676,18 @@ function renderKnowledgeGraph(data) {
     renderActualKnowledgeGraph(data);
 }
 
+// 清理知识图谱事件监听器
+function cleanupKnowledgeGraphListeners() {
+    // 移除现有的全局事件监听器
+    const canvas = document.getElementById('knowledge-graph-canvas');
+    if (canvas) {
+        const svg = canvas.querySelector('svg');
+        if (svg) {
+            svg.remove();
+        }
+    }
+}
+
 // 渲染真实的知识图谱数据
 function renderRealKnowledgeGraph(data) {
     const loadingElement = document.getElementById('knowledge-graph-loading');
@@ -4689,201 +4701,252 @@ function renderRealKnowledgeGraph(data) {
     console.log('开始渲染真实知识图谱，数据:', data);
     
     try {
-        // 清空容器
+        // 清理现有内容和事件监听器
+        cleanupKnowledgeGraphListeners();
         canvasElement.innerHTML = '';
         
         const nodes = data.nodes || [];
         const links = data.links || [];
         const stats = data.stats || {};
         
-        // 创建SVG容器
+        // 创建简化的Canvas 2D渲染而非SVG
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 设置canvas尺寸
         const containerRect = canvasElement.getBoundingClientRect();
         const width = containerRect.width || 600;
         const height = containerRect.height || 600;
+        const dpr = window.devicePixelRatio || 1;
         
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('width', '100%');
-        svg.setAttribute('height', '100%');
-        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-        svg.style.background = 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)';
-        canvasElement.appendChild(svg);
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        canvas.style.cursor = 'pointer';
+        ctx.scale(dpr, dpr);
         
-        // 计算节点位置的缩放比例
+        canvasElement.appendChild(canvas);
+        
+        // 计算节点布局
         const centerX = width / 2;
         const centerY = height / 2;
-        const scale = Math.min(width, height) / 600; // 基于600px标准缩放
+        const scale = Math.min(width, height) / 600;
         
-        // 绘制连接线
-        links.forEach(link => {
-            const sourceNode = nodes.find(n => n.id === link.source);
-            const targetNode = nodes.find(n => n.id === link.target);
-            
-            if (sourceNode && targetNode) {
-                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', centerX + (sourceNode.x || 0) * scale);
-                line.setAttribute('y1', centerY + (sourceNode.y || 0) * scale);
-                line.setAttribute('x2', centerX + (targetNode.x || 0) * scale);
-                line.setAttribute('y2', centerY + (targetNode.y || 0) * scale);
-                line.setAttribute('stroke', getLineColor(link.type));
-                line.setAttribute('stroke-width', Math.max(1, (link.weight || 1) * 0.5));
-                line.setAttribute('opacity', '0.6');
-                
-                // 添加数据属性用于拖拽时更新连接线
-                line.setAttribute('data-source', link.source);
-                line.setAttribute('data-target', link.target);
-                
-                svg.appendChild(line);
-            }
-        });
+        // 处理节点位置
+        const processedNodes = nodes.map(node => ({
+            ...node,
+            x: centerX + (node.x || 0) * scale,
+            y: centerY + (node.y || 0) * scale,
+            radius: Math.max(12, (node.size || 20) * scale * 0.5),
+            originalX: node.x || 0,
+            originalY: node.y || 0
+        }));
         
-        // 绘制节点
-        nodes.forEach(node => {
-            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            g.setAttribute('transform', `translate(${centerX + (node.x || 0) * scale}, ${centerY + (node.y || 0) * scale})`);
-            g.style.cursor = 'pointer';
+        // 拖拽相关变量
+        let isDragging = false;
+        let draggedNode = null;
+        let mouseX = 0;
+        let mouseY = 0;
+        let clickStartTime = 0;
+        
+        // 渲染函数
+        function render() {
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
             
-            // 创建节点圆圈
-            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            const radius = Math.max(8, (node.size || 20) * scale * 0.4);
-            circle.setAttribute('r', radius);
-            circle.setAttribute('fill', node.color || '#3498db');
-            circle.setAttribute('stroke', '#fff');
-            circle.setAttribute('stroke-width', '2');
+            // 绘制连接线
+            links.forEach(link => {
+                const sourceNode = processedNodes.find(n => n.id === link.source);
+                const targetNode = processedNodes.find(n => n.id === link.target);
+                
+                if (sourceNode && targetNode) {
+                    // 绘制连接线
+                    ctx.beginPath();
+                    ctx.moveTo(sourceNode.x, sourceNode.y);
+                    ctx.lineTo(targetNode.x, targetNode.y);
+                    
+                    // 创建渐变
+                    const gradient = ctx.createLinearGradient(
+                        sourceNode.x, sourceNode.y, 
+                        targetNode.x, targetNode.y
+                    );
+                    gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+                    gradient.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
+                    
+                    ctx.strokeStyle = gradient;
+                    ctx.lineWidth = Math.max(1.5, (link.weight || 1) * 0.8);
+                    ctx.globalAlpha = 0.8;
+                    ctx.stroke();
+                }
+            });
             
-            // 根据节点类型添加特殊效果
-            if (node.type === 'course') {
-                circle.setAttribute('stroke-width', '3');
-                circle.setAttribute('filter', 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))');
+            // 绘制节点
+            processedNodes.forEach(node => {
+                const radius = node.radius;
+                
+                // 绘制外发光圈
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius + 8, 0, 2 * Math.PI);
+                ctx.strokeStyle = node.color || '#3498db';
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.3;
+                ctx.stroke();
+                
+                // 绘制背景圆圈
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius + 2, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.globalAlpha = 0.8;
+                ctx.fill();
+                
+                // 绘制主节点
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
+                
+                // 创建径向渐变
+                const gradient = ctx.createRadialGradient(
+                    node.x - radius * 0.3, node.y - radius * 0.3, 0,
+                    node.x, node.y, radius
+                );
+                gradient.addColorStop(0, node.color || '#3498db');
+                gradient.addColorStop(1, darkenColor(node.color || '#3498db', 0.3));
+                
+                ctx.fillStyle = gradient;
+                ctx.globalAlpha = 0.95;
+                ctx.fill();
+                
+                // 绘制边框
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = node.type === 'course' ? 4 : 3;
+                ctx.globalAlpha = 1;
+                ctx.stroke();
+                
+                // 绘制图标
+                ctx.fillStyle = '#fff';
+                ctx.font = `${radius * 0.8}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 1;
+                
+                if (node.type === 'course') {
+                    ctx.fillText('📚', node.x, node.y);
+                } else if (node.type === 'concept') {
+                    ctx.fillText('💡', node.x, node.y);
+                }
+                
+                // 绘制文本标签
+                ctx.fillStyle = '#fff';
+                ctx.font = `${Math.max(12, 14 * scale)}px "Noto Sans SC", Arial, sans-serif`;
+                ctx.fontWeight = node.type === 'course' ? 'bold' : '500';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                
+                // 添加文字阴影效果
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 2;
+                
+                const label = node.label || node.id;
+                const displayLabel = label.length > 10 ? label.substring(0, 10) + '...' : label;
+                ctx.fillText(displayLabel, node.x, node.y + radius + 10);
+                
+                // 重置阴影
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            });
+        }
+        
+        // 查找点击的节点
+        function getNodeAt(x, y) {
+            for (let i = processedNodes.length - 1; i >= 0; i--) {
+                const node = processedNodes[i];
+                const dx = x - node.x;
+                const dy = y - node.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance <= node.radius + 5) {
+                    return node;
+                }
             }
+            return null;
+        }
+        
+        // 获取鼠标位置
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+        
+        // 鼠标事件处理
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            mouseX = pos.x;
+            mouseY = pos.y;
+            clickStartTime = Date.now();
             
-            g.appendChild(circle);
-            
-            // 添加文本标签
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('dy', radius + 15);
-            text.setAttribute('font-size', Math.max(10, 12 * scale));
-            text.setAttribute('font-family', 'Arial, sans-serif');
-            text.setAttribute('fill', '#2c3e50');
-            text.setAttribute('font-weight', node.type === 'course' ? 'bold' : 'normal');
-            
-            // 处理长文本
-            const label = node.label || node.id;
-            if (label.length > 8) {
-                text.textContent = label.substring(0, 8) + '...';
-            } else {
-                text.textContent = label;
-            }
-            
-            g.appendChild(text);
-            
-            // 添加交互事件
-            g.addEventListener('click', (e) => {
-                if (!isDragging) {
-                    showNodeDetails(node);
-                }
-            });
-            
-            g.addEventListener('mouseenter', () => {
-                if (!isDragging) {
-                    circle.setAttribute('stroke-width', '4');
-                    circle.setAttribute('filter', 'drop-shadow(0 6px 12px rgba(0,0,0,0.3))');
-                }
-            });
-            
-            g.addEventListener('mouseleave', () => {
-                if (!isDragging) {
-                    circle.setAttribute('stroke-width', node.type === 'course' ? '3' : '2');
-                    circle.setAttribute('filter', node.type === 'course' ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' : '');
-                }
-            });
-            
-            // 添加拖拽功能
-            g.addEventListener('mousedown', (e) => {
-                e.preventDefault();
+            const node = getNodeAt(pos.x, pos.y);
+            if (node) {
                 isDragging = false;
-                draggedNode = { element: g, node: node, links: [] };
-                
-                // 计算鼠标相对于节点的偏移
-                const rect = svg.getBoundingClientRect();
-                const currentTransform = g.getAttribute('transform');
-                const match = currentTransform.match(/translate\(([^,]+),([^)]+)\)/);
-                const currentX = match ? parseFloat(match[1]) : 0;
-                const currentY = match ? parseFloat(match[2]) : 0;
-                
-                dragOffset.x = (e.clientX - rect.left) - currentX;
-                dragOffset.y = (e.clientY - rect.top) - currentY;
-                
-                // 收集相关的连接线
-                draggedNode.links = Array.from(svg.querySelectorAll('line')).filter(line => {
-                    const sourceId = line.getAttribute('data-source');
-                    const targetId = line.getAttribute('data-target');
-                    return sourceId === node.id || targetId === node.id;
-                });
-                
-                // 改变节点样式
-                circle.setAttribute('stroke-width', '5');
-                circle.setAttribute('filter', 'drop-shadow(0 8px 16px rgba(0,0,0,0.4))');
-                g.style.cursor = 'grabbing';
-                
-                // 阻止文本选择
-                document.body.style.userSelect = 'none';
-            });
-            
-            svg.appendChild(g);
+                draggedNode = node;
+                canvas.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
         });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+            
+            if (draggedNode) {
+                if (!isDragging && (Math.abs(pos.x - mouseX) > 3 || Math.abs(pos.y - mouseY) > 3)) {
+                    isDragging = true;
+                }
+                
+                if (isDragging) {
+                    draggedNode.x = pos.x;
+                    draggedNode.y = pos.y;
+                    render();
+                }
+            } else {
+                // 鼠标悬停效果
+                const hoveredNode = getNodeAt(pos.x, pos.y);
+                canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
+            }
+        });
+        
+        canvas.addEventListener('mouseup', (e) => {
+            if (draggedNode) {
+                if (!isDragging && Date.now() - clickStartTime < 300) {
+                    // 这是一次点击而非拖拽
+                    console.log('点击节点:', draggedNode.label);
+                    showNodeDetails(draggedNode);
+                }
+                
+                draggedNode = null;
+                isDragging = false;
+                canvas.style.cursor = 'pointer';
+            }
+        });
+        
+        // 防止拖拽时离开画布导致的问题
+        document.addEventListener('mouseup', () => {
+            if (draggedNode) {
+                draggedNode = null;
+                isDragging = false;
+                canvas.style.cursor = 'default';
+            }
+        });
+        
+        // 初始渲染
+        render();
         
         // 添加图例
         addGraphLegend(canvasElement, stats);
-        
-        // 添加全局拖拽事件监听器
-        svg.addEventListener('mousemove', (e) => {
-            if (draggedNode) {
-                e.preventDefault();
-                isDragging = true;
-                
-                const rect = svg.getBoundingClientRect();
-                const newX = (e.clientX - rect.left) - dragOffset.x;
-                const newY = (e.clientY - rect.top) - dragOffset.y;
-                
-                // 更新节点位置
-                draggedNode.element.setAttribute('transform', `translate(${newX}, ${newY})`);
-                
-                // 更新节点在nodes数组中的坐标
-                draggedNode.node.x = (newX - centerX) / scale;
-                draggedNode.node.y = (newY - centerY) / scale;
-                
-                // 更新相关连接线
-                updateNodeConnections(draggedNode.node, newX, newY, nodes, centerX, centerY, scale);
-            }
-        });
-        
-        svg.addEventListener('mouseup', (e) => {
-            if (draggedNode) {
-                // 恢复节点样式
-                const circle = draggedNode.element.querySelector('circle');
-                const nodeType = draggedNode.node.type;
-                circle.setAttribute('stroke-width', nodeType === 'course' ? '3' : '2');
-                circle.setAttribute('filter', nodeType === 'course' ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' : '');
-                draggedNode.element.style.cursor = 'pointer';
-                
-                // 清理拖拽状态
-                draggedNode = null;
-                document.body.style.userSelect = '';
-                
-                // 延迟重置isDragging，防止立即触发click事件
-                setTimeout(() => {
-                    isDragging = false;
-                }, 100);
-            }
-        });
-        
-        // 防止拖拽时鼠标离开SVG区域导致的问题
-        document.addEventListener('mouseup', () => {
-            if (draggedNode) {
-                svg.dispatchEvent(new MouseEvent('mouseup'));
-            }
-        });
         
         showNotification(`知识图谱加载成功！包含 ${nodes.length} 个知识点`, 'success');
         
@@ -4891,7 +4954,7 @@ function renderRealKnowledgeGraph(data) {
         console.error('渲染知识图谱失败:', error);
         showNotification('知识图谱渲染失败', 'error');
         // 渲染失败时显示模拟数据
-        renderMockKnowledgeGraph();
+        renderSimpleKnowledgeGraph();
     }
 }
 
@@ -4947,43 +5010,173 @@ function getLineColor(linkType) {
 
 // 显示节点详情
 function showNodeDetails(node) {
-    let details = `<h4>${node.label}</h4>`;
-    details += `<p><strong>类型:</strong> ${getNodeTypeText(node.type)}</p>`;
+    console.log('显示节点详情:', node);
+    
+    // 移除现有的弹窗
+    const existingPopup = document.querySelector('.knowledge-node-popup');
+    if (existingPopup) {
+        existingPopup.remove();
+    }
+    
+    let details = `
+        <div style="display: flex; align-items: center; margin-bottom: 16px;">
+            <div style="font-size: 24px; margin-right: 12px;">
+                ${node.type === 'course' ? '📚' : node.type === 'concept' ? '💡' : '📖'}
+            </div>
+            <div>
+                <h4 style="margin: 0; color: #2c3e50;">${node.label}</h4>
+                <p style="margin: 4px 0 0 0; color: #7f8c8d; font-size: 14px;">${getNodeTypeText(node.type)}</p>
+            </div>
+        </div>
+    `;
     
     if (node.frequency) {
-        details += `<p><strong>出现频率:</strong> ${node.frequency} 次</p>`;
+        details += `
+            <div style="margin-bottom: 12px; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #3498db;">
+                <strong style="color: #2c3e50;">出现频率:</strong> 
+                <span style="color: #3498db; font-weight: 600;">${node.frequency} 次</span>
+            </div>
+        `;
     }
     
     if (node.content) {
-        details += `<p><strong>内容预览:</strong></p>`;
-        details += `<div style="max-height: 150px; overflow-y: auto; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 12px;">${node.content}</div>`;
+        details += `
+            <div style="margin-bottom: 12px;">
+                <strong style="color: #2c3e50;">内容预览:</strong>
+                <div style="max-height: 150px; overflow-y: auto; padding: 12px; background: #f8f9fa; border-radius: 6px; font-size: 13px; line-height: 1.5; margin-top: 8px; border: 1px solid #e9ecef;">
+                    ${node.content}
+                </div>
+            </div>
+        `;
+    } else {
+        // 为演示数据添加一些模拟内容
+        const demoContent = getDemoContent(node.type, node.label);
+        if (demoContent) {
+            details += `
+                <div style="margin-bottom: 12px;">
+                    <strong style="color: #2c3e50;">详细说明:</strong>
+                    <div style="padding: 12px; background: #f8f9fa; border-radius: 6px; font-size: 13px; line-height: 1.5; margin-top: 8px; border: 1px solid #e9ecef;">
+                        ${demoContent}
+                    </div>
+                </div>
+            `;
+        }
     }
     
-    // 创建简单的提示框
+    // 创建高级的提示框
     const popup = document.createElement('div');
+    popup.className = 'knowledge-node-popup';
     popup.style.cssText = `
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
         background: white;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        padding: 16px;
-        max-width: 400px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        border: none;
+        border-radius: 12px;
+        padding: 20px;
+        max-width: 450px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
         z-index: 10000;
+        animation: popupSlideIn 0.3s ease-out;
     `;
-    popup.innerHTML = details + `<button onclick="this.parentElement.remove()" style="margin-top: 12px; padding: 6px 12px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">关闭</button>`;
+    
+    popup.innerHTML = details + `
+        <div style="display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end;">
+            <button onclick="this.parentElement.parentElement.remove()" style="
+                padding: 8px 16px; 
+                background: #95a5a6; 
+                color: white; 
+                border: none; 
+                border-radius: 6px; 
+                cursor: pointer;
+                font-size: 14px;
+                transition: background 0.3s ease;
+            " onmouseover="this.style.background='#7f8c8d'" onmouseout="this.style.background='#95a5a6'">
+                关闭
+            </button>
+        </div>
+    `;
+    
+    // 添加动画样式
+    if (!document.querySelector('#popup-styles')) {
+        const style = document.createElement('style');
+        style.id = 'popup-styles';
+        style.textContent = `
+            @keyframes popupSlideIn {
+                from {
+                    opacity: 0;
+                    transform: translate(-50%, -50%) scale(0.8);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate(-50%, -50%) scale(1);
+                }
+            }
+            
+            .knowledge-node-popup::-webkit-scrollbar {
+                width: 6px;
+            }
+            
+            .knowledge-node-popup::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 3px;
+            }
+            
+            .knowledge-node-popup::-webkit-scrollbar-thumb {
+                background: #bdc3c7;
+                border-radius: 3px;
+            }
+            
+            .knowledge-node-popup::-webkit-scrollbar-thumb:hover {
+                background: #95a5a6;
+            }
+        `;
+        document.head.appendChild(style);
+    }
     
     document.body.appendChild(popup);
     
-    // 3秒后自动关闭
+    // 5秒后自动关闭
     setTimeout(() => {
         if (popup.parentElement) {
+            popup.style.animation = 'popupSlideOut 0.3s ease-in';
+            setTimeout(() => popup.remove(), 300);
+        }
+    }, 5000);
+    
+    // 点击空白区域关闭
+    popup.addEventListener('click', (e) => {
+        if (e.target === popup) {
             popup.remove();
         }
-    }, 3000);
+    });
+}
+
+// 获取演示内容
+function getDemoContent(type, label) {
+    const contents = {
+        'course': {
+            '课程核心概念': '这是课程的核心概念，包含了该学科的基础理论框架和主要学习目标。通过学习核心概念，学生能够建立起对整个学科的整体认知。',
+            '数学': '数学是研究数量、结构、变化、空间以及信息等概念的学科。它是自然科学的基础，也是许多其他学科的重要工具。',
+            '物理': '物理学是研究物质运动最一般规律和物质基本结构的学科。它探索自然界的基本规律，从微观粒子到宏观宇宙。'
+        },
+        'concept': {
+            '基础理论': '基础理论是学科知识体系的根基，包含了该领域的基本概念、定律和原理。掌握基础理论有助于深入理解专业知识。',
+            '实践应用': '实践应用是理论知识在实际场景中的运用，通过实践能够加深对理论的理解，并培养解决实际问题的能力。',
+            '相关技术': '相关技术是支撑学科发展的技术手段和工具，包括实验技术、计算技术、测量技术等。'
+        },
+        'detail': {
+            '知识点 A': '这是一个重要的知识点，包含了具体的概念定义、应用方法和相关实例。学生需要通过理解、记忆和练习来掌握。',
+            '知识点 B': '该知识点与其他概念密切相关，需要在理解的基础上进行综合应用。建议通过案例分析来深化理解。',
+            '知识点 C': '这是一个核心知识点，在整个知识体系中占据重要地位。掌握该知识点有助于理解更高层次的概念。',
+            '知识点 D': '该知识点具有实践性特点，需要结合实际操作来学习。建议通过实验或项目来加深理解。'
+        }
+    };
+    
+    return contents[type] && contents[type][label] ? contents[type][label] : null;
 }
 
 // 获取节点类型文本
@@ -5030,7 +5223,7 @@ function addGraphLegend(container, stats) {
     container.appendChild(legendDiv);
 }
 
-// 渲染模拟知识图谱（用于演示）
+// 渲染模拟知识图谱（新版本）
 function renderMockKnowledgeGraph() {
     const loadingElement = document.getElementById('knowledge-graph-loading');
     const emptyElement = document.getElementById('knowledge-graph-empty');
@@ -5040,149 +5233,508 @@ function renderMockKnowledgeGraph() {
     if (emptyElement) emptyElement.style.display = 'none';
     if (canvasElement) canvasElement.style.display = 'block';
     
-    // 创建一个简单的模拟知识图谱
-    canvasElement.innerHTML = `
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
-            <div style="display: flex; flex-direction: column; align-items: center; gap: 30px;">
-                <!-- 核心概念节点 -->
-                <div style="position: relative;">
-                    <div class="graph-node core-concept" style="background: #3498db; color: white; padding: 15px 25px; border-radius: 25px; font-weight: bold; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);">
-                        ${currentCourseDetail?.name || '课程核心概念'}
-                    </div>
-                </div>
-                
-                <!-- 连接线和子概念 -->
-                <div style="display: flex; gap: 80px; align-items: center;">
-                    <div class="graph-node concept" style="background: #2ecc71; color: white; padding: 12px 20px; border-radius: 20px; box-shadow: 0 3px 8px rgba(46, 204, 113, 0.3);">
-                        基础理论
-                    </div>
-                    <div class="graph-node concept" style="background: #f39c12; color: white; padding: 12px 20px; border-radius: 20px; box-shadow: 0 3px 8px rgba(243, 156, 18, 0.3);">
-                        实践应用
-                    </div>
-                    <div class="graph-node concept" style="background: #9b59b6; color: white; padding: 12px 20px; border-radius: 20px; box-shadow: 0 3px 8px rgba(155, 89, 182, 0.3);">
-                        相关技术
-                    </div>
-                </div>
-                
-                <!-- 详细知识点 -->
-                <div style="display: flex; gap: 40px; flex-wrap: wrap; justify-content: center;">
-                    <div class="graph-node detail" style="background: #34495e; color: white; padding: 8px 15px; border-radius: 15px; font-size: 12px;">
-                        知识点 A
-                    </div>
-                    <div class="graph-node detail" style="background: #34495e; color: white; padding: 8px 15px; border-radius: 15px; font-size: 12px;">
-                        知识点 B
-                    </div>
-                    <div class="graph-node detail" style="background: #34495e; color: white; padding: 8px 15px; border-radius: 15px; font-size: 12px;">
-                        知识点 C
-                    </div>
-                    <div class="graph-node detail" style="background: #34495e; color: white; padding: 8px 15px; border-radius: 15px; font-size: 12px;">
-                        知识点 D
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 添加简单的连接线效果 -->
-            <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1;">
-                <defs>
-                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-                        <polygon points="0 0, 10 3.5, 0 7" fill="#bdc3c7" />
-                    </marker>
-                </defs>
-                <line x1="50%" y1="35%" x2="30%" y2="55%" stroke="#bdc3c7" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.6"/>
-                <line x1="50%" y1="35%" x2="50%" y2="55%" stroke="#bdc3c7" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.6"/>
-                <line x1="50%" y1="35%" x2="70%" y2="55%" stroke="#bdc3c7" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.6"/>
-            </svg>
-        </div>
-        
-        <div style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #7f8c8d;">
-            <i class="fas fa-info-circle" style="margin-right: 4px;"></i>
-            演示版知识图谱
-        </div>
-    `;
+    console.log('渲染模拟知识图谱');
     
-    // 添加节点点击和拖拽事件
-    const nodes = canvasElement.querySelectorAll('.graph-node');
-    nodes.forEach((node, index) => {
-        node.style.cursor = 'pointer';
-        node.style.position = 'relative';
-        node.style.userSelect = 'none';
+    try {
+        // 清理现有内容
+        cleanupKnowledgeGraphListeners();
+        canvasElement.innerHTML = '';
         
+        // 创建模拟数据
+        const mockNodes = [
+            { id: 'course-1', label: currentCourseDetail?.name || '课程核心概念', type: 'course', x: 300, y: 200, radius: 35, color: '#667eea' },
+            { id: 'concept-1', label: '基础理论', type: 'concept', x: 150, y: 300, radius: 25, color: '#56ab2f' },
+            { id: 'concept-2', label: '实践应用', type: 'concept', x: 300, y: 300, radius: 25, color: '#f093fb' },
+            { id: 'concept-3', label: '相关技术', type: 'concept', x: 450, y: 300, radius: 25, color: '#4facfe' },
+            { id: 'detail-1', label: '知识点 A', type: 'detail', x: 100, y: 400, radius: 18, color: '#ffecd2' },
+            { id: 'detail-2', label: '知识点 B', type: 'detail', x: 200, y: 400, radius: 18, color: '#a8edea' },
+            { id: 'detail-3', label: '知识点 C', type: 'detail', x: 350, y: 400, radius: 18, color: '#fad0c4' },
+            { id: 'detail-4', label: '知识点 D', type: 'detail', x: 450, y: 400, radius: 18, color: '#d299c2' }
+        ];
+        
+        const mockLinks = [
+            { source: 'course-1', target: 'concept-1', type: 'contains' },
+            { source: 'course-1', target: 'concept-2', type: 'contains' },
+            { source: 'course-1', target: 'concept-3', type: 'contains' },
+            { source: 'concept-1', target: 'detail-1', type: 'detail' },
+            { source: 'concept-1', target: 'detail-2', type: 'detail' },
+            { source: 'concept-2', target: 'detail-3', type: 'detail' },
+            { source: 'concept-3', target: 'detail-4', type: 'detail' }
+        ];
+        
+        // 创建Canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const containerRect = canvasElement.getBoundingClientRect();
+        const width = containerRect.width || 600;
+        const height = containerRect.height || 600;
+        const dpr = window.devicePixelRatio || 1;
+        
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        canvas.style.cursor = 'pointer';
+        ctx.scale(dpr, dpr);
+        
+        canvasElement.appendChild(canvas);
+        
+        // 拖拽相关变量
         let isDragging = false;
-        let startX, startY, startLeft, startTop;
+        let draggedNode = null;
+        let mouseX = 0;
+        let mouseY = 0;
+        let clickStartTime = 0;
         
-        node.addEventListener('mousedown', function(e) {
-            isDragging = false;
-            startX = e.clientX;
-            startY = e.clientY;
+        // 渲染函数
+        function render() {
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
             
-            const rect = this.getBoundingClientRect();
-            const containerRect = canvasElement.getBoundingClientRect();
-            startLeft = rect.left - containerRect.left;
-            startTop = rect.top - containerRect.top;
+            // 绘制背景渐变
+            const gradient = ctx.createLinearGradient(0, 0, width, height);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
             
-            this.style.position = 'absolute';
-            this.style.left = startLeft + 'px';
-            this.style.top = startTop + 'px';
-            this.style.zIndex = '1000';
-            this.style.transform = 'scale(1.1)';
-            this.style.transition = 'none';
+            // 绘制背景光斑
+            ctx.globalAlpha = 0.1;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(width * 0.2, height * 0.3, 30, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(width * 0.8, height * 0.7, 25, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(width * 0.6, height * 0.2, 20, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.globalAlpha = 1;
             
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
+            // 绘制连接线
+            mockLinks.forEach(link => {
+                const sourceNode = mockNodes.find(n => n.id === link.source);
+                const targetNode = mockNodes.find(n => n.id === link.target);
+                
+                if (sourceNode && targetNode) {
+                    ctx.beginPath();
+                    ctx.moveTo(sourceNode.x, sourceNode.y);
+                    ctx.lineTo(targetNode.x, targetNode.y);
+                    
+                    const lineGradient = ctx.createLinearGradient(
+                        sourceNode.x, sourceNode.y,
+                        targetNode.x, targetNode.y
+                    );
+                    lineGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+                    lineGradient.addColorStop(1, 'rgba(255, 255, 255, 0.3)');
+                    
+                    ctx.strokeStyle = lineGradient;
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 0.8;
+                    ctx.stroke();
+                }
+            });
             
-            e.preventDefault();
-        });
-        
-        function onMouseMove(e) {
-            isDragging = true;
-            const deltaX = e.clientX - startX;
-            const deltaY = e.clientY - startY;
-            
-            node.style.left = (startLeft + deltaX) + 'px';
-            node.style.top = (startTop + deltaY) + 'px';
+            // 绘制节点
+            mockNodes.forEach(node => {
+                // 外发光圈
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius + 8, 0, 2 * Math.PI);
+                ctx.strokeStyle = node.color;
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.4;
+                ctx.stroke();
+                
+                // 背景圆圈
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius + 2, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.globalAlpha = 0.8;
+                ctx.fill();
+                
+                // 主节点
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+                
+                const nodeGradient = ctx.createRadialGradient(
+                    node.x - node.radius * 0.3, node.y - node.radius * 0.3, 0,
+                    node.x, node.y, node.radius
+                );
+                nodeGradient.addColorStop(0, node.color);
+                nodeGradient.addColorStop(1, darkenColor(node.color, 0.3));
+                
+                ctx.fillStyle = nodeGradient;
+                ctx.globalAlpha = 0.95;
+                ctx.fill();
+                
+                // 边框
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = node.type === 'course' ? 4 : 3;
+                ctx.globalAlpha = 1;
+                ctx.stroke();
+                
+                // 图标
+                ctx.fillStyle = '#fff';
+                ctx.font = `${node.radius * 0.8}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.globalAlpha = 1;
+                
+                if (node.type === 'course') {
+                    ctx.fillText('📚', node.x, node.y);
+                } else if (node.type === 'concept') {
+                    ctx.fillText('💡', node.x, node.y);
+                } else {
+                    ctx.fillText('📖', node.x, node.y);
+                }
+                
+                // 文本标签
+                ctx.fillStyle = '#fff';
+                ctx.font = `${node.type === 'course' ? '16' : '14'}px "Noto Sans SC", Arial, sans-serif`;
+                ctx.fontWeight = node.type === 'course' ? 'bold' : '500';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                
+                // 添加文字阴影
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 2;
+                
+                ctx.fillText(node.label, node.x, node.y + node.radius + 10);
+                
+                // 重置阴影
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+            });
         }
         
-        function onMouseUp() {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
+        // 查找点击的节点
+        function getNodeAt(x, y) {
+            for (let i = mockNodes.length - 1; i >= 0; i--) {
+                const node = mockNodes[i];
+                const dx = x - node.x;
+                const dy = y - node.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance <= node.radius + 5) {
+                    return node;
+                }
+            }
+            return null;
+        }
+        
+        // 获取鼠标位置
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+        
+        // 鼠标事件处理
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            mouseX = pos.x;
+            mouseY = pos.y;
+            clickStartTime = Date.now();
             
-            node.style.zIndex = '';
-            node.style.transform = 'scale(1)';
-            node.style.transition = 'transform 0.2s ease';
-            
-            // 延迟重置拖拽状态，防止触发点击事件
-            setTimeout(() => {
+            const node = getNodeAt(pos.x, pos.y);
+            if (node) {
                 isDragging = false;
-            }, 100);
+                draggedNode = node;
+                canvas.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+            
+            if (draggedNode) {
+                if (!isDragging && (Math.abs(pos.x - mouseX) > 3 || Math.abs(pos.y - mouseY) > 3)) {
+                    isDragging = true;
+                }
+                
+                if (isDragging) {
+                    draggedNode.x = pos.x;
+                    draggedNode.y = pos.y;
+                    render();
+                }
+            } else {
+                const hoveredNode = getNodeAt(pos.x, pos.y);
+                canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
+            }
+        });
+        
+        canvas.addEventListener('mouseup', (e) => {
+            if (draggedNode) {
+                if (!isDragging && Date.now() - clickStartTime < 300) {
+                    console.log('点击模拟节点:', draggedNode.label);
+                    showNodeDetails(draggedNode);
+                }
+                
+                draggedNode = null;
+                isDragging = false;
+                canvas.style.cursor = 'pointer';
+            }
+        });
+        
+        // 防止拖拽时离开画布导致的问题
+        document.addEventListener('mouseup', () => {
+            if (draggedNode) {
+                draggedNode = null;
+                isDragging = false;
+                canvas.style.cursor = 'default';
+            }
+        });
+        
+        // 初始渲染
+        render();
+        
+        // 添加简化的图例
+        const legendData = {
+            totalNodes: mockNodes.length,
+            totalLinks: mockLinks.length,
+            conceptCount: mockNodes.filter(n => n.type === 'concept').length,
+            detailCount: mockNodes.filter(n => n.type === 'detail').length
+        };
+        
+        addGraphLegend(canvasElement, legendData);
+        
+        showNotification('知识图谱渲染完成（演示数据）', 'info');
+        
+    } catch (error) {
+        console.error('渲染模拟知识图谱失败:', error);
+        showNotification('知识图谱渲染失败', 'error');
+    }
+}
+
+// 渲染简化高性能知识图谱
+function renderSimpleKnowledgeGraph() {
+    const loadingElement = document.getElementById('knowledge-graph-loading');
+    const emptyElement = document.getElementById('knowledge-graph-empty');
+    const canvasElement = document.getElementById('knowledge-graph-canvas');
+    
+    if (loadingElement) loadingElement.style.display = 'none';
+    if (emptyElement) emptyElement.style.display = 'none';
+    if (canvasElement) canvasElement.style.display = 'block';
+    
+    console.log('渲染高性能模拟知识图谱');
+    
+    try {
+        // 清理现有内容
+        cleanupKnowledgeGraphListeners();
+        canvasElement.innerHTML = '';
+        
+        // 创建模拟数据
+        const mockNodes = [
+            { id: 'course-1', label: currentCourseDetail?.name || '课程核心概念', type: 'course', x: 300, y: 200, radius: 35, color: '#667eea' },
+            { id: 'concept-1', label: '基础理论', type: 'concept', x: 150, y: 300, radius: 25, color: '#56ab2f' },
+            { id: 'concept-2', label: '实践应用', type: 'concept', x: 300, y: 300, radius: 25, color: '#f093fb' },
+            { id: 'concept-3', label: '相关技术', type: 'concept', x: 450, y: 300, radius: 25, color: '#4facfe' },
+            { id: 'detail-1', label: '知识点 A', type: 'detail', x: 100, y: 400, radius: 18, color: '#ffecd2' },
+            { id: 'detail-2', label: '知识点 B', type: 'detail', x: 200, y: 400, radius: 18, color: '#a8edea' },
+            { id: 'detail-3', label: '知识点 C', type: 'detail', x: 350, y: 400, radius: 18, color: '#fad0c4' },
+            { id: 'detail-4', label: '知识点 D', type: 'detail', x: 450, y: 400, radius: 18, color: '#d299c2' }
+        ];
+        
+        const mockLinks = [
+            { source: 'course-1', target: 'concept-1' },
+            { source: 'course-1', target: 'concept-2' },
+            { source: 'course-1', target: 'concept-3' },
+            { source: 'concept-1', target: 'detail-1' },
+            { source: 'concept-1', target: 'detail-2' },
+            { source: 'concept-2', target: 'detail-3' },
+            { source: 'concept-3', target: 'detail-4' }
+        ];
+        
+        // 创建Canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const containerRect = canvasElement.getBoundingClientRect();
+        const width = containerRect.width || 600;
+        const height = containerRect.height || 600;
+        
+        canvas.width = width;
+        canvas.height = height;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        canvas.style.cursor = 'pointer';
+        
+        canvasElement.appendChild(canvas);
+        
+        // 拖拽相关变量
+        let isDragging = false;
+        let draggedNode = null;
+        let mouseX = 0;
+        let mouseY = 0;
+        let clickStartTime = 0;
+        
+        // 渲染函数
+        function render() {
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
+            
+            // 绘制背景渐变
+            const gradient = ctx.createLinearGradient(0, 0, width, height);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+            
+            // 绘制连接线
+            mockLinks.forEach(link => {
+                const sourceNode = mockNodes.find(n => n.id === link.source);
+                const targetNode = mockNodes.find(n => n.id === link.target);
+                
+                if (sourceNode && targetNode) {
+                    ctx.beginPath();
+                    ctx.moveTo(sourceNode.x, sourceNode.y);
+                    ctx.lineTo(targetNode.x, targetNode.y);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            });
+            
+            // 绘制节点
+            mockNodes.forEach(node => {
+                // 主节点
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius, 0, 2 * Math.PI);
+                ctx.fillStyle = node.color;
+                ctx.fill();
+                
+                // 边框
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = node.type === 'course' ? 4 : 3;
+                ctx.stroke();
+                
+                // 图标
+                ctx.fillStyle = '#fff';
+                ctx.font = `${node.radius * 0.8}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                if (node.type === 'course') {
+                    ctx.fillText('📚', node.x, node.y);
+                } else if (node.type === 'concept') {
+                    ctx.fillText('💡', node.x, node.y);
+                } else {
+                    ctx.fillText('📖', node.x, node.y);
+                }
+                
+                // 文本标签
+                ctx.fillStyle = '#fff';
+                ctx.font = `${node.type === 'course' ? '16' : '14'}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillText(node.label, node.x, node.y + node.radius + 10);
+            });
         }
         
-        node.addEventListener('click', function() {
-            if (!isDragging) {
-                const nodeName = this.textContent.trim();
-                showNotification(`点击了节点：${nodeName}`, 'info');
+        // 查找点击的节点
+        function getNodeAt(x, y) {
+            for (let i = mockNodes.length - 1; i >= 0; i--) {
+                const node = mockNodes[i];
+                const dx = x - node.x;
+                const dy = y - node.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance <= node.radius + 5) {
+                    return node;
+                }
+            }
+            return null;
+        }
+        
+        // 获取鼠标位置
+        function getMousePos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+        
+        // 鼠标事件处理
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+            mouseX = pos.x;
+            mouseY = pos.y;
+            clickStartTime = Date.now();
+            
+            const node = getNodeAt(pos.x, pos.y);
+            if (node) {
+                isDragging = false;
+                draggedNode = node;
+                canvas.style.cursor = 'grabbing';
+                e.preventDefault();
             }
         });
         
-        node.addEventListener('mouseenter', function() {
-            if (!isDragging) {
-                this.style.transform = 'scale(1.05)';
-                this.style.transition = 'transform 0.2s ease';
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+            
+            if (draggedNode) {
+                if (!isDragging && (Math.abs(pos.x - mouseX) > 3 || Math.abs(pos.y - mouseY) > 3)) {
+                    isDragging = true;
+                }
+                
+                if (isDragging) {
+                    draggedNode.x = pos.x;
+                    draggedNode.y = pos.y;
+                    render();
+                }
+            } else {
+                const hoveredNode = getNodeAt(pos.x, pos.y);
+                canvas.style.cursor = hoveredNode ? 'pointer' : 'default';
             }
         });
         
-        node.addEventListener('mouseleave', function() {
-            if (!isDragging) {
-                this.style.transform = 'scale(1)';
+        canvas.addEventListener('mouseup', (e) => {
+            if (draggedNode) {
+                if (!isDragging && Date.now() - clickStartTime < 300) {
+                    console.log('点击模拟节点:', draggedNode.label);
+                    showNodeDetails(draggedNode);
+                }
+                
+                draggedNode = null;
+                isDragging = false;
+                canvas.style.cursor = 'pointer';
             }
         });
-    });
+        
+        // 防止拖拽时离开画布导致的问题
+        document.addEventListener('mouseup', () => {
+            if (draggedNode) {
+                draggedNode = null;
+                isDragging = false;
+                canvas.style.cursor = 'default';
+            }
+        });
+        
+        // 初始渲染
+        render();
+        
+        showNotification('知识图谱渲染完成（演示数据）', 'info');
+        
+    } catch (error) {
+        console.error('渲染模拟知识图谱失败:', error);
+        showNotification('知识图谱渲染失败', 'error');
+    }
 }
 
 // 实际的知识图谱渲染函数（待实现具体图形库）
 function renderActualKnowledgeGraph(data) {
     // 这里可以使用 D3.js、vis.js 等图形库来实现复杂的知识图谱
-    // 暂时使用模拟展示
-    renderMockKnowledgeGraph();
+    // 暂时使用简化高性能版本
+    renderSimpleKnowledgeGraph();
 }
 
 // 刷新知识图谱
@@ -5192,6 +5744,121 @@ function refreshKnowledgeGraph() {
         loadCourseKnowledgeGraph(currentCourseDetail.id);
     }
 }
+
+// 全屏知识图谱功能
+let isKnowledgeGraphFullscreen = false;
+let originalContainerParent = null;
+let originalContainerStyle = null;
+
+// 切换全屏模式
+function toggleFullscreenKnowledgeGraph() {
+    if (isKnowledgeGraphFullscreen) {
+        exitFullscreenKnowledgeGraph();
+    } else {
+        enterFullscreenKnowledgeGraph();
+    }
+}
+
+// 进入全屏模式
+function enterFullscreenKnowledgeGraph() {
+    const container = document.getElementById('knowledge-graph-container');
+    const fullscreenControls = document.getElementById('fullscreen-controls');
+    
+    if (!container) return;
+    
+    // 保存原始状态
+    originalContainerParent = container.parentElement;
+    originalContainerStyle = container.getAttribute('style');
+    
+    // 添加全屏样式
+    container.classList.add('knowledge-graph-fullscreen');
+    
+    // 显示全屏控制按钮
+    if (fullscreenControls) {
+        fullscreenControls.style.display = 'block';
+    }
+    
+    // 隐藏页面其他元素
+    document.body.style.overflow = 'hidden';
+    
+    // 标记为全屏状态
+    isKnowledgeGraphFullscreen = true;
+    
+    // 重新渲染知识图谱以适应新尺寸
+    setTimeout(() => {
+        refreshKnowledgeGraphDisplay();
+    }, 300);
+    
+    showNotification('已进入全屏模式', 'success');
+}
+
+// 退出全屏模式
+function exitFullscreenKnowledgeGraph() {
+    const container = document.getElementById('knowledge-graph-container');
+    const fullscreenControls = document.getElementById('fullscreen-controls');
+    
+    if (!container) return;
+    
+    // 添加退出动画
+    container.classList.add('knowledge-graph-exit-fullscreen');
+    
+    setTimeout(() => {
+        // 移除全屏样式
+        container.classList.remove('knowledge-graph-fullscreen', 'knowledge-graph-exit-fullscreen');
+        
+        // 恢复原始样式
+        if (originalContainerStyle) {
+            container.setAttribute('style', originalContainerStyle);
+        }
+        
+        // 隐藏全屏控制按钮
+        if (fullscreenControls) {
+            fullscreenControls.style.display = 'none';
+        }
+        
+        // 恢复页面滚动
+        document.body.style.overflow = '';
+        
+        // 重新渲染知识图谱
+        refreshKnowledgeGraphDisplay();
+        
+        showNotification('已退出全屏模式', 'info');
+    }, 300);
+    
+    // 标记为非全屏状态
+    isKnowledgeGraphFullscreen = false;
+}
+
+// 刷新知识图谱显示
+function refreshKnowledgeGraphDisplay() {
+    if (knowledgeGraphData) {
+        // 如果有真实数据，重新渲染
+        renderRealKnowledgeGraph(knowledgeGraphData);
+    } else {
+        // 否则显示模拟数据
+        renderSimpleKnowledgeGraph();
+    }
+}
+
+// 颜色加深函数
+function darkenColor(color, factor) {
+    if (color.startsWith('#')) {
+        const hex = color.slice(1);
+        const rgb = parseInt(hex, 16);
+        const r = Math.floor(((rgb >> 16) & 0xFF) * (1 - factor));
+        const g = Math.floor(((rgb >> 8) & 0xFF) * (1 - factor));
+        const b = Math.floor((rgb & 0xFF) * (1 - factor));
+        return `rgb(${r}, ${g}, ${b})`;
+    }
+    return color;
+}
+
+// 监听ESC键退出全屏
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && isKnowledgeGraphFullscreen) {
+        exitFullscreenKnowledgeGraph();
+    }
+});
 
 // 拖拽相关的全局变量
 let draggedNode = null;

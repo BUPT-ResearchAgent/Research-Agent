@@ -969,21 +969,57 @@ public class TeacherController {
             
             // 获取该课程的所有考试
             List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+            System.out.println("课程 " + courseId + " 的考试数量: " + exams.size());
+            
             if (exams.isEmpty()) {
+                System.out.println("课程 " + courseId + " 没有考试，返回空数据");
+                return ApiResponse.success("获取知识点掌握情况成功", List.of());
+            }
+            
+            // 筛选已发布的考试
+            List<Exam> publishedExams = exams.stream()
+                .filter(Exam::getIsPublished)
+                .collect(Collectors.toList());
+            System.out.println("已发布的考试数量: " + publishedExams.size());
+            
+            if (publishedExams.isEmpty()) {
+                System.out.println("课程 " + courseId + " 没有已发布的考试，返回空数据");
                 return ApiResponse.success("获取知识点掌握情况成功", List.of());
             }
             
             // 统计知识点掌握情况
             Map<String, Map<String, Object>> knowledgeStats = new HashMap<>();
             
-            for (Exam exam : exams) {
-                List<Question> questions = questionRepository.findByExamId(exam.getId());
-                List<ExamResult> examResults = examResultRepository.findByExam(exam);
+            for (Exam exam : publishedExams) {
+                System.out.println("处理考试: " + exam.getTitle() + " (ID: " + exam.getId() + ")");
                 
+                List<Question> questions = questionRepository.findByExamId(exam.getId());
+                System.out.println("  - 题目数量: " + questions.size());
+                
+                List<ExamResult> examResults = examResultRepository.findByExam(exam);
+                List<ExamResult> submittedResults = examResults.stream()
+                    .filter(result -> result.getSubmitTime() != null)
+                    .collect(Collectors.toList());
+                System.out.println("  - 考试结果数量: " + examResults.size());
+                System.out.println("  - 已提交的考试结果: " + submittedResults.size());
+                
+                if (questions.isEmpty()) {
+                    System.out.println("  - 跳过，该考试没有题目");
+                    continue;
+                }
+                
+                if (submittedResults.isEmpty()) {
+                    System.out.println("  - 跳过，该考试没有学生提交答案");
+                    continue;
+                }
+                
+                int questionsWithKnowledge = 0;
                 for (Question question : questions) {
                     String knowledgePoint = question.getKnowledgePoint();
                     if (knowledgePoint == null || knowledgePoint.trim().isEmpty()) {
                         knowledgePoint = "通用知识点";
+                    } else {
+                        questionsWithKnowledge++;
                     }
                     
                     final String finalKnowledgePoint = knowledgePoint;
@@ -1002,7 +1038,7 @@ public class TeacherController {
                     stats.put("totalQuestions", (Integer) stats.get("totalQuestions") + 1);
                     
                     // 统计该题的答题情况
-                    for (ExamResult examResult : examResults) {
+                    for (ExamResult examResult : submittedResults) {
                         List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultIdAndQuestionId(examResult.getId(), question.getId());
                         for (StudentAnswer answer : studentAnswers) {
                             stats.put("totalAnswers", (Integer) stats.get("totalAnswers") + 1);
@@ -1031,7 +1067,11 @@ public class TeacherController {
                         }
                     }
                 }
+                
+                System.out.println("  - 有知识点的题目数量: " + questionsWithKnowledge);
             }
+            
+            System.out.println("统计完成，知识点种类数量: " + knowledgeStats.size());
             
             // 计算掌握率并设置等级
             List<Map<String, Object>> masteryList = new ArrayList<>();
@@ -1063,6 +1103,14 @@ public class TeacherController {
             ));
             
             System.out.println("知识点掌握情况统计完成，共 " + masteryList.size() + " 个知识点");
+            
+            // 输出详细的掌握情况
+            for (Map<String, Object> mastery : masteryList) {
+                System.out.println("  - " + mastery.get("knowledgePoint") + ": " 
+                    + mastery.get("masteryRate") + "% (" 
+                    + mastery.get("correctAnswers") + "/" + mastery.get("totalAnswers") + " 答对)");
+            }
+            
             return ApiResponse.success("获取知识点掌握情况成功", masteryList);
             
         } catch (Exception e) {
