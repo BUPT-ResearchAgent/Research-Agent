@@ -777,17 +777,107 @@ public class TeacherController {
      * 删除课程
      */
     @DeleteMapping("/courses/{courseId}")
-    public ApiResponse<Void> deleteCourse(@PathVariable Long courseId) {
+    public ApiResponse<Void> deleteCourse(@PathVariable Long courseId, jakarta.servlet.http.HttpSession session) {
+        // 声明userId变量，确保在整个方法中都可见
+        Long userId = null;
         try {
-            if (!courseRepository.existsById(courseId)) {
-                return ApiResponse.error("课程不存在");
+            // 验证用户登录状态
+            userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                ApiResponse<Void> errorResponse = ApiResponse.error("用户未登录，请重新登录");
+                System.out.println("[DEBUG] 返回登录错误响应: " + errorResponse.toString());
+                return errorResponse;
             }
             
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                ApiResponse<Void> errorResponse = ApiResponse.error("权限不足，非教师用户");
+                System.out.println("[DEBUG] 返回权限错误响应: " + errorResponse.toString());
+                return errorResponse;
+            }
+            
+            // 验证课程是否存在
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                ApiResponse<Void> errorResponse = ApiResponse.error("课程不存在");
+                System.out.println("[DEBUG] 返回课程不存在错误响应: " + errorResponse.toString());
+                return errorResponse;
+            }
+            
+            Course course = courseOpt.get();
+            
+            // 验证当前教师是否拥有该课程
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                ApiResponse<Void> errorResponse = ApiResponse.error("教师信息不存在");
+                System.out.println("[DEBUG] 返回教师信息错误响应: " + errorResponse.toString());
+                return errorResponse;
+            }
+            
+            Teacher currentTeacher = teacherOpt.get();
+            if (!course.getTeacher().getId().equals(currentTeacher.getId())) {
+                ApiResponse<Void> errorResponse = ApiResponse.error("您没有权限删除此课程，只能删除自己创建的课程");
+                System.out.println("[DEBUG] 返回权限不足错误响应: " + errorResponse.toString());
+                return errorResponse;
+            }
+            
+            // 记录详细的删除操作审计日志
+            String auditLog = String.format(
+                "[AUDIT] 课程删除操作 - 时间: %s, 操作者: %s (教师ID: %d, 用户ID: %d), " +
+                "删除课程: %s (课程ID: %d, 课程代码: %s), 操作IP: %s",
+                java.time.LocalDateTime.now().toString(),
+                currentTeacher.getRealName(),
+                currentTeacher.getId(),
+                userId,
+                course.getName(),
+                courseId,
+                course.getCourseCode(),
+                "未获取" // 可以从HttpServletRequest获取真实IP
+            );
+            System.out.println(auditLog);
+            
             // 使用完整删除方法，先删除所有相关数据再删除课程
-            courseService.deleteCourseCompletely(courseId);
-            return ApiResponse.success("课程删除成功", null);
+            // 删除操作在独立事务中执行，避免事务冲突
+            System.out.println("[DEBUG] 开始调用courseService.deleteCourseSimple，课程ID: " + courseId);
+            courseService.deleteCourseSimple(courseId);  // 临时使用简化方法测试
+            System.out.println("[DEBUG] courseService.deleteCourseSimple调用完成，未抛出异常");
+            
+            // 记录删除完成日志
+            String completionLog = String.format(
+                "[AUDIT] 课程删除完成 - 时间: %s, 课程: %s (ID: %d) 已成功删除",
+                java.time.LocalDateTime.now().toString(),
+                course.getName(),
+                courseId
+            );
+            System.out.println(completionLog);
+            
+            // 创建成功响应
+            ApiResponse<Void> successResponse = ApiResponse.success("课程删除成功", null);
+            System.out.println("[DEBUG] 创建成功响应: " + successResponse.toString());
+            System.out.println("[DEBUG] 成功响应的success字段: " + successResponse.getSuccess());
+            System.out.println("[DEBUG] 成功响应的message字段: " + successResponse.getMessage());
+            
+            return successResponse;
+            
         } catch (Exception e) {
-            return ApiResponse.error("删除课程失败：" + e.getMessage());
+            // 记录删除失败的审计日志
+            String failureLog = String.format(
+                "[AUDIT] 课程删除失败 - 时间: %s, 用户ID: %s, 课程ID: %d, 错误信息: %s",
+                java.time.LocalDateTime.now().toString(),
+                userId != null ? userId.toString() : "未知",
+                courseId,
+                e.getMessage()
+            );
+            System.err.println(failureLog);
+            e.printStackTrace();
+            
+            // 创建错误响应
+            ApiResponse<Void> errorResponse = ApiResponse.error("删除课程失败：" + e.getMessage());
+            System.out.println("[DEBUG] 创建错误响应: " + errorResponse.toString());
+            System.out.println("[DEBUG] 错误响应的success字段: " + errorResponse.getSuccess());
+            System.out.println("[DEBUG] 错误响应的message字段: " + errorResponse.getMessage());
+            
+            return errorResponse;
         }
     }
 

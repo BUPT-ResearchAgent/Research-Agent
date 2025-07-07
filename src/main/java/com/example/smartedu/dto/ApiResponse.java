@@ -1,8 +1,15 @@
 package com.example.smartedu.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class ApiResponse<T> {
+    @JsonProperty("success")
     private boolean success;
+    
+    @JsonProperty("message")
     private String message;
+    
+    @JsonProperty("data")
     private T data;
     
     public ApiResponse() {}
@@ -30,6 +37,11 @@ public class ApiResponse<T> {
         return success;
     }
     
+    @JsonProperty("success")
+    public boolean getSuccess() {
+        return success;
+    }
+    
     public void setSuccess(boolean success) {
         this.success = success;
     }
@@ -48,5 +60,11 @@ public class ApiResponse<T> {
     
     public void setData(T data) {
         this.data = data;
+    }
+    
+    @Override
+    public String toString() {
+        return String.format("ApiResponse{success=%s, message='%s', data=%s}", 
+                success, message, data != null ? data.toString() : "null");
     }
 } 

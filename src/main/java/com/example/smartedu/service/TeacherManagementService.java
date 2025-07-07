@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
-@Transactional
 public class TeacherManagementService {
     
     @Autowired
@@ -28,6 +27,7 @@ public class TeacherManagementService {
     /**
      * 注册教师
      */
+    @Transactional
     public Teacher registerTeacher(String username, String password, String realName, 
                                  String teacherCode, String department, String title) {
         // 先创建用户账号
@@ -71,6 +71,7 @@ public class TeacherManagementService {
     /**
      * 更新教师信息
      */
+    @Transactional
     public Teacher updateTeacher(Long teacherId, String realName, String teacherCode, 
                                String department, String title, String education, 
                                String specialty, String introduction, String officeLocation, 
@@ -130,6 +131,7 @@ public class TeacherManagementService {
     /**
      * 删除教师
      */
+    @Transactional
     public void deleteTeacher(Long teacherId) {
         Teacher teacher = teacherRepository.findById(teacherId)
                 .orElseThrow(() -> new RuntimeException("教师不存在"));

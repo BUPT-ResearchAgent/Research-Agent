@@ -4213,3 +4213,81 @@ update users set avatar_url=?,created_at=?,email=?,last_login=?,login_count=?,pa
 2025-07-06 13:56:22.893619+08:00 jdbc[4]: exception
 org.h2.jdbc.JdbcSQLDataException: Value too long for column "AVATAR_URL CHARACTER VARYING(255)": "'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgFBgcGBQgHBgcJCAgJDBMM... (178947)"; SQL statement:
 update users set avatar_url=?,created_at=?,email=?,last_login=?,login_count=?,password=?,phone=?,real_name=?,role=?,status=?,updated_at=?,username=? where id=? [22001-232]
+2025-07-07 18:07:30.670820+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:07:30.685847+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:07:33.674714+08:00 jdbc[4]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:07:33.675709+08:00 jdbc[4]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:07:37.710452+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:07:37.712454+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:13:35.481567+08:00 jdbc[4]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:13:35.483579+08:00 jdbc[4]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:13:40.585620+08:00 jdbc[5]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:13:40.587028+08:00 jdbc[5]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:17:36.167903+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:17:36.170033+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:26:02.043797+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:26:02.044897+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:28:17.825334+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:28:17.827101+08:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:31:37.920958+08:00 jdbc[12]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 18:31:37.923958+08:00 jdbc[12]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 19:00:37.744801+08:00 jdbc[5]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 19:00:37.780854+08:00 jdbc[5]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 19:04:43.472094+08:00 jdbc[5]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 19:04:43.517394+08:00 jdbc[5]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 19:06:29.019719+08:00 jdbc[5]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 19:06:29.067889+08:00 jdbc[5]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 19:06:46.393952+08:00 jdbc[4]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM ENROLLMENTS WHERE COURSE_ID = ? [42102-232]
+2025-07-07 19:06:46.403538+08:00 jdbc[4]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Table "STUDENT_ENROLLMENTS" not found; SQL statement:
+SELECT COUNT(*) FROM STUDENT_ENROLLMENTS WHERE COURSE_ID = ? [42102-232]

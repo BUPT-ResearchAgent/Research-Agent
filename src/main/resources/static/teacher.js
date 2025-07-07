@@ -1209,23 +1209,126 @@ async function deleteCourse(courseId) {
     try {
         showLoading('正在删除课程...');
         
+        console.log(`[DEBUG] 开始删除课程，ID: ${courseId}, 名称: ${course.name}`);
         const response = await TeacherAPI.deleteCourse(courseId);
         
         hideLoading();
         
-        if (response.success) {
+        // 添加详细的调试信息
+        console.log('[DEBUG] 删除课程API响应完整信息:', response);
+        console.log('[DEBUG] 响应类型:', typeof response);
+        console.log('[DEBUG] 响应success字段值:', response.success);
+        console.log('[DEBUG] 响应success字段类型:', typeof response.success);
+        console.log('[DEBUG] 响应message字段:', response.message);
+        console.log('[DEBUG] 响应data字段:', response.data);
+        
+        // 严格检查响应是否为成功（确保响应存在且success字段为true）
+        const isValidResponse = response && typeof response === 'object';
+        const isSuccess = isValidResponse && response.success === true;
+        
+        console.log('[DEBUG] 响应是否有效:', isValidResponse);
+        console.log('[DEBUG] 判定删除是否成功:', isSuccess);
+        
+        if (isSuccess) {
+            console.log('[DEBUG] 删除成功，显示成功提示');
             showNotification('课程删除成功！', 'success');
             
-            // 重新加载数据
-            await loadDashboardData();
+            // 成功后立即刷新数据
+            console.log('[DEBUG] 删除成功，开始刷新数据...');
+            setTimeout(async () => {
+                try {
+                    await loadDashboardData();
+                    console.log('[DEBUG] 数据刷新完成');
+                } catch (reloadError) {
+                    console.error('[DEBUG] 刷新数据失败:', reloadError);
+                    showNotification('课程删除成功，但刷新数据失败，请手动刷新页面', 'warning');
+                }
+            }, 500);
+            
         } else {
-            showNotification(response.message || '删除失败', 'error');
+            // 处理响应错误情况
+            console.error('[DEBUG] 删除课程失败，响应详情:', response);
+            let errorMessage = '删除失败';
+            
+            if (isValidResponse && response.message) {
+                errorMessage = response.message;
+                
+                // 针对特定错误类型提供更友好的提示
+                if (errorMessage.includes('权限不足') || errorMessage.includes('没有权限')) {
+                    errorMessage = '删除失败：您没有权限删除此课程，只能删除自己创建的课程';
+                } else if (errorMessage.includes('用户未登录') || errorMessage.includes('未登录')) {
+                    errorMessage = '删除失败：登录状态已过期，请重新登录';
+                    setTimeout(() => {
+                        window.location.href = '/login.html';
+                    }, 2000);
+                } else if (errorMessage.includes('关联数据')) {
+                    errorMessage = '删除失败：课程存在关联数据，请先移除相关学生或清理课程数据';
+                } else if (errorMessage.includes('学生选课记录')) {
+                    errorMessage = '删除失败：无法移除学生选课记录，请联系系统管理员或稍后重试';
+                } else if (errorMessage.includes('课程不存在')) {
+                    errorMessage = '删除失败：课程不存在或已被删除';
+                }
+            } else if (!isValidResponse) {
+                errorMessage = '删除失败：服务器响应无效，请重试';
+                console.error('[DEBUG] 无效的响应格式:', response);
+            } else {
+                errorMessage = '删除失败：未知错误，请重试';
+            }
+            
+            console.log('[DEBUG] 最终错误信息:', errorMessage);
+            showNotification(errorMessage, 'error');
+            
+            // 即使失败也尝试刷新数据，可能实际删除已经成功了
+            console.log('[DEBUG] 删除失败，但仍尝试刷新数据以确认状态');
+            setTimeout(async () => {
+                try {
+                    await loadDashboardData();
+                    console.log('[DEBUG] 失败后数据刷新完成');
+                } catch (reloadError) {
+                    console.error('[DEBUG] 失败后数据刷新失败:', reloadError);
+                }
+            }, 1000);
         }
         
     } catch (error) {
         hideLoading();
-        console.error('删除课程失败:', error);
-        showNotification('删除失败，请重试', 'error');
+        console.error('[DEBUG] 删除课程网络错误详情:', error);
+        
+        // 处理网络或其他异常
+        let errorMessage = '删除失败，请重试';
+        
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            errorMessage = '网络连接失败，请检查网络连接后重试';
+        } else if (error.message && error.message.includes('timeout')) {
+            errorMessage = '请求超时，请稍后重试';
+        } else if (error.message && error.message.includes('HTTP error')) {
+            // 解析HTTP错误信息
+            if (error.message.includes('403')) {
+                errorMessage = '权限不足，无法删除该课程';
+            } else if (error.message.includes('404')) {
+                errorMessage = '课程不存在或已被删除';
+            } else if (error.message.includes('500')) {
+                errorMessage = '服务器错误，请稍后重试或联系管理员';
+            } else {
+                errorMessage = '删除失败：' + error.message;
+            }
+        } else if (error.message) {
+            errorMessage = '删除失败：' + error.message;
+        }
+        
+        console.log('[DEBUG] 网络错误最终信息:', errorMessage);
+        showNotification(errorMessage, 'error');
+        
+        // 即使网络错误也尝试刷新一下页面，可能实际已经删除成功了
+        console.log('[DEBUG] 网络错误后，尝试刷新数据检查实际状态');
+        setTimeout(async () => {
+            try {
+                await loadDashboardData();
+                console.log('[DEBUG] 网络错误后数据刷新完成');
+            } catch (reloadError) {
+                console.error('[DEBUG] 网络错误后数据刷新失败:', reloadError);
+            }
+        }, 1500);
     }
 }
 

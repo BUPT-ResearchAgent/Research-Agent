@@ -56,9 +56,17 @@ class TeacherAPI {
 
     // 删除课程
     static async deleteCourse(courseId) {
-        return this.request(`/api/teacher/courses/${courseId}`, {
-            method: 'DELETE'
-        });
+        try {
+            console.log(`准备删除课程ID: ${courseId}`);
+            const result = await this.request(`/api/teacher/courses/${courseId}`, {
+                method: 'DELETE'
+            });
+            console.log('删除课程API调用结果:', result);
+            return result;
+        } catch (error) {
+            console.error('删除课程API调用失败:', error);
+            throw error;
+        }
     }
 
     // 获取控制面板统计数据

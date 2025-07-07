@@ -472,8 +472,8 @@ public class KnowledgeBaseService {
     
     /**
      * 删除课程知识库
+     * 注意：此方法将在外层事务中被调用，不需要自己的事务注解
      */
-    @Transactional
     public boolean deleteCourseKnowledge(Long courseId) {
         try {
             // 1. 获取该课程的所有文档记录，用于删除文件系统中的文件
