@@ -2936,14 +2936,70 @@ input[type="checkbox"].checkbox-sm {
     opacity: 0;
     visibility: hidden;
     transform: translateY(-10px);
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
+    display: none;
 }
 
+/* 支持CSS hover方式（教师端） */
 .user-profile:hover .user-dropdown,
 .user-profile.active .user-dropdown {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
+    display: block;
+}
+
+/* 支持JavaScript控制的.show类（学生端和管理端） */
+.user-dropdown.show {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) !important;
+    display: block !important;
+}
+
+/* 增强的悬停支持 - 延长hover时间，适用于所有端 */
+.user-profile {
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.user-profile:hover {
+    transition-delay: 0s;
+}
+
+.user-profile:hover .user-dropdown {
+    transition-delay: 0.1s;
+}
+
+/* 扩大悬停区域，包括下拉菜单本身 - 确保足够的操作时间 */
+.user-profile:hover .user-dropdown,
+.user-dropdown:hover {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(0) !important;
+    display: block !important;
+    transition-delay: 0s !important; /* 立即显示 */
+}
+
+/* 为下拉菜单添加悬停延迟和更长的消失时间 */
+.user-dropdown {
+    transition: all 0.4s ease 0.8s !important; /* 延长到0.8秒后消失 */
+    pointer-events: all; /* 确保菜单可以接收鼠标事件 */
+}
+
+.user-dropdown:hover {
+    transition-delay: 0s !important; /* 悬停时立即保持显示 */
+}
+
+/* 为用户配置文件添加更大的悬停区域 */
+.user-profile {
+    padding: 4px; /* 增加一点padding，扩大悬停区域 */
+}
+
+/* 确保下拉菜单项之间有足够的间距，方便点击 */
+.dropdown-item {
+    padding: 10px 16px !important; /* 增加内边距 */
+    line-height: 1.5;
 }
 
 .dropdown-item {

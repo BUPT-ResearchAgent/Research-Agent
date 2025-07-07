@@ -129,14 +129,31 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     }
 
-    // 设置用户下拉菜单
-    setupUserDropdown();
+    // 设置用户下拉菜单（改为CSS hover方式，无需JavaScript控制）
+    // setupUserDropdown(); // 注释掉JavaScript控制，改用纯CSS
 
     // 设置全部通知弹窗
     setupAllNoticesModal();
 
-    // 初始化控制面板数据
-    updateDashboardStats();
+    // 自动显示学习控制面板页面
+    showSection('student-dashboard');
+    
+    // 设置默认活跃菜单项
+    const dashboardMenuItem = document.querySelector('[data-section="student-dashboard"]') || 
+                            document.querySelector('.menu-item:first-child');
+    if (dashboardMenuItem) {
+        document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
+        dashboardMenuItem.classList.add('active');
+    }
+    
+    // 确保学习控制面板内容始终可见
+    ensureDashboardVisible();
+    
+    // 初始化控制面板数据（延迟一点确保用户信息已加载）
+    setTimeout(() => {
+        updateDashboardStats();
+    }, 100);
 
     // 统一的菜单状态管理
     function setActiveMenuItem(targetElement, sectionId) {
@@ -477,11 +494,49 @@ function setupUserDropdown() {
     
     if (!userProfile || !userDropdown) return;
     
+    let closeTimer = null;
+    let isHovering = false;
+    
     // 初始化下拉菜单状态
     userDropdown.style.display = 'none';
     userDropdown.style.opacity = '0';
     userDropdown.style.visibility = 'hidden';
     userDropdown.style.transform = 'translateY(-10px)';
+    
+    // 显示下拉菜单的函数
+    function showDropdown() {
+        // 清除可能存在的关闭定时器
+        if (closeTimer) {
+            clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+        
+        userDropdown.style.display = 'block';
+        setTimeout(() => {
+            userDropdown.style.opacity = '1';
+            userDropdown.style.visibility = 'visible';
+            userDropdown.style.transform = 'translateY(0)';
+        }, 10);
+    }
+    
+    // 隐藏下拉菜单的函数
+    function hideDropdown() {
+        userDropdown.style.opacity = '0';
+        userDropdown.style.visibility = 'hidden';
+        userDropdown.style.transform = 'translateY(-10px)';
+        setTimeout(() => {
+            userDropdown.style.display = 'none';
+        }, 200);
+    }
+    
+    // 延时隐藏下拉菜单的函数
+    function scheduleHide() {
+        if (!isHovering) {
+            closeTimer = setTimeout(() => {
+                hideDropdown();
+            }, 300); // 300ms延时，给用户足够时间操作
+        }
+    }
     
     // 点击用户配置文件切换下拉菜单
     userProfile.addEventListener('click', function(e) {
@@ -489,39 +544,75 @@ function setupUserDropdown() {
         const isVisible = userDropdown.style.display === 'block';
         
         if (isVisible) {
-            // 隐藏下拉菜单
-            userDropdown.style.opacity = '0';
-            userDropdown.style.visibility = 'hidden';
-            userDropdown.style.transform = 'translateY(-10px)';
-            setTimeout(() => {
-                userDropdown.style.display = 'none';
-            }, 200);
+            hideDropdown();
         } else {
-            // 显示下拉菜单
-            userDropdown.style.display = 'block';
-            setTimeout(() => {
-                userDropdown.style.opacity = '1';
-                userDropdown.style.visibility = 'visible';
-                userDropdown.style.transform = 'translateY(0)';
-            }, 10);
+            showDropdown();
         }
     });
     
-    // 点击页面其他地方关闭下拉菜单
-    document.addEventListener('click', function() {
+    // 鼠标进入用户配置文件区域
+    userProfile.addEventListener('mouseenter', function() {
+        isHovering = true;
+        if (closeTimer) {
+            clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+    });
+    
+    // 鼠标离开用户配置文件区域
+    userProfile.addEventListener('mouseleave', function() {
+        isHovering = false;
         if (userDropdown.style.display === 'block') {
-            userDropdown.style.opacity = '0';
-            userDropdown.style.visibility = 'hidden';
-            userDropdown.style.transform = 'translateY(-10px)';
-            setTimeout(() => {
-                userDropdown.style.display = 'none';
-            }, 200);
+            scheduleHide();
+        }
+    });
+    
+    // 鼠标进入下拉菜单区域
+    userDropdown.addEventListener('mouseenter', function() {
+        isHovering = true;
+        if (closeTimer) {
+            clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+    });
+    
+    // 鼠标离开下拉菜单区域
+    userDropdown.addEventListener('mouseleave', function() {
+        isHovering = false;
+        scheduleHide();
+    });
+    
+    // 点击页面其他地方关闭下拉菜单（但有延时）
+    document.addEventListener('click', function(e) {
+        // 检查点击的元素是否在用户菜单区域内
+        if (!userProfile.contains(e.target) && !userDropdown.contains(e.target)) {
+            if (userDropdown.style.display === 'block') {
+                // 立即关闭，但如果鼠标在菜单区域内则延时关闭
+                if (!isHovering) {
+                    hideDropdown();
+                } else {
+                    scheduleHide();
+                }
+            }
         }
     });
     
     // 阻止下拉菜单内部点击事件冒泡
     userDropdown.addEventListener('click', function(e) {
         e.stopPropagation();
+        // 点击菜单项后，给一个短暂延时然后关闭菜单
+        if (e.target.closest('.dropdown-item')) {
+            setTimeout(() => {
+                hideDropdown();
+            }, 100);
+        }
+    });
+    
+    // 键盘支持：按ESC键关闭下拉菜单
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && userDropdown.style.display === 'block') {
+            hideDropdown();
+        }
     });
 }
 
@@ -1108,10 +1199,15 @@ async function refreshMyCourses() {
     try {
         showLoading('正在加载我的课程...');
         
-        // 调用获取我的课程的API
-        const response = await fetch(`/api/student/my-courses?userId=${currentUser.userId}`, {
+        // 调用获取我的课程的API，添加时间戳防止缓存
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/student/my-courses?userId=${currentUser.userId}&_t=${timestamp}`, {
             method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
         });
         
         const result = await response.json();
@@ -1119,17 +1215,24 @@ async function refreshMyCourses() {
         
         if (result.success) {
             const myCourses = result.data || [];
+            
+            // 验证课程数据的有效性
+            const validCourses = myCourses.filter(course => 
+                course && course.id && course.name && course.courseCode
+            );
+            
+            console.log(`加载我的课程：原始${myCourses.length}个，有效${validCourses.length}个`);
         
-        if (myCourses.length === 0) {
-            grid.innerHTML = `
-                <div style="text-align: center; padding: 48px 0; color: #7f8c8d; grid-column: 1 / -1;">
-                    <i class="fas fa-book-open" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                    <p>您还没有加入任何课程</p>
-                    <p>请通过课程中心加入课程开始学习吧！</p>
-                </div>
-            `;
-        } else {
-            displayMyCourses(myCourses);
+            if (validCourses.length === 0) {
+                grid.innerHTML = `
+                    <div style="text-align: center; padding: 48px 0; color: #7f8c8d; grid-column: 1 / -1;">
+                        <i class="fas fa-book-open" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                        <p>您还没有加入任何课程</p>
+                        <p>请通过课程中心加入课程开始学习吧！</p>
+                    </div>
+                `;
+            } else {
+                displayMyCourses(validCourses);
             }
             
             // 同时更新控制面板数据
@@ -1268,21 +1371,35 @@ async function searchAvailableCourses() {
         const semester = document.getElementById('semester-filter')?.value || '';
         const teacherName = document.getElementById('teacher-filter')?.value || '';
         
-        // 构建查询参数
+        // 构建查询参数，添加时间戳防止缓存
         const params = new URLSearchParams();
         if (semester) params.append('semester', semester);
         if (teacherName) params.append('teacherName', teacherName);
+        params.append('_t', new Date().getTime()); // 防止缓存
         
         const response = await fetch(`/api/student/courses/search?${params.toString()}`, {
             method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
         });
         
         const result = await response.json();
         hideLoading();
         
         if (result.success) {
-            displayAvailableCourses(result.data || []);
+            const courses = result.data || [];
+            
+            // 验证课程数据的有效性，过滤掉可能已删除的课程
+            const validCourses = courses.filter(course => 
+                course && course.id && course.name && course.courseCode && 
+                course.teacher && course.teacher.realName
+            );
+            
+            console.log(`搜索可用课程：原始${courses.length}个，有效${validCourses.length}个`);
+            displayAvailableCourses(validCourses);
         } else {
             showNotification(result.message || '搜索课程失败', 'error');
             displayAvailableCourses([]);
@@ -3379,12 +3496,94 @@ function showConfirmModal(title, message, icon = 'fas fa-question-circle', type 
     });
 }
 
+// 确保学习控制面板始终可见
+function ensureDashboardVisible() {
+    console.log('确保学习控制面板可见...');
+    
+    // 1. 确保学习控制面板section是可见的
+    const dashboardSection = document.getElementById('student-dashboard');
+    if (dashboardSection) {
+        dashboardSection.classList.remove('hidden-section');
+        console.log('学习控制面板section已显示');
+    } else {
+        console.error('找不到学习控制面板section');
+    }
+    
+    // 2. 确保其他section都是隐藏的
+    document.querySelectorAll('.main-section').forEach(section => {
+        if (section.id !== 'student-dashboard') {
+            section.classList.add('hidden-section');
+        }
+    });
+    
+    // 3. 确保菜单项状态正确
+    const dashboardMenuItem = document.querySelector('[data-section="student-dashboard"]');
+    if (dashboardMenuItem) {
+        // 移除所有菜单项的活动状态
+        document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
+        
+        // 设置学习控制面板菜单为活动状态
+        dashboardMenuItem.classList.add('active');
+        console.log('学习控制面板菜单项已激活');
+    }
+    
+    // 4. 显示默认的统计数据（防止完全空白）
+    showDefaultDashboardContent();
+}
+
+// 显示默认的控制面板内容
+function showDefaultDashboardContent() {
+    console.log('显示默认控制面板内容...');
+    
+    // 确保统计卡片显示默认值
+    const statCards = document.querySelectorAll('.stat-card .stat-value');
+    if (statCards.length >= 4) {
+        statCards[0].textContent = '0'; // 已选课程
+        statCards[1].textContent = '0%'; // 学习进度
+        statCards[2].textContent = '0'; // 待完成作业
+        statCards[3].textContent = '--'; // 平均成绩
+    }
+    
+    // 确保最近学习表格显示默认内容
+    const tableBody = document.querySelector('.recent-courses-card tbody');
+    if (tableBody && !tableBody.querySelector('tr')) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                    <i class="fas fa-book-open" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                    <p>暂无学习记录</p>
+                    <p>加入课程后这里会显示您的学习进度</p>
+                </td>
+            </tr>
+        `;
+    }
+    
+    // 确保通知区域显示默认内容
+    const noticesContainer = document.getElementById('recent-notices-container');
+    if (noticesContainer && !noticesContainer.querySelector('.recent-notice-card')) {
+        noticesContainer.innerHTML = `
+            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                <p>暂无新通知</p>
+                <p>我们会在这里显示课程相关的最新通知</p>
+            </div>
+        `;
+    }
+    
+    console.log('默认控制面板内容已显示');
+}
+
 // 更新学习控制面板数据
 async function updateDashboardStats() {
     try {
+        // 首先显示默认内容，确保页面不为空
+        showDefaultDashboardContent();
+        
         // 检查用户是否已登录
         if (!currentUser || !currentUser.userId) {
-            console.log('updateDashboardStats - 用户未登录');
+            console.log('updateDashboardStats - 用户未登录，显示默认内容');
+            showNotification('用户信息加载中...', 'info');
             return;
         }
 
@@ -3434,10 +3633,16 @@ async function updateDashboardStats() {
             
         } else {
             console.error('获取课程数据失败:', result.message);
+            showNotification('获取课程数据失败，显示默认内容', 'warning');
+            // 确保即使API失败也显示默认内容
+            showDefaultDashboardContent();
         }
         
     } catch (error) {
         console.error('更新控制面板数据失败:', error);
+        showNotification('网络连接异常，显示默认内容', 'error');
+        // 确保即使网络错误也显示默认内容
+        showDefaultDashboardContent();
     }
 }
 
@@ -5784,11 +5989,29 @@ function enterFullscreenKnowledgeGraph() {
     // 标记为全屏状态
     isKnowledgeGraphFullscreen = true;
     
-    // 重新渲染知识图谱以适应新尺寸
-    setTimeout(() => {
-        refreshKnowledgeGraphDisplay();
-    }, 300);
+    // 强制重新渲染知识图谱以适应新尺寸
+    // 使用多次重试确保正确显示
+    let retryCount = 0;
+    const maxRetries = 5;
     
+    function retryRender() {
+        setTimeout(() => {
+            refreshKnowledgeGraphDisplay();
+            retryCount++;
+            
+            // 检查是否成功渲染
+            const graphCanvas = container.querySelector('canvas, svg');
+            if (!graphCanvas && retryCount < maxRetries) {
+                console.log(`知识图谱重渲染第${retryCount}次重试...`);
+                retryRender();
+            } else if (retryCount >= maxRetries) {
+                console.warn('知识图谱全屏渲染失败，请手动刷新');
+                showNotification('知识图谱加载可能需要一些时间，如未显示请点击刷新', 'warning');
+            }
+        }, 200 + retryCount * 100); // 递增延迟
+    }
+    
+    retryRender();
     showNotification('已进入全屏模式', 'success');
 }
 
@@ -5798,6 +6021,9 @@ function exitFullscreenKnowledgeGraph() {
     const fullscreenControls = document.getElementById('fullscreen-controls');
     
     if (!container) return;
+    
+    // 标记为非全屏状态
+    isKnowledgeGraphFullscreen = false;
     
     // 添加退出动画
     container.classList.add('knowledge-graph-exit-fullscreen');
@@ -5809,6 +6035,8 @@ function exitFullscreenKnowledgeGraph() {
         // 恢复原始样式
         if (originalContainerStyle) {
             container.setAttribute('style', originalContainerStyle);
+        } else {
+            container.removeAttribute('style');
         }
         
         // 隐藏全屏控制按钮
@@ -5819,25 +6047,38 @@ function exitFullscreenKnowledgeGraph() {
         // 恢复页面滚动
         document.body.style.overflow = '';
         
-        // 重新渲染知识图谱
-        refreshKnowledgeGraphDisplay();
+        // 延时重新渲染知识图谱以确保尺寸正确
+        setTimeout(() => {
+            refreshKnowledgeGraphDisplay();
+        }, 100);
         
         showNotification('已退出全屏模式', 'info');
     }, 300);
-    
-    // 标记为非全屏状态
-    isKnowledgeGraphFullscreen = false;
 }
 
 // 刷新知识图谱显示
 function refreshKnowledgeGraphDisplay() {
-    if (knowledgeGraphData) {
-        // 如果有真实数据，重新渲染
-        renderRealKnowledgeGraph(knowledgeGraphData);
-    } else {
-        // 否则显示模拟数据
-        renderSimpleKnowledgeGraph();
+    const container = document.getElementById('knowledge-graph-container');
+    if (!container) {
+        console.warn('知识图谱容器未找到');
+        return;
     }
+    
+    // 清空现有内容
+    container.innerHTML = '';
+    
+    // 等待DOM更新后再重新渲染
+    setTimeout(() => {
+        if (knowledgeGraphData && knowledgeGraphData.length > 0) {
+            // 如果有真实数据，重新渲染
+            console.log('重新渲染真实知识图谱数据');
+            renderRealKnowledgeGraph(knowledgeGraphData);
+        } else {
+            // 否则显示模拟数据
+            console.log('重新渲染模拟知识图谱数据');
+            renderSimpleKnowledgeGraph();
+        }
+    }, 50);
 }
 
 // 颜色加深函数
@@ -5988,3 +6229,110 @@ function showGradeAnalysisEmpty() {
         </div>
     `;
 }
+
+// 添加课程数据自动刷新机制
+let courseRefreshInterval = null;
+
+// 启动课程数据自动刷新
+function startCourseDataRefresh() {
+    // 清除之前的定时器
+    if (courseRefreshInterval) {
+        clearInterval(courseRefreshInterval);
+    }
+    
+    // 每2分钟自动刷新一次课程数据（静默刷新，不显示消息）
+    courseRefreshInterval = setInterval(async () => {
+        try {
+            // 如果当前在我的课程页面，刷新我的课程
+            const myCoursesSection = document.getElementById('my-courses');
+            if (myCoursesSection && !myCoursesSection.hidden) {
+                console.log('自动刷新我的课程数据...');
+                await refreshMyCourses();
+            }
+            
+            // 如果当前在课程中心页面，刷新可用课程
+            const courseCenterSection = document.getElementById('course-center');
+            if (courseCenterSection && !courseCenterSection.hidden) {
+                console.log('自动刷新可用课程数据...');
+                await refreshAvailableCourses(false); // 不显示刷新消息
+            }
+        } catch (error) {
+            console.error('自动刷新课程数据失败:', error);
+        }
+    }, 120000); // 2分钟 = 120000毫秒
+}
+
+// 停止课程数据自动刷新
+function stopCourseDataRefresh() {
+    if (courseRefreshInterval) {
+        clearInterval(courseRefreshInterval);
+        courseRefreshInterval = null;
+    }
+}
+
+// 页面可见性变化时的处理
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        // 页面隐藏时停止自动刷新
+        stopCourseDataRefresh();
+    } else {
+        // 页面可见时启动自动刷新，并立即刷新一次
+        startCourseDataRefresh();
+        // 立即刷新当前页面的数据
+        setTimeout(async () => {
+            const myCoursesSection = document.getElementById('my-courses');
+            const courseCenterSection = document.getElementById('course-center');
+            
+            if (myCoursesSection && !myCoursesSection.hidden) {
+                await refreshMyCourses();
+            } else if (courseCenterSection && !courseCenterSection.hidden) {
+                await refreshAvailableCourses(false);
+            }
+        }, 1000);
+    }
+});
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('学生页面开始初始化...');
+    
+    // 初始化各种功能
+    setupUserDropdown();
+    setupJoinCourseModal();
+    setupChangePasswordModal();
+    setupDeleteAccountModal();
+    setupCourseCenterFeatures();
+    setupAllNoticesModal();
+    initializeHelper();
+    initializeExamPage();
+    
+    // 启动课程数据自动刷新机制
+    startCourseDataRefresh();
+    
+    // 检查登录状态
+    fetch('/api/auth/current-user', {
+        method: 'GET',
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.data) {
+            currentUser = data.data;
+            console.log('当前登录用户:', currentUser);
+            
+            // 默认显示控制面板
+            showSection('dashboard');
+            updateDashboardStats();
+            
+            // 预加载我的课程数据
+            refreshMyCourses();
+        } else {
+            console.log('用户未登录，跳转到登录页面');
+            window.location.href = '/login.html';
+        }
+    })
+    .catch(error => {
+        console.error('检查登录状态失败:', error);
+        window.location.href = '/login.html';
+    });
+});

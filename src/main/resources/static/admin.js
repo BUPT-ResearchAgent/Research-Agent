@@ -360,19 +360,110 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 
-    // 用户下拉菜单
+    // 用户下拉菜单 - 优化交互体验
     const userProfile = document.getElementById('user-profile');
     const userDropdown = document.getElementById('user-dropdown');
     
     if(userProfile && userDropdown) {
+        let closeTimer = null;
+        let isHovering = false;
+        
+        // 显示下拉菜单的函数
+        function showDropdown() {
+            if (closeTimer) {
+                clearTimeout(closeTimer);
+                closeTimer = null;
+            }
+            userDropdown.classList.add('show');
+        }
+        
+        // 隐藏下拉菜单的函数
+        function hideDropdown() {
+            userDropdown.classList.remove('show');
+        }
+        
+        // 延时隐藏下拉菜单的函数
+        function scheduleHide() {
+            if (!isHovering) {
+                closeTimer = setTimeout(() => {
+                    hideDropdown();
+                }, 300); // 300ms延时，给用户足够时间操作
+            }
+        }
+        
+        // 点击用户配置文件切换下拉菜单
         userProfile.addEventListener('click', function(e) {
             e.stopPropagation();
-            userDropdown.classList.toggle('show');
+            if (userDropdown.classList.contains('show')) {
+                hideDropdown();
+            } else {
+                showDropdown();
+            }
         });
         
-        // 点击其他地方关闭下拉菜单
-        document.addEventListener('click', function() {
-            userDropdown.classList.remove('show');
+        // 鼠标进入用户配置文件区域
+        userProfile.addEventListener('mouseenter', function() {
+            isHovering = true;
+            if (closeTimer) {
+                clearTimeout(closeTimer);
+                closeTimer = null;
+            }
+        });
+        
+        // 鼠标离开用户配置文件区域
+        userProfile.addEventListener('mouseleave', function() {
+            isHovering = false;
+            if (userDropdown.classList.contains('show')) {
+                scheduleHide();
+            }
+        });
+        
+        // 鼠标进入下拉菜单区域
+        userDropdown.addEventListener('mouseenter', function() {
+            isHovering = true;
+            if (closeTimer) {
+                clearTimeout(closeTimer);
+                closeTimer = null;
+            }
+        });
+        
+        // 鼠标离开下拉菜单区域
+        userDropdown.addEventListener('mouseleave', function() {
+            isHovering = false;
+            scheduleHide();
+        });
+        
+        // 点击页面其他地方关闭下拉菜单（但有延时）
+        document.addEventListener('click', function(e) {
+            // 检查点击的元素是否在用户菜单区域内
+            if (!userProfile.contains(e.target) && !userDropdown.contains(e.target)) {
+                if (userDropdown.classList.contains('show')) {
+                    // 立即关闭，但如果鼠标在菜单区域内则延时关闭
+                    if (!isHovering) {
+                        hideDropdown();
+                    } else {
+                        scheduleHide();
+                    }
+                }
+            }
+        });
+        
+        // 阻止下拉菜单内部点击事件冒泡，并在点击菜单项后关闭菜单
+        userDropdown.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // 点击菜单项后，给一个短暂延时然后关闭菜单
+            if (e.target.closest('.dropdown-item, .user-dropdown-item')) {
+                setTimeout(() => {
+                    hideDropdown();
+                }, 100);
+            }
+        });
+        
+        // 键盘支持：按ESC键关闭下拉菜单
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && userDropdown.classList.contains('show')) {
+                hideDropdown();
+            }
         });
     }
 
@@ -3532,4 +3623,53 @@ function initPublishNotice() {
 // 在页面加载时初始化发布通知功能
 document.addEventListener('DOMContentLoaded', () => {
     initPublishNotice();
+});
+
+// 初始化大屏概览数据刷新机制
+let overviewRefreshInterval = null;
+
+// 启动大屏数据自动刷新
+function startOverviewDataRefresh() {
+    // 清除之前的定时器
+    if (overviewRefreshInterval) {
+        clearInterval(overviewRefreshInterval);
+    }
+    
+    // 每3分钟自动刷新一次大屏数据
+    overviewRefreshInterval = setInterval(async () => {
+        try {
+            const overviewSection = document.getElementById('screen-overview');
+            if (overviewSection && !overviewSection.hidden) {
+                console.log('自动刷新大屏概览数据...');
+                await loadOverviewData();
+            }
+        } catch (error) {
+            console.error('自动刷新大屏数据失败:', error);
+        }
+    }, 180000); // 3分钟 = 180000毫秒
+}
+
+// 停止大屏数据自动刷新
+function stopOverviewDataRefresh() {
+    if (overviewRefreshInterval) {
+        clearInterval(overviewRefreshInterval);
+        overviewRefreshInterval = null;
+    }
+}
+
+// 页面可见性变化时的处理
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        // 页面隐藏时停止自动刷新
+        stopOverviewDataRefresh();
+    } else {
+        // 页面可见时启动自动刷新，并立即刷新一次
+        startOverviewDataRefresh();
+        setTimeout(async () => {
+            const overviewSection = document.getElementById('screen-overview');
+            if (overviewSection && !overviewSection.hidden) {
+                await loadOverviewData();
+            }
+        }, 1000);
+    }
 });

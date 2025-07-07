@@ -137,6 +137,9 @@ function setupEventListeners() {
     // 上传资料模态框事件
     setupUploadModal();
     
+    // 设置用户下拉菜单
+    setupUserDropdown();
+    
     // 知识库上传模态框事件（只设置一次）
     setupKnowledgeUploadModal();
     
@@ -1230,20 +1233,21 @@ async function deleteCourse(courseId) {
         console.log('[DEBUG] 判定删除是否成功:', isSuccess);
         
         if (isSuccess) {
-            console.log('[DEBUG] 删除成功，显示成功提示');
-            showNotification('课程删除成功！', 'success');
+            console.log('[DEBUG] 删除成功，显示成功消息');
             
-            // 成功后立即刷新数据
-            console.log('[DEBUG] 删除成功，开始刷新数据...');
+            // 显示详细的成功消息
+            showNotification(
+                '课程删除成功！已清理所有相关数据（学生选课记录、考试、资料等）。' +
+                '学生端和管理端的课程列表将在2分钟内自动更新，或建议相关用户刷新页面。', 
+                'success'
+            );
+            
+            // 延迟刷新课程列表，给用户时间看到成功消息
             setTimeout(async () => {
-                try {
-                    await loadDashboardData();
-                    console.log('[DEBUG] 数据刷新完成');
-                } catch (reloadError) {
-                    console.error('[DEBUG] 刷新数据失败:', reloadError);
-                    showNotification('课程删除成功，但刷新数据失败，请手动刷新页面', 'warning');
-                }
-            }, 500);
+                console.log('[DEBUG] 3秒后自动刷新课程列表');
+                await loadCourseList();
+                showNotification('课程列表已更新', 'success');
+            }, 3000);
             
         } else {
             // 处理响应错误情况
@@ -2725,6 +2729,136 @@ function hideLoading() {
     if (loading) {
         loading.style.display = 'none';
     }
+}
+
+// 设置用户下拉菜单 - 优化交互体验
+function setupUserDropdown() {
+    const userProfile = document.getElementById('user-profile');
+    const userDropdown = document.getElementById('user-dropdown');
+    
+    if (!userProfile || !userDropdown) return;
+    
+    let closeTimer = null;
+    let isHovering = false;
+    
+    // 初始化下拉菜单状态
+    userDropdown.style.display = 'none';
+    userDropdown.style.opacity = '0';
+    userDropdown.style.visibility = 'hidden';
+    userDropdown.style.transform = 'translateY(-10px)';
+    
+    // 显示下拉菜单的函数
+    function showDropdown() {
+        // 清除可能存在的关闭定时器
+        if (closeTimer) {
+            clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+        
+        userDropdown.style.display = 'block';
+        setTimeout(() => {
+            userDropdown.style.opacity = '1';
+            userDropdown.style.visibility = 'visible';
+            userDropdown.style.transform = 'translateY(0)';
+        }, 10);
+    }
+    
+    // 隐藏下拉菜单的函数
+    function hideDropdown() {
+        userDropdown.style.opacity = '0';
+        userDropdown.style.visibility = 'hidden';
+        userDropdown.style.transform = 'translateY(-10px)';
+        setTimeout(() => {
+            userDropdown.style.display = 'none';
+        }, 200);
+    }
+    
+    // 延时隐藏下拉菜单的函数
+    function scheduleHide() {
+        if (!isHovering) {
+            closeTimer = setTimeout(() => {
+                hideDropdown();
+            }, 300); // 300ms延时，给用户足够时间操作
+        }
+    }
+    
+    // 点击用户配置文件切换下拉菜单
+    userProfile.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const isVisible = userDropdown.style.display === 'block';
+        
+        if (isVisible) {
+            hideDropdown();
+        } else {
+            showDropdown();
+        }
+    });
+    
+    // 鼠标进入用户配置文件区域
+    userProfile.addEventListener('mouseenter', function() {
+        isHovering = true;
+        if (closeTimer) {
+            clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+        showDropdown(); // 鼠标进入时立即显示
+    });
+    
+    // 鼠标离开用户配置文件区域
+    userProfile.addEventListener('mouseleave', function() {
+        isHovering = false;
+        if (userDropdown.style.display === 'block') {
+            scheduleHide();
+        }
+    });
+    
+    // 鼠标进入下拉菜单区域
+    userDropdown.addEventListener('mouseenter', function() {
+        isHovering = true;
+        if (closeTimer) {
+            clearTimeout(closeTimer);
+            closeTimer = null;
+        }
+    });
+    
+    // 鼠标离开下拉菜单区域
+    userDropdown.addEventListener('mouseleave', function() {
+        isHovering = false;
+        scheduleHide();
+    });
+    
+    // 点击页面其他地方关闭下拉菜单（但有延时）
+    document.addEventListener('click', function(e) {
+        // 检查点击的元素是否在用户菜单区域内
+        if (!userProfile.contains(e.target) && !userDropdown.contains(e.target)) {
+            if (userDropdown.style.display === 'block') {
+                // 立即关闭，但如果鼠标在菜单区域内则延时关闭
+                if (!isHovering) {
+                    hideDropdown();
+                } else {
+                    scheduleHide();
+                }
+            }
+        }
+    });
+    
+    // 阻止下拉菜单内部点击事件冒泡
+    userDropdown.addEventListener('click', function(e) {
+        e.stopPropagation();
+        // 点击菜单项后，给一个短暂延时然后关闭菜单
+        if (e.target.closest('.dropdown-item')) {
+            setTimeout(() => {
+                hideDropdown();
+            }, 100);
+        }
+    });
+    
+    // 键盘支持：按ESC键关闭下拉菜单
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && userDropdown.style.display === 'block') {
+            hideDropdown();
+        }
+    });
 }
 
 // 退出登录相关

@@ -1878,31 +1878,46 @@ public class AdminController {
             result.put("totalQuestions", totalQuestions);
             result.put("totalAnswers", totalAnswers);
             
-            // 详细课程信息
+            // 详细课程信息 - 修改为只显示存在的有效课程
             List<Course> courses = courseRepository.findAll();
             List<Map<String, Object>> courseDetails = new ArrayList<>();
             
+            // 添加额外验证，确保课程确实存在且有效
             for (Course course : courses) {
-                Map<String, Object> courseInfo = new HashMap<>();
-                courseInfo.put("id", course.getId());
-                courseInfo.put("name", course.getName());
-                courseInfo.put("courseCode", course.getCourseCode());
-                courseInfo.put("status", course.getStatus());
-                courseInfo.put("hasTeacher", course.getTeacher() != null);
-                if (course.getTeacher() != null) {
-                    courseInfo.put("teacherName", course.getTeacher().getRealName());
-                    courseInfo.put("teacherId", course.getTeacher().getId());
+                // 验证课程是否真实存在（防止数据不一致）
+                try {
+                    // 重新从数据库获取课程信息以确保一致性
+                    Course verifiedCourse = courseRepository.findById(course.getId()).orElse(null);
+                    if (verifiedCourse == null) {
+                        continue; // 跳过不存在的课程
+                    }
+                    
+                    Map<String, Object> courseInfo = new HashMap<>();
+                    courseInfo.put("id", verifiedCourse.getId());
+                    courseInfo.put("name", verifiedCourse.getName());
+                    courseInfo.put("courseCode", verifiedCourse.getCourseCode());
+                    courseInfo.put("status", verifiedCourse.getStatus());
+                    courseInfo.put("hasTeacher", verifiedCourse.getTeacher() != null);
+                    if (verifiedCourse.getTeacher() != null) {
+                        courseInfo.put("teacherName", verifiedCourse.getTeacher().getRealName());
+                        courseInfo.put("teacherId", verifiedCourse.getTeacher().getId());
+                    }
+                    
+                    // 统计课程资料
+                    List<CourseMaterial> materials = courseMaterialRepository.findByCourseIdOrderByUploadedAtDesc(verifiedCourse.getId());
+                    courseInfo.put("materialCount", materials.size());
+                    
+                    // 统计课程考试
+                    List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(verifiedCourse.getId());
+                    courseInfo.put("examCount", exams.size());
+                    
+                    courseDetails.add(courseInfo);
+                    
+                } catch (Exception e) {
+                    // 如果查询课程详情出错，说明课程可能已被删除，跳过
+                    System.err.println("跳过无效课程ID: " + course.getId() + ", 错误: " + e.getMessage());
+                    continue;
                 }
-                
-                // 统计课程资料
-                List<CourseMaterial> materials = courseMaterialRepository.findByCourseIdOrderByUploadedAtDesc(course.getId());
-                courseInfo.put("materialCount", materials.size());
-                
-                // 统计课程考试
-                List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(course.getId());
-                courseInfo.put("examCount", exams.size());
-                
-                courseDetails.add(courseInfo);
             }
             
             result.put("courseDetails", courseDetails);
