@@ -83,23 +83,24 @@ public class AuthController {
                 return ApiResponse.error("请填写完整的基本信息");
             }
             
-            // 创建用户账号时包含邮箱和手机号
-            User user = userService.register(username, password, "teacher");
+            // 直接调用教师管理服务注册，避免重复创建用户
+            Teacher teacher = teacherManagementService.registerTeacher(
+                username, password, realName, teacherCode, department, title);
+            
+            // 更新用户的邮箱和手机号
+            User user = teacher.getUser();
             user.setRealName(realName);
             user.setEmail(email);
             user.setPhone(phone);
             userService.updateUser(user);
             
-            Teacher teacher = teacherManagementService.registerTeacher(
-                username, password, realName, teacherCode, department, title);
-            
             // 构建返回数据
             Map<String, Object> result = new HashMap<>();
-            result.put("user", teacher.getUser());
+            result.put("user", user);
             result.put("teacher", teacher);
             
             // 隐藏密码
-            teacher.getUser().setPassword(null);
+            user.setPassword(null);
             
             return ApiResponse.success("教师注册成功", result);
         } catch (Exception e) {
@@ -137,23 +138,24 @@ public class AuthController {
                 }
             }
             
-            // 创建用户账号时包含邮箱和手机号
-            User user = userService.register(username, password, "student");
+            // 直接调用学生管理服务注册，避免重复创建用户
+            Student student = studentManagementService.registerStudent(
+                username, password, realName, studentId, className, major, grade, entranceYear);
+            
+            // 更新用户的邮箱和手机号
+            User user = student.getUser();
             user.setRealName(realName);
             user.setEmail(email);
             user.setPhone(phone);
             userService.updateUser(user);
             
-            Student student = studentManagementService.registerStudent(
-                username, password, realName, studentId, className, major, grade, entranceYear);
-            
             // 构建返回数据
             Map<String, Object> result = new HashMap<>();
-            result.put("user", student.getUser());
+            result.put("user", user);
             result.put("student", student);
             
             // 隐藏密码
-            student.getUser().setPassword(null);
+            user.setPassword(null);
             
             return ApiResponse.success("学生注册成功", result);
         } catch (Exception e) {
@@ -542,9 +544,33 @@ public class AuthController {
      * 删除用户（管理员功能）
      */
     @DeleteMapping("/users/{userId}")
-    public ApiResponse<Void> deleteUser(@PathVariable Long userId) {
+    public ApiResponse<Void> deleteUser(@PathVariable Long userId, HttpSession session) {
         try {
+            // 检查管理员权限
+            String userRole = (String) session.getAttribute("role");
+            if (!"admin".equals(userRole)) {
+                return ApiResponse.error("权限不足，需要管理员权限");
+            }
+            
+            // 检查是否是admin用户
+            Optional<User> userOpt = userService.findById(userId);
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                if ("admin".equals(user.getUsername())) {
+                    return ApiResponse.error("不允许删除管理员账户");
+                }
+                
+                // 检查是否是当前登录用户
+                String currentUsername = (String) session.getAttribute("username");
+                if (user.getUsername().equals(currentUsername)) {
+                    return ApiResponse.error("不能删除当前登录的账户");
+                }
+            }
+            
             userService.deleteUser(userId);
+            // 用户下线
+            onlineUserService.userOffline(userId);
+            
             return ApiResponse.success("用户删除成功", null);
         } catch (Exception e) {
             return ApiResponse.error("删除用户失败：" + e.getMessage());
@@ -740,16 +766,35 @@ public class AuthController {
                 return ApiResponse.error("请填写完整信息");
             }
             
-            if (password.length() < 6) {
-                return ApiResponse.error("密码长度至少6位");
+            // 统一密码长度要求为3位，与UserService保持一致
+            if (password.length() < 3) {
+                return ApiResponse.error("密码长度至少3位");
             }
             
             if (!"teacher".equals(role) && !"student".equals(role)) {
                 return ApiResponse.error("只能创建教师或学生账户");
             }
             
+            // 用户名不能为admin
+            if ("admin".equals(username.toLowerCase())) {
+                return ApiResponse.error("用户名不能为admin");
+            }
+            
+            // 创建用户账户
             User user = userService.register(username, password, role);
-            // 新用户默认离线状态，由在线服务自动管理
+            
+            // 确保新用户状态为active，可以正常登录
+            user.setStatus("active");
+            userService.updateUser(user);
+            
+            // 根据角色创建对应的实体
+            if ("teacher".equals(role)) {
+                // 创建教师实体，使用默认值
+                teacherManagementService.createTeacherForUser(user, username);
+            } else if ("student".equals(role)) {
+                // 创建学生实体，使用默认值
+                studentManagementService.createStudentForUser(user, username);
+            }
             
             Map<String, Object> result = new HashMap<>();
             result.put("id", user.getId());

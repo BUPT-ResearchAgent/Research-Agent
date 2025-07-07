@@ -843,8 +843,8 @@ function editUser(userId) {
             };
             
             if (newPassword) {
-                if (newPassword.length < 6) {
-                    showNotification('密码长度至少6位', 'warning');
+                if (newPassword.length < 3) {
+                    showNotification('密码长度至少3位', 'warning');
                     return;
                 }
                 updateData.password = newPassword;
@@ -1022,19 +1022,25 @@ function bindAddUserEvents() {
             // 验证表单
             if (!username || !password || !role) {
                 showNotification('请填写所有必填字段', 'error');
-            return;
-        }
-        
+                return;
+            }
+            
             if (password !== confirmPassword) {
                 showNotification('密码与确认密码不匹配', 'error');
-            return;
-        }
-        
-            if (password.length < 6) {
-                showNotification('密码至少需要6位', 'error');
-            return;
-        }
-        
+                return;
+            }
+            
+            if (password.length < 3) {
+                showNotification('密码至少需要3位', 'error');
+                return;
+            }
+            
+            // 检查用户名是否为admin
+            if (username.toLowerCase() === 'admin') {
+                showNotification('用户名不能为admin', 'error');
+                return;
+            }
+            
             try {
                 const response = await fetch('/api/auth/admin/users', {
                     method: 'POST',

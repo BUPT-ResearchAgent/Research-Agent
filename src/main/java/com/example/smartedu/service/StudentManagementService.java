@@ -26,6 +26,25 @@ public class StudentManagementService {
     private UserService userService;
     
     /**
+     * 为已存在的用户创建学生实体（管理员功能）
+     */
+    public Student createStudentForUser(User user, String realName) {
+        // 检查是否已存在学生实体
+        Optional<Student> existingStudent = studentRepository.findByUser(user);
+        if (existingStudent.isPresent()) {
+            return existingStudent.get(); // 如果已存在则直接返回
+        }
+        
+        // 创建学生信息，使用默认值
+        Student student = new Student(user, realName != null ? realName : user.getUsername());
+        student.setClassName("未设置");
+        student.setMajor("未设置");
+        student.setGrade("未设置");
+        
+        return studentRepository.save(student);
+    }
+    
+    /**
      * 注册学生
      */
     public Student registerStudent(String username, String password, String realName, 

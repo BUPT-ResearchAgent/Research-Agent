@@ -700,8 +700,8 @@ async function handleChangePassword(e) {
             return;
         }
         
-        if (newPassword.length < 6) {
-            showNotification('新密码至少需要6位', 'warning');
+                    if (newPassword.length < 3) {
+                showNotification('新密码至少需要3位', 'warning');
             return;
         }
         

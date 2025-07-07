@@ -3,18 +3,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // API基础地址
     const API_BASE = 'http://localhost:8080/api';
     
-    // 获取DOM元素
-    const loginForm = document.getElementById('login-form');
-    const registerModal = document.getElementById('register-modal');
-    const registerForm = document.getElementById('register-form');
-    const resetModal = document.getElementById('reset-modal');
-    const resetForm = document.getElementById('reset-form');
-    
-    const showRegisterBtn = document.getElementById('show-register');
-    const showResetBtn = document.getElementById('show-reset');
-    const cancelRegisterBtn = document.getElementById('cancel-register');
-    const cancelResetBtn = document.getElementById('cancel-reset');
-    const backHomeBtn = document.getElementById('back-home-btn');
+    // 强制等待DOM完全加载
+    setTimeout(function() {
+        // 获取DOM元素
+        const loginForm = document.getElementById('login-form');
+        const registerModal = document.getElementById('register-modal');
+        const registerForm = document.getElementById('register-form');
+        const resetModal = document.getElementById('reset-modal');
+        const resetForm = document.getElementById('reset-form');
+        
+        const showRegisterBtn = document.getElementById('show-register');
+        const showResetBtn = document.getElementById('show-reset');
+        const cancelRegisterBtn = document.getElementById('cancel-register');
+        const cancelResetBtn = document.getElementById('cancel-reset');
+        const backHomeBtn = document.getElementById('back-home-btn');
+        
+        // 确保所有元素都找到后再绑定事件
+        if (showRegisterBtn && registerModal && registerForm) {
+            initializeRegistration();
+        }
+        if (loginForm) {
+            initializeLogin();
+        }
+        if (showResetBtn && resetModal && resetForm) {
+            initializePasswordReset();
+        }
+        if (backHomeBtn) {
+            initializeNavigation();
+        }
+    }, 100);
     
     // 显示消息提示
     function showMessage(message, type = 'info') {
@@ -95,130 +112,62 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     `;
     document.head.appendChild(style);
-    
-    // 登录表单提交
-    if (loginForm) {
-        loginForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const username = document.getElementById('login-username').value.trim();
-            const password = document.getElementById('login-password').value.trim();
-            const role = document.getElementById('login-role').value;
-            
-            // 前端验证
-            if (!validateLoginForm(username, password, role)) {
-                return;
-            }
-            
-            // 显示加载状态
-            const submitBtn = loginForm.querySelector('button[type="submit"]');
-            const originalText = submitBtn.textContent;
-            submitBtn.textContent = '登录中...';
-            submitBtn.disabled = true;
-            
-            try {
-                // 调用登录API
-                const response = await fetch(`${API_BASE}/auth/login`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    credentials: 'include', // 重要：包含cookie以维持session
-                    body: JSON.stringify({
-                        username: username,
-                        password: password,
-                        role: role
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showMessage('登录成功！正在跳转...', 'success');
-                    
-                    // 不再使用localStorage，完全依赖服务器端session验证
-                    // 登录成功后服务器已经设置了session cookie
-                    
-                    // 根据角色跳转到对应页面
-                    setTimeout(() => {
-                        switch(role) {
-                            case 'teacher':
-                                window.location.href = 'teacher.html';
-                                break;
-                            case 'student':
-                                window.location.href = 'student.html';
-                                break;
-                            case 'admin':
-                                window.location.href = 'admin.html';
-                                break;
-                            default:
-                                window.location.href = 'SmartEdu.html';
-                        }
-                    }, 1000);
-                    
-                } else {
-                    showMessage(result.message || '登录失败', 'error');
-                }
-                
-            } catch (error) {
-                console.error('登录错误:', error);
-                showMessage('网络连接错误，请检查服务器状态', 'error');
-            } finally {
-                // 恢复按钮状态
-                submitBtn.textContent = originalText;
-                submitBtn.disabled = false;
-            }
-        });
-    }
-    
-    // 显示注册弹窗
-    if (showRegisterBtn) {
+
+    function initializeRegistration() {
+        const showRegisterBtn = document.getElementById('show-register');
+        const registerModal = document.getElementById('register-modal');
+        const registerForm = document.getElementById('register-form');
+        const cancelRegisterBtn = document.getElementById('cancel-register');
+
+        // 显示注册弹窗
         showRegisterBtn.addEventListener('click', function(e) {
             e.preventDefault();
             registerModal.style.display = 'flex';
-            // 初始化头像上传功能
             initAvatarUpload();
-            // 初始化密码强度检测
             initPasswordStrength();
         });
-    }
-    
-    // 取消注册
-    if (cancelRegisterBtn) {
+
+        // 取消注册
         cancelRegisterBtn.addEventListener('click', function() {
             registerModal.style.display = 'none';
             registerForm.reset();
         });
-    }
-    
-    // 点击弹窗外部关闭
-    if (registerModal) {
+
+        // 点击弹窗外部关闭
         registerModal.addEventListener('click', function(e) {
             if (e.target === registerModal) {
                 registerModal.style.display = 'none';
                 registerForm.reset();
             }
         });
-    }
-    
-    // 注册表单提交
-    if (registerForm) {
+
+        // 注册表单提交
         registerForm.addEventListener('submit', async function(e) {
             e.preventDefault();
+            console.log('注册表单提交事件触发');
             
             const username = document.getElementById('register-username').value.trim();
             const realName = document.getElementById('register-realname').value.trim();
-            const email = document.getElementById('register-email').value.trim();
-            const phone = document.getElementById('register-phone').value.trim();
+            const email = document.getElementById('register-email')?.value.trim() || '';
+            const phone = document.getElementById('register-phone')?.value.trim() || '';
             const password = document.getElementById('register-password').value.trim();
             const confirmPassword = document.getElementById('register-confirm-password').value.trim();
             const role = document.getElementById('register-role').value;
-            const avatarFile = document.getElementById('register-avatar').files[0];
             
-            // 前端验证
-            if (!validateRegisterForm(username, realName, email, phone, password, confirmPassword, role)) {
+            console.log('表单数据:', { username, realName, password, role });
+            
+            // 简化验证，避免函数调用问题
+            if (!username || !realName || !password || !confirmPassword || !role) {
+                alert('请填写所有必填项');
                 return;
             }
+            
+            if (password !== confirmPassword) {
+                alert('两次密码不一致');
+                return;
+            }
+            
+            console.log('验证通过，开始注册');
             
             // 显示加载状态
             const submitBtn = registerForm.querySelector('button[type="submit"]');
@@ -255,67 +204,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    credentials: 'include', // 支持session
+                    credentials: 'include',
                     body: JSON.stringify(registerData)
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    // 如果有头像文件，上传头像
-                    if (avatarFile) {
-                        try {
-                            // 先登录以获取session
-                            const loginResponse = await fetch(`${API_BASE}/auth/login`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                credentials: 'include',
-                                body: JSON.stringify({
-                                    username: username,
-                                    password: password,
-                                    role: role
-                                })
-                            });
-                            
-                            const loginResult = await loginResponse.json();
-                            
-                            if (loginResult.success) {
-                                // 上传头像
-                                const formData = new FormData();
-                                formData.append('avatar', avatarFile);
-                                
-                                const avatarResponse = await fetch(`${API_BASE}/auth/upload-avatar`, {
-                                    method: 'POST',
-                                    credentials: 'include',
-                                    body: formData
-                                });
-                                
-                                const avatarResult = await avatarResponse.json();
-                                
-                                if (avatarResult.success) {
-                                    showMessage('注册成功并上传头像！请重新登录', 'success');
-                                } else {
-                                    showMessage('注册成功但头像上传失败，请稍后在个人信息中上传', 'warning');
-                                }
-                                
-                                // 退出登录
-                                await fetch(`${API_BASE}/auth/logout`, {
-                                    method: 'POST',
-                                    credentials: 'include'
-                                });
-                            } else {
-                                showMessage('注册成功但头像上传失败，请稍后在个人信息中上传', 'warning');
-                            }
-                        } catch (avatarError) {
-                            console.error('头像上传错误:', avatarError);
-                            showMessage('注册成功但头像上传失败，请稍后在个人信息中上传', 'warning');
-                        }
-                    } else {
-                        showMessage('注册成功！请登录', 'success');
-                    }
+                    // 显示成功消息 - 更加明显
+                    showMessage(`🎉 注册成功！用户名: ${username}，请使用该账号登录`, 'success');
                     
+                    // 关闭注册弹窗
                     registerModal.style.display = 'none';
                     registerForm.reset();
                     
@@ -325,16 +224,109 @@ document.addEventListener('DOMContentLoaded', function() {
                         avatarPreview.innerHTML = '<i class="fas fa-user"></i>';
                     }
                     
-                    // 自动填充登录表单
-                    document.getElementById('login-username').value = username;
-                    document.getElementById('login-role').value = role;
+                    // 自动填充登录表单并高亮
+                    const loginUsername = document.getElementById('login-username');
+                    const loginRole = document.getElementById('login-role');
+                    
+                    loginUsername.value = username;
+                    loginRole.value = role;
+                    
+                    // 高亮登录表单
+                    loginUsername.style.backgroundColor = '#e8f5e8';
+                    loginRole.style.backgroundColor = '#e8f5e8';
+                    
+                    // 3秒后移除高亮
+                    setTimeout(() => {
+                        loginUsername.style.backgroundColor = '';
+                        loginRole.style.backgroundColor = '';
+                    }, 3000);
+                    
+                    // 聚焦到密码输入框
+                    const loginPassword = document.getElementById('login-password');
+                    if (loginPassword) {
+                        loginPassword.focus();
+                    }
                     
                 } else {
-                    showMessage(result.message || '注册失败', 'error');
+                    showMessage('❌ 注册失败: ' + (result.message || '未知错误'), 'error');
                 }
                 
             } catch (error) {
                 console.error('注册错误:', error);
+                showMessage('❌ 网络连接错误，请检查服务器状态', 'error');
+            } finally {
+                // 恢复按钮状态
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
+    function initializeLogin() {
+        const loginForm = document.getElementById('login-form');
+        
+        // 登录表单提交
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value.trim();
+            const role = document.getElementById('login-role').value;
+            
+            // 前端验证
+            if (!validateLoginForm(username, password, role)) {
+                return;
+            }
+            
+            // 显示加载状态
+            const submitBtn = loginForm.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = '登录中...';
+            submitBtn.disabled = true;
+            
+            try {
+                // 调用登录API
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        role: role
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('登录成功！正在跳转...', 'success');
+                    
+                    // 根据角色跳转到对应页面
+                    setTimeout(() => {
+                        switch(role) {
+                            case 'teacher':
+                                window.location.href = 'teacher.html';
+                                break;
+                            case 'student':
+                                window.location.href = 'student.html';
+                                break;
+                            case 'admin':
+                                window.location.href = 'admin.html';
+                                break;
+                            default:
+                                window.location.href = 'SmartEdu.html';
+                        }
+                    }, 1000);
+                    
+                } else {
+                    showMessage(result.message || '登录失败', 'error');
+                }
+                
+            } catch (error) {
+                console.error('登录错误:', error);
                 showMessage('网络连接错误，请检查服务器状态', 'error');
             } finally {
                 // 恢复按钮状态
@@ -343,35 +335,34 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
-    // 显示重置密码弹窗
-    if (showResetBtn) {
+
+    function initializePasswordReset() {
+        const showResetBtn = document.getElementById('show-reset');
+        const resetModal = document.getElementById('reset-modal');
+        const resetForm = document.getElementById('reset-form');
+        const cancelResetBtn = document.getElementById('cancel-reset');
+
+        // 显示重置密码弹窗
         showResetBtn.addEventListener('click', function(e) {
             e.preventDefault();
             resetModal.style.display = 'flex';
         });
-    }
-    
-    // 取消重置密码
-    if (cancelResetBtn) {
+
+        // 取消重置密码
         cancelResetBtn.addEventListener('click', function() {
             resetModal.style.display = 'none';
             resetForm.reset();
         });
-    }
-    
-    // 点击弹窗外部关闭
-    if (resetModal) {
+
+        // 点击弹窗外部关闭
         resetModal.addEventListener('click', function(e) {
             if (e.target === resetModal) {
                 resetModal.style.display = 'none';
                 resetForm.reset();
             }
         });
-    }
-    
-    // 重置密码表单提交
-    if (resetForm) {
+
+        // 重置密码表单提交
         resetForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             showMessage('密码重置功能正在开发中，请联系管理员', 'info');
@@ -379,27 +370,40 @@ document.addEventListener('DOMContentLoaded', function() {
             resetForm.reset();
         });
     }
-    
-    // 返回主页按钮
-    if (backHomeBtn) {
+
+    function initializeNavigation() {
+        const backHomeBtn = document.getElementById('back-home-btn');
+        
+        // 返回主页按钮
         backHomeBtn.addEventListener('click', function() {
             window.location.href = 'SmartEdu.html';
         });
     }
-    
+
     // ESC键关闭弹窗
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
+            const registerModal = document.getElementById('register-modal');
+            const resetModal = document.getElementById('reset-modal');
+            const registerForm = document.getElementById('register-form');
+            const resetForm = document.getElementById('reset-form');
+            
             if (registerModal && registerModal.style.display === 'flex') {
                 registerModal.style.display = 'none';
-                registerForm.reset();
+                if (registerForm) registerForm.reset();
             }
             if (resetModal && resetModal.style.display === 'flex') {
                 resetModal.style.display = 'none';
-                resetForm.reset();
+                if (resetForm) resetForm.reset();
             }
         }
     });
+    
+
+    
+
+    
+
     
     // 检查是否已经登录
     checkLoginStatus();
@@ -409,8 +413,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (usernameInput) {
         usernameInput.focus();
     }
-    
-    console.log('登录页面初始化完成');
 }); 
 
 // 登录表单验证
@@ -530,12 +532,8 @@ function validateRegisterForm(username, realName, email, phone, password, confir
         showMessage('请输入密码', 'error');
         return false;
     }
-    if (password.length < 6) {
-        showMessage('密码长度至少6位', 'error');
-        return false;
-    }
-    if (!/(?=.*[a-zA-Z])(?=.*\d)/.test(password)) {
-        showMessage('密码必须包含字母和数字', 'error');
+    if (password.length < 3) {
+        showMessage('密码长度至少3位', 'error');
         return false;
     }
     

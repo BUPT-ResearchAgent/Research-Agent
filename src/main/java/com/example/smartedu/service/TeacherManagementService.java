@@ -25,6 +25,25 @@ public class TeacherManagementService {
     private UserService userService;
     
     /**
+     * 为已存在的用户创建教师实体（管理员功能）
+     */
+    @Transactional
+    public Teacher createTeacherForUser(User user, String realName) {
+        // 检查是否已存在教师实体
+        Optional<Teacher> existingTeacher = teacherRepository.findByUser(user);
+        if (existingTeacher.isPresent()) {
+            return existingTeacher.get(); // 如果已存在则直接返回
+        }
+        
+        // 创建教师信息，使用默认值
+        Teacher teacher = new Teacher(user, realName != null ? realName : user.getUsername());
+        teacher.setDepartment("未设置");
+        teacher.setTitle("未设置");
+        
+        return teacherRepository.save(teacher);
+    }
+    
+    /**
      * 注册教师
      */
     @Transactional

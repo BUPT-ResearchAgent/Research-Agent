@@ -313,8 +313,8 @@ function validateProfileForm(realName, email, phone, oldPassword, newPassword, c
             return false;
         }
         
-        if (newPassword.length < 6) {
-            showMessage('新密码长度至少6位', 'error');
+        if (newPassword.length < 3) {
+            showMessage('新密码长度至少3位', 'error');
             return false;
         }
         

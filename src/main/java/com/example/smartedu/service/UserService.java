@@ -2,8 +2,11 @@ package com.example.smartedu.service;
 
 import com.example.smartedu.entity.User;
 import com.example.smartedu.repository.UserRepository;
+import com.example.smartedu.repository.TeacherRepository;
+import com.example.smartedu.repository.StudentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -18,6 +21,13 @@ public class UserService {
     
     @Autowired
     private UserRepository userRepository;
+    
+    // 添加依赖注入，用于删除时处理关联实体
+    @Autowired
+    private TeacherRepository teacherRepository;
+    
+    @Autowired
+    private StudentRepository studentRepository;
     
     private static final String SALT = "SmartEdu2024"; // 固定盐值，实际项目中应为每个用户生成不同的盐
     
@@ -153,10 +163,30 @@ public class UserService {
     /**
      * 删除用户
      */
+    @Transactional
     public void deleteUser(Long userId) {
-        if (!userRepository.existsById(userId)) {
+        Optional<User> userOptional = userRepository.findById(userId);
+        if (!userOptional.isPresent()) {
             throw new RuntimeException("用户不存在");
         }
+        
+        User user = userOptional.get();
+        String role = user.getRole();
+        
+        // 根据角色删除相关联的实体
+        if ("teacher".equals(role)) {
+            // 删除教师实体
+            teacherRepository.findByUserId(userId).ifPresent(teacher -> {
+                teacherRepository.delete(teacher);
+            });
+        } else if ("student".equals(role)) {
+            // 删除学生实体
+            studentRepository.findByUserId(userId).ifPresent(student -> {
+                studentRepository.delete(student);
+            });
+        }
+        
+        // 最后删除用户
         userRepository.deleteById(userId);
     }
     
