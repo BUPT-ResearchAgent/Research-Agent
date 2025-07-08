@@ -1930,7 +1930,14 @@ function displayCourseNotices(notices) {
 // 加载课程测评
 async function loadCourseExams(courseId) {
     try {
-        const response = await fetch(`/api/student/courses/${courseId}/exams`, {
+        // 确保用户已登录
+        if (!currentUser || !currentUser.userId) {
+            console.error('用户信息不存在，无法加载考试');
+            displayCourseExams([]);
+            return;
+        }
+
+        const response = await fetch(`/api/student/courses/${courseId}/exams?userId=${currentUser.userId}`, {
             method: 'GET',
             credentials: 'include'
         });
