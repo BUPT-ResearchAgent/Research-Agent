@@ -55,11 +55,24 @@ public class ExamService {
             Course course = courseRepository.findById(request.getCourseId())
                     .orElseThrow(() -> new RuntimeException("课程不存在"));
             
-            // 使用RAG从知识库检索相关内容，而不是使用指定的资料
+            // 使用RAG从知识库检索相关内容，如果知识库没有数据则使用课程资料
             String ragContent = retrieveRelevantKnowledge(request.getCourseId(), request);
             
             if (ragContent == null || ragContent.trim().isEmpty()) {
-                throw new RuntimeException("未能从知识库中检索到相关内容，请确保课程已有知识库数据");
+                // 检查课程是否有任何内容资源
+                List<CourseMaterial> materials = courseMaterialRepository.findByCourseId(request.getCourseId());
+                
+                if (materials.isEmpty()) {
+                    throw new RuntimeException("该课程没有上传任何学习资料。请先在课程管理中上传PPT、PDF或Word等课程资料，或者在知识库管理中上传相关文档，然后再尝试生成试卷。");
+                } else {
+                    // 检查资料是否有文本内容
+                    boolean hasContent = materials.stream().anyMatch(m -> m.getContent() != null && !m.getContent().trim().isEmpty());
+                    if (!hasContent) {
+                        throw new RuntimeException("课程资料中没有可提取的文本内容。请确保上传的文档包含文字内容（不只是图片），或者在知识库管理中重新上传并处理文档。");
+                    } else {
+                        throw new RuntimeException("无法从课程资料中生成足够的内容。建议：1）在知识库管理中上传更多相关文档；2）确保上传的文档内容丰富且与课程相关；3）检查文档格式是否正确。");
+                    }
+                }
             }
             
             System.out.println("RAG检索到的知识内容长度: " + ragContent.length() + " 字符");
@@ -113,8 +126,18 @@ public class ExamService {
             String timeStamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
             exam.setTitle(course.getName() + "+" + timeStamp);
             exam.setCourse(course);
-            exam.setChapter("基于知识库内容");
-            exam.setExamType("RAG生成");
+            
+            // 根据内容来源设置不同的标识
+            if (ragContent.contains("=== 基于知识库检索的相关内容 ===")) {
+                exam.setChapter("基于知识库内容");
+                exam.setExamType("知识库RAG生成");
+            } else if (ragContent.contains("=== 基于课程资料的相关内容 ===")) {
+                exam.setChapter("基于课程资料内容");
+                exam.setExamType("课程资料生成");
+            } else {
+                exam.setChapter("基于已有内容");
+                exam.setExamType("智能生成");
+            }
         exam.setDuration(request.getDuration());
             exam.setTotalScore(request.getTotalScore());
             exam.setIsPublished(false);
@@ -149,8 +172,9 @@ public class ExamService {
                 knowledgeBaseService.searchKnowledge(courseId, query, 15); // 增加到15个结果
             
             if (searchResults.isEmpty()) {
-                System.out.println("警告：未从知识库中检索到相关内容");
-                return null;
+                System.out.println("警告：未从知识库中检索到相关内容，尝试使用课程资料作为备选");
+                // 当知识库没有数据时，尝试使用课程资料作为fallback
+                return getCourseMaterialContent(courseId);
             }
             
             System.out.println("RAG检索到 " + searchResults.size() + " 个相关知识块");
@@ -171,6 +195,68 @@ public class ExamService {
             
         } catch (Exception e) {
             System.err.println("RAG检索失败: " + e.getMessage());
+            e.printStackTrace();
+            // 发生异常时也尝试使用课程资料作为fallback
+            return getCourseMaterialContent(courseId);
+        }
+    }
+    
+    /**
+     * 获取课程资料内容作为fallback
+     */
+    private String getCourseMaterialContent(Long courseId) {
+        try {
+            List<CourseMaterial> materials = courseMaterialRepository.findByCourseIdOrderByUploadedAtDesc(courseId);
+            
+            System.out.println("课程 " + courseId + " 共有 " + materials.size() + " 个资料文件");
+            
+            if (materials.isEmpty()) {
+                System.out.println("课程 " + courseId + " 既没有知识库数据，也没有课程资料");
+                return null;
+            }
+            
+            StringBuilder content = new StringBuilder();
+            content.append("=== 基于课程资料的相关内容 ===\n\n");
+            
+            int validMaterialCount = 0;
+            int totalMaterialCount = 0;
+            
+            for (CourseMaterial material : materials) {
+                totalMaterialCount++;
+                System.out.println("检查资料 " + totalMaterialCount + ": " + material.getOriginalName() + 
+                                 " (内容长度: " + (material.getContent() != null ? material.getContent().length() : 0) + ")");
+                
+                if (material.getContent() != null && !material.getContent().trim().isEmpty()) {
+                    content.append(String.format("【资料 %d】%s\n", ++validMaterialCount, material.getOriginalName()));
+                    String materialContent = material.getContent().trim();
+                    
+                    // 如果内容太长，只取前面部分
+                    if (materialContent.length() > 3000) {
+                        materialContent = materialContent.substring(0, 3000) + "...[内容过长，已截断]";
+                    }
+                    
+                    content.append(materialContent);
+                    content.append("\n\n---\n\n");
+                    
+                    // 限制总内容长度，避免过长
+                    if (content.length() > 15000) {
+                        content.append("...[更多内容已省略]\n");
+                        break;
+                    }
+                }
+            }
+            
+            if (validMaterialCount == 0) {
+                System.out.println("课程资料中没有可用的文本内容。共检查了 " + totalMaterialCount + " 个资料文件。");
+                return null;
+            }
+            
+            System.out.println("使用课程资料作为内容源，共 " + validMaterialCount + "/" + totalMaterialCount + 
+                             " 个有效资料，总长度: " + content.length() + " 字符");
+            return content.toString();
+            
+        } catch (Exception e) {
+            System.err.println("获取课程资料内容失败: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
