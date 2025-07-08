@@ -1593,36 +1593,81 @@ public class TeacherController {
     public ApiResponse<Map<String, Object>> getGradeAnalysis(@PathVariable Long examId,
                                                            jakarta.servlet.http.HttpSession session) {
         try {
+            System.out.println("=== 开始处理成绩分析请求 ===");
+            System.out.println("考试ID: " + examId);
+            
             Long userId = (Long) session.getAttribute("userId");
+            System.out.println("当前用户ID: " + userId);
             if (userId == null) {
+                System.out.println("用户未登录");
                 return ApiResponse.error("未登录，请先登录");
             }
             
             String role = (String) session.getAttribute("role");
+            System.out.println("用户角色: " + role);
             if (!"teacher".equals(role)) {
+                System.out.println("权限不足，非教师用户");
                 return ApiResponse.error("权限不足");
             }
             
             // 获取考试信息
+            System.out.println("查询考试信息...");
             Optional<Exam> examOpt = examRepository.findById(examId);
             if (!examOpt.isPresent()) {
+                System.out.println("考试不存在: ID=" + examId);
                 return ApiResponse.error("考试不存在");
             }
             Exam exam = examOpt.get();
+            System.out.println("找到考试: " + exam.getTitle() + ", 课程: " + exam.getCourse().getName());
             
             // 验证权限
+            System.out.println("验证教师权限...");
             Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
-            if (!teacherOpt.isPresent() || !exam.getCourse().getTeacher().getId().equals(teacherOpt.get().getId())) {
+            if (!teacherOpt.isPresent()) {
+                System.out.println("未找到对应的教师记录");
+                return ApiResponse.error("权限不足，无法查看此考试分析");
+            }
+            Teacher currentTeacher = teacherOpt.get();
+            Teacher examTeacher = exam.getCourse().getTeacher();
+            System.out.println("当前教师ID: " + currentTeacher.getId() + ", 考试所属教师ID: " + examTeacher.getId());
+            
+            if (!examTeacher.getId().equals(currentTeacher.getId())) {
+                System.out.println("权限验证失败：不是考试所属教师");
                 return ApiResponse.error("权限不足，无法查看此考试分析");
             }
             
             // 获取考试结果
+            System.out.println("查询考试结果...");
             List<ExamResult> results = examResultRepository.findByExamOrderBySubmitTimeDesc(exam);
+            System.out.println("找到考试结果总数: " + results.size());
+            
+            // 输出所有结果的详细信息
+            for (int i = 0; i < results.size(); i++) {
+                ExamResult result = results.get(i);
+                System.out.println("结果 " + (i+1) + ": 学生ID=" + result.getStudent().getId() + 
+                    ", 提交时间=" + result.getSubmitTime() + 
+                    ", 最终分数=" + result.getFinalScore() + 
+                    ", 总分=" + result.getScore());
+            }
+            
+            // 修改筛选逻辑：只要有提交时间就认为是有效提交
             List<ExamResult> submittedResults = results.stream()
-                .filter(r -> r.getSubmitTime() != null && r.getFinalScore() != null)
+                .filter(r -> r.getSubmitTime() != null && (r.getFinalScore() != null || r.getScore() != null))
                 .collect(Collectors.toList());
             
+            System.out.println("有效提交结果数量: " + submittedResults.size());
+            
+            // 输出有效结果的详细信息
+            for (int i = 0; i < submittedResults.size(); i++) {
+                ExamResult result = submittedResults.get(i);
+                System.out.println("有效结果 " + (i+1) + ": 学生ID=" + result.getStudent().getId() + 
+                    ", 提交时间=" + result.getSubmitTime() + 
+                    ", 最终分数=" + result.getFinalScore() + 
+                    ", 基础分数=" + result.getScore());
+            }
+            
             if (submittedResults.isEmpty()) {
+                System.out.println("没有有效的提交结果，返回空数据");
                 Map<String, Object> emptyAnalysis = new HashMap<>();
                 emptyAnalysis.put("participantCount", 0);
                 emptyAnalysis.put("averageScore", 0.0);
@@ -1636,10 +1681,21 @@ public class TeacherController {
                 return ApiResponse.success("获取分析数据成功", emptyAnalysis);
             }
             
-            // 计算统计数据
+            // 计算统计数据 - 优先使用finalScore，如果为空则使用score
             List<Double> scores = submittedResults.stream()
-                .map(ExamResult::getFinalScore)
+                .map(result -> {
+                    Double finalScore = result.getFinalScore();
+                    if (finalScore != null) {
+                        return finalScore;
+                    } else if (result.getScore() != null) {
+                        return result.getScore().doubleValue();
+                    } else {
+                        return 0.0;
+                    }
+                })
                 .collect(Collectors.toList());
+            
+            System.out.println("计算得到的分数列表: " + scores);
             
             double averageScore = scores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
             double maxScore = scores.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
@@ -1726,6 +1782,76 @@ public class TeacherController {
             return ApiResponse.success("获取分析数据成功", analysis);
         } catch (Exception e) {
             return ApiResponse.error("获取分析数据失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 临时调试端点 - 查看数据库中的考试和成绩数据
+     */
+    @GetMapping("/debug/exam-data")
+    public ApiResponse<Map<String, Object>> debugExamData(jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录");
+            }
+            
+            System.out.println("=== 调试查询数据库数据 ===");
+            
+            Map<String, Object> debugInfo = new HashMap<>();
+            
+            // 1. 查询所有考试
+            List<Exam> allExams = examRepository.findAll();
+            System.out.println("数据库中总考试数量: " + allExams.size());
+            
+            List<Map<String, Object>> examInfo = new ArrayList<>();
+            for (Exam exam : allExams) {
+                Map<String, Object> examData = new HashMap<>();
+                examData.put("id", exam.getId());
+                examData.put("title", exam.getTitle());
+                examData.put("isPublished", exam.getIsPublished());
+                examData.put("courseName", exam.getCourse().getName());
+                examData.put("teacherName", exam.getCourse().getTeacher().getRealName());
+                
+                // 查询该考试的成绩记录
+                List<ExamResult> results = examResultRepository.findByExamId(exam.getId());
+                examData.put("totalResults", results.size());
+                
+                long submittedCount = results.stream()
+                    .mapToLong(r -> r.getSubmitTime() != null ? 1 : 0)
+                    .sum();
+                examData.put("submittedResults", submittedCount);
+                
+                // 详细的成绩信息
+                List<Map<String, Object>> resultDetails = new ArrayList<>();
+                for (ExamResult result : results) {
+                    Map<String, Object> detail = new HashMap<>();
+                    detail.put("studentId", result.getStudentId());
+                    detail.put("submitTime", result.getSubmitTime());
+                    detail.put("score", result.getScore());
+                    detail.put("finalScore", result.getFinalScore());
+                    detail.put("gradeStatus", result.getGradeStatus());
+                    resultDetails.add(detail);
+                }
+                examData.put("resultDetails", resultDetails);
+                
+                examInfo.add(examData);
+                
+                System.out.println("考试: " + exam.getTitle() + 
+                    ", 总记录: " + results.size() + 
+                    ", 已提交: " + submittedCount);
+            }
+            
+            debugInfo.put("examInfo", examInfo);
+            debugInfo.put("totalExams", allExams.size());
+            debugInfo.put("currentUserId", userId);
+            
+            return ApiResponse.success("调试数据获取成功", debugInfo);
+            
+        } catch (Exception e) {
+            System.err.println("调试查询失败: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.error("调试查询失败: " + e.getMessage());
         }
     }
     

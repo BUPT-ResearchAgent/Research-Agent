@@ -17,6 +17,7 @@ public class ExamListDTO {
     private Integer totalScore;
     private LocalDateTime createdAt;
     private Boolean isPublished;
+    private LocalDateTime startTime;
     
     public ExamListDTO() {}
     
@@ -30,6 +31,7 @@ public class ExamListDTO {
         this.totalScore = exam.getTotalScore();
         this.createdAt = exam.getCreatedAt();
         this.isPublished = exam.getIsPublished();
+        this.startTime = exam.getStartTime();
         
         // 设置状态
         if (exam.getIsPublished() == null || !exam.getIsPublished()) {
@@ -154,5 +156,13 @@ public class ExamListDTO {
     
     public void setIsPublished(Boolean isPublished) {
         this.isPublished = isPublished;
+    }
+    
+    public LocalDateTime getStartTime() {
+        return startTime;
+    }
+    
+    public void setStartTime(LocalDateTime startTime) {
+        this.startTime = startTime;
     }
 } 

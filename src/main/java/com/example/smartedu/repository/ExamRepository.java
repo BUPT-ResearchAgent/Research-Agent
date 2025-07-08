@@ -90,4 +90,10 @@ public interface ExamRepository extends JpaRepository<Exam, Long> {
     @Modifying
     @Query("DELETE FROM Exam e WHERE e.course.id = :courseId")
     void deleteByCourseId(@Param("courseId") Long courseId);
+    
+    /**
+     * 查找需要定时发布的试卷（设置了开始时间但还未发布的试卷）
+     */
+    @Query("SELECT e FROM Exam e WHERE e.startTime IS NOT NULL AND e.isPublished = false")
+    List<Exam> findScheduledExamsToPublish();
 } 

@@ -95,6 +95,13 @@ public class ExamController {
     @PostMapping("/{examId}/publish-with-time")
     public ApiResponse<String> publishExamWithTime(@PathVariable Long examId, @RequestBody Map<String, Object> request) {
         try {
+            // 检查是否是取消定时发布的请求
+            Boolean cancelSchedule = (Boolean) request.get("cancelSchedule");
+            if (cancelSchedule != null && cancelSchedule) {
+                examService.cancelScheduledPublish(examId);
+                return ApiResponse.success("定时发布已取消");
+            }
+            
             String startTimeStr = (String) request.get("startTime");
             
             java.time.LocalDateTime startTime = null;
@@ -109,7 +116,15 @@ public class ExamController {
             if (startTime != null) {
                 // 获取考试信息以获取考试时长
                 Exam exam = examService.getExamById(examId);
-                if (exam.getDuration() != null) {
+                
+                // 从请求中获取duration，如果没有则使用试卷默认时长
+                Integer duration = (Integer) request.get("duration");
+                if (duration != null && duration > 0) {
+                    // 更新试卷的时长
+                    exam.setDuration(duration);
+                    examService.updateExamDuration(examId, duration);
+                    endTime = startTime.plusMinutes(duration);
+                } else if (exam.getDuration() != null) {
                     endTime = startTime.plusMinutes(exam.getDuration());
                 }
             }

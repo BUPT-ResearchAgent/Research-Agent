@@ -3498,17 +3498,16 @@ async function loadExamsForAnalysis() {
             console.log(`考试详情: ID=${exam.id}, 标题=${exam.title}, status=${exam.status}, isPublished=${exam.isPublished}`);
         });
         
-        // 临时显示所有考试（包括草稿）用于测试
+        // 只显示已发布的考试用于成绩分析
         const publishedExams = response.data.filter(exam => {
-            // 临时放宽条件：显示所有考试
-            const isPublished = true; // 临时设为true显示所有考试
-            console.log(`考试 ${exam.title}: status=${exam.status}, isPublished=${exam.isPublished}, 临时显示=true`);
+            const isPublished = exam.status === 'published' || exam.isPublished === true;
+            console.log(`考试 ${exam.title}: status=${exam.status}, isPublished=${exam.isPublished}, 可分析=${isPublished}`);
             return isPublished;
         });
         
         // 如果没有已发布的考试，但有草稿，给出提示
         if (publishedExams.length === 0 && response.data.length > 0) {
-            console.warn('没有已发布的考试，但有以下草稿考试:');
+            console.warn('没有已发布的考试可供分析，但有以下草稿考试:');
             response.data.forEach(exam => {
                 console.warn(`- ${exam.title} (状态: ${exam.status})`);
             });
@@ -3523,13 +3522,19 @@ async function loadExamsForAnalysis() {
             isPublished: exam.isPublished
         })));
         
-        // 填充下拉框
+        // 填充下拉框，并异步检查每个考试是否有成绩数据
         if (publishedExams.length > 0) {
+            // 先显示所有已发布考试
             const optionsHtml = '<option value="">选择考试</option>' + 
                 publishedExams.map(exam => `<option value="${exam.id}">${exam.title}</option>`).join('');
             console.log('生成的选项HTML:', optionsHtml);
             examSelect.innerHTML = optionsHtml;
             console.log('下拉框填充完成，发布考试数量:', publishedExams.length);
+            
+
+            
+            // 异步检查并更新考试选项，显示参与人数
+            updateExamOptionsWithStats(publishedExams);
         } else {
             examSelect.innerHTML = '<option value="">暂无已发布的考试</option>';
             console.log('没有已发布的考试');
@@ -3545,30 +3550,84 @@ async function loadExamsForAnalysis() {
     }
 }
 
+// 异步更新考试选项，显示参与人数信息
+async function updateExamOptionsWithStats(exams) {
+    const examSelect = document.getElementById('analysis-exam-select');
+    if (!examSelect) return;
+    
+    console.log('开始检查考试参与人数...');
+    const optionsWithStats = ['<option value="">选择考试</option>'];
+    
+    for (const exam of exams) {
+        try {
+            // 获取该考试的分析数据来检查参与人数
+            const response = await TeacherAPI.getGradeAnalysis(exam.id);
+            
+            let optionText = exam.title;
+            if (response.success && response.data) {
+                const participantCount = response.data.participantCount || 0;
+                if (participantCount > 0) {
+                    optionText += ` (${participantCount}人参与)`;
+                } else {
+                    optionText += ' (暂无成绩)';
+                }
+            } else {
+                optionText += ' (数据加载失败)';
+            }
+            
+            optionsWithStats.push(`<option value="${exam.id}">${optionText}</option>`);
+            console.log(`考试 ${exam.title}: 更新为 "${optionText}"`);
+            
+        } catch (error) {
+            console.error(`检查考试 ${exam.title} 失败:`, error);
+            optionsWithStats.push(`<option value="${exam.id}">${exam.title} (检查失败)</option>`);
+        }
+    }
+    
+    // 更新下拉框选项
+    examSelect.innerHTML = optionsWithStats.join('');
+    console.log('考试选项更新完成，包含参与人数信息');
+}
+
+
+
 // 加载选中考试的分析数据
 async function loadSelectedExamAnalysis() {
     const examSelect = document.getElementById('analysis-exam-select');
     const selectedExamId = examSelect?.value;
     
+    console.log('=== 开始加载考试分析数据 ===');
+    console.log('选中的考试ID:', selectedExamId);
+    
     if (!selectedExamId) {
+        console.log('没有选中考试，清空分析数据');
         clearAnalysisData();
         return;
     }
     
     try {
         showLoading('正在加载分析数据...');
+        console.log('调用API: TeacherAPI.getGradeAnalysis(' + selectedExamId + ')');
+        
         const response = await TeacherAPI.getGradeAnalysis(selectedExamId);
         hideLoading();
         
+        console.log('API响应:', response);
+        console.log('响应成功状态:', response.success);
+        console.log('响应数据:', response.data);
+        
         if (response.success) {
+            console.log('分析数据加载成功，开始显示数据');
             displayAnalysisData(response.data);
         } else {
+            console.error('API返回失败:', response.message);
             showNotification('加载分析数据失败：' + response.message, 'error');
             clearAnalysisData();
         }
     } catch (error) {
         hideLoading();
-        console.error('加载分析数据失败:', error);
+        console.error('调用API时发生异常:', error);
+        console.error('异常堆栈:', error.stack);
         showNotification('加载分析数据失败，请重试', 'error');
         clearAnalysisData();
     }
@@ -3576,6 +3635,17 @@ async function loadSelectedExamAnalysis() {
 
 // 显示分析数据
 function displayAnalysisData(data) {
+    console.log('显示分析数据:', data);
+    
+    // 检查是否有参与人数
+    const participantCount = data.participantCount || 0;
+    
+    if (participantCount === 0) {
+        // 显示无数据状态
+        showNoAnalysisData(data.examTitle || '当前考试');
+        return;
+    }
+    
     // 更新统计卡片
     document.getElementById('analysis-avg-score').textContent = data.averageScore || '0';
     document.getElementById('analysis-max-score').textContent = data.maxScore || '0';
@@ -3587,6 +3657,44 @@ function displayAnalysisData(data) {
     
     // 显示错误率分析表格
     displayErrorAnalysisTable(data.errorAnalysis);
+}
+
+// 显示无分析数据状态
+function showNoAnalysisData(examTitle) {
+    // 清空统计卡片
+    document.getElementById('analysis-avg-score').textContent = '--';
+    document.getElementById('analysis-max-score').textContent = '--';
+    document.getElementById('analysis-pass-rate').textContent = '--%';
+    document.getElementById('analysis-std-dev').textContent = '--';
+    
+    // 显示无数据图表
+    const chartContainer = document.getElementById('score-distribution-chart');
+    if (chartContainer) {
+        chartContainer.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; color: #7f8c8d;">
+                <i class="fas fa-chart-bar" style="font-size: 64px; margin-bottom: 20px; color: #bdc3c7;"></i>
+                <h4 style="margin-bottom: 10px; color: #34495e;">${examTitle}</h4>
+                <p style="margin-bottom: 8px;">暂无学生提交成绩</p>
+                <p style="font-size: 12px; margin: 0;">学生完成考试后才能查看成绩分析</p>
+            </div>
+        `;
+        chartContainer.style.display = 'flex';
+        chartContainer.style.alignItems = 'center';
+        chartContainer.style.justifyContent = 'center';
+    }
+    
+    // 显示无数据错误率分析表格
+    const errorTable = document.querySelector('#error-analysis-table tbody');
+    if (errorTable) {
+        errorTable.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <i class="fas fa-users-slash" style="font-size: 32px; margin-bottom: 10px; color: #bdc3c7; display: block;"></i>
+                    暂无学生答题数据，无法进行错误率分析
+                </td>
+            </tr>
+        `;
+    }
 }
 
 // 清空分析数据
@@ -7227,22 +7335,63 @@ function displayExamList(examList) {
     
     examList.forEach(exam => {
         const row = document.createElement('tr');
+        
+        // 判断是否是定时发布的试卷
+        const isScheduled = exam.startTime && new Date(exam.startTime) > new Date() && !exam.isPublished;
+        const isScheduledAndReady = exam.startTime && new Date(exam.startTime) <= new Date() && exam.isPublished;
+        
+        // 生成状态显示
+        let statusDisplay = '';
+        let publishTimeDisplay = '';
+        
+        if (isScheduled) {
+            statusDisplay = `
+                <span class="status-badge" style="background-color: #fff3cd; color: #856404;">
+                    <i class="fas fa-clock"></i> 等待发布
+                </span>
+            `;
+            publishTimeDisplay = `
+                <div style="font-size: 12px;">
+                    <div style="color: #666;">预定时间:</div>
+                    <div style="color: #e74c3c; font-weight: 500;">${formatDateTime(new Date(exam.startTime))}</div>
+                </div>
+            `;
+        } else if (isScheduledAndReady) {
+            statusDisplay = `
+                <span class="status-badge status-${exam.status?.toLowerCase() || 'published'}">
+                    ${getStatusText(exam.status)}
+                </span>
+                <div style="font-size: 11px; color: #27ae60; margin-top: 2px;">
+                    <i class="fas fa-robot"></i> 定时发布
+                </div>
+            `;
+            publishTimeDisplay = exam.publishTime || '未发布';
+        } else {
+            statusDisplay = `
+                <span class="status-badge status-${exam.status?.toLowerCase() || 'draft'}">
+                    ${getStatusText(exam.status)}
+                </span>
+            `;
+            publishTimeDisplay = exam.publishTime || '未发布';
+        }
+        
+        // 根据状态决定按钮是否可用
+        const isReadonly = exam.status === 'PUBLISHED' || exam.status === 'ONGOING' || exam.status === 'FINISHED' || isScheduled;
+        const cannotDelete = isReadonly || exam.participantCount > 0;
+        
         row.innerHTML = `
             <td>
                 <div class="exam-title">
                     <strong>${exam.title || '未命名试卷'}</strong>
                     <div class="exam-subtitle">${exam.courseName || '未知课程'}</div>
+                    ${isScheduled ? '<div style="font-size: 11px; color: #f39c12; margin-top: 2px;"><i class="fas fa-calendar-alt"></i> 已设置定时发布</div>' : ''}
                 </div>
             </td>
             <td>${exam.questionCount || 0}</td>
             <td>${exam.duration || 0}分钟</td>
-            <td>
-                <span class="status-badge status-${exam.status?.toLowerCase() || 'draft'}">
-                    ${getStatusText(exam.status)}
-                </span>
-            </td>
+            <td>${statusDisplay}</td>
             <td>${exam.participantCount || 0}</td>
-            <td>${exam.publishTime || '未发布'}</td>
+            <td style="font-size: 13px;">${publishTimeDisplay}</td>
             <td>${exam.totalScore || 0}分</td>
             <td>
                 <div class="action-buttons">
@@ -7253,15 +7402,20 @@ function displayExamList(examList) {
                         <i class="fas fa-download"></i>
                     </button>
                     <button class="btn btn-sm btn-primary" onclick="showExamEditModal(${exam.id})" title="编辑"
-                            ${exam.status === 'PUBLISHED' || exam.status === 'ONGOING' || exam.status === 'FINISHED' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                            ${isReadonly ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                         <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-success" onclick="showPublishExamWithModal(${exam.id})" 
-                            title="发布" ${exam.status === 'PUBLISHED' || exam.status === 'ONGOING' || exam.status === 'FINISHED' ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
+                    ${isScheduled ? 
+                        `<button class="btn btn-sm btn-warning" onclick="cancelScheduledPublish(${exam.id})" title="取消定时发布">
+                            <i class="fas fa-calendar-times"></i>
+                        </button>` :
+                        `<button class="btn btn-sm btn-success" onclick="showPublishExamWithModal(${exam.id})" 
+                                title="发布" ${isReadonly ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                            <i class="fas fa-paper-plane"></i>
+                        </button>`
+                    }
                     <button class="btn btn-sm btn-danger" onclick="deleteExam(${exam.id})" 
-                            title="删除" ${exam.status === 'PUBLISHED' || exam.status === 'ONGOING' || exam.status === 'FINISHED' || exam.participantCount > 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
+                            title="删除" ${cannotDelete ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -9393,9 +9547,330 @@ function clearAllDocumentFilters() {
     filterAllDocuments();
 }
 
-// 缺失的函数实现
+// 显示定时发布模态框
 function showScheduleModal() {
-    showNotification('考试安排功能待实现', 'info');
+    // 获取当前考试列表中的未发布试卷
+    showScheduleExamModal();
+}
+
+// 显示定时发布选择试卷模态框
+async function showScheduleExamModal() {
+    try {
+        const userId = await getUserId();
+        const examList = await TeacherAPI.getExamList(userId, 'DRAFT');
+        
+        if (!examList.success || examList.data.length === 0) {
+            showNotification('没有可以定时发布的试卷', 'warning');
+            return;
+        }
+        
+        // 创建试卷选择模态框
+        const modal = document.createElement('div');
+        modal.className = 'course-modal-overlay';
+        modal.style.display = 'flex';
+        modal.innerHTML = `
+            <div class="course-modal-container" style="max-width: 600px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <div class="modal-icon" style="background: rgba(52, 152, 219, 0.1);">
+                            <i class="fas fa-calendar-plus" style="color: #3498db;"></i>
+                        </div>
+                        <h3>选择要定时发布的试卷</h3>
+                    </div>
+                    <button id="close-schedule-modal" class="modal-close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="course-modal-body">
+                    <div class="exam-selection-list" style="max-height: 400px; overflow-y: auto;">
+                        ${examList.data.map(exam => `
+                            <div class="exam-item" style="border: 1px solid #e9ecef; border-radius: 8px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s ease;" 
+                                 onclick="selectExamForSchedule(${exam.id}, '${exam.title}', '${exam.courseName}')">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <h4 style="margin: 0 0 5px 0; color: #2c3e50;">${exam.title}</h4>
+                                        <p style="margin: 0; color: #7f8c8d; font-size: 14px;">
+                                            <i class="fas fa-book"></i> ${exam.courseName} | 
+                                            <i class="fas fa-clock"></i> ${exam.duration || 90}分钟 | 
+                                            <i class="fas fa-star"></i> ${exam.totalScore || 100}分
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span class="badge badge-secondary">草稿</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <div class="course-modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideScheduleModal()">
+                        <i class="fas fa-times"></i> 取消
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // 设置关闭事件
+        modal.querySelector('#close-schedule-modal').onclick = () => hideScheduleModal();
+        modal.onclick = (e) => {
+            if (e.target === modal) hideScheduleModal();
+        };
+        
+        // 样式处理
+        modal.querySelectorAll('.exam-item').forEach(item => {
+            item.addEventListener('mouseenter', () => {
+                item.style.backgroundColor = '#f8f9fa';
+                item.style.borderColor = '#3498db';
+            });
+            item.addEventListener('mouseleave', () => {
+                item.style.backgroundColor = '';
+                item.style.borderColor = '#e9ecef';
+            });
+        });
+        
+        window.currentScheduleModal = modal;
+        
+    } catch (error) {
+        console.error('加载试卷列表失败:', error);
+        showNotification('加载试卷列表失败', 'error');
+    }
+}
+
+// 选择试卷进行定时发布
+function selectExamForSchedule(examId, examTitle, courseName) {
+    hideScheduleModal();
+    showScheduleTimeModal(examId, examTitle, courseName);
+}
+
+// 显示定时发布时间设置模态框
+function showScheduleTimeModal(examId, examTitle, courseName) {
+    const modal = document.createElement('div');
+    modal.className = 'course-modal-overlay';
+    modal.style.display = 'flex';
+    
+    // 获取当前时间，并设置为一小时后
+    const now = new Date();
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+    const defaultStartTime = oneHourLater.toISOString().slice(0, 16);
+    
+    modal.innerHTML = `
+        <div class="course-modal-container" style="max-width: 500px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon" style="background: rgba(46, 204, 113, 0.1);">
+                        <i class="fas fa-clock" style="color: #2ecc71;"></i>
+                    </div>
+                    <h3>设置定时发布</h3>
+                </div>
+                <button id="close-schedule-time-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <div class="exam-info-card" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div class="exam-info-item" style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span class="exam-info-label" style="color: #7f8c8d;">课程：</span>
+                        <span style="font-weight: 500;">${courseName}</span>
+                    </div>
+                    <div class="exam-info-item" style="display: flex; justify-content: space-between;">
+                        <span class="exam-info-label" style="color: #7f8c8d;">试卷：</span>
+                        <span style="font-weight: 500;">${examTitle}</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="course-form-label" style="display: block; margin-bottom: 8px; font-weight: 500;">
+                        <i class="fas fa-calendar-alt"></i> 考试开始时间：
+                    </label>
+                    <input type="datetime-local" id="schedule-start-time" class="course-form-input" 
+                           style="width: 100%;" value="${defaultStartTime}" min="${now.toISOString().slice(0, 16)}">
+                    <small style="color: #7f8c8d; display: block; margin-top: 5px;">
+                        <i class="fas fa-info-circle"></i> 试卷将在指定时间自动发布给学生
+                    </small>
+                </div>
+                
+                <div class="form-group" style="margin-top: 20px;">
+                    <label class="course-form-label" style="display: block; margin-bottom: 8px; font-weight: 500;">
+                        <i class="fas fa-clock"></i> 考试持续时间：
+                    </label>
+                    <select id="schedule-duration" class="course-form-input" style="width: 100%;">
+                        <option value="60">60分钟</option>
+                        <option value="90" selected>90分钟</option>
+                        <option value="120">120分钟</option>
+                        <option value="150">150分钟</option>
+                        <option value="180">180分钟</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="custom-duration-group" style="margin-top: 15px; display: none;">
+                    <label class="course-form-label" style="display: block; margin-bottom: 8px; font-weight: 500;">
+                        自定义时长（分钟）：
+                    </label>
+                    <input type="number" id="custom-duration" class="course-form-input" 
+                           style="width: 100%;" min="30" max="300" value="90">
+                </div>
+                
+                <div class="alert alert-info" style="background: #e8f4f8; color: #0c5460; padding: 12px; border-radius: 6px; margin-top: 20px;">
+                    <i class="fas fa-lightbulb"></i> 
+                    <strong>温馨提示：</strong>试卷将在指定时间自动发布，学生可以立即开始考试。请确保时间设置正确。
+                </div>
+            </div>
+            
+            <div class="course-modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideScheduleTimeModal()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button type="button" class="btn btn-success" onclick="confirmSchedulePublish(${examId})">
+                    <i class="fas fa-calendar-check"></i> 确认定时发布
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // 设置事件监听器
+    modal.querySelector('#close-schedule-time-modal').onclick = () => hideScheduleTimeModal();
+    modal.onclick = (e) => {
+        if (e.target === modal) hideScheduleTimeModal();
+    };
+    
+    // 处理自定义时长选择
+    modal.querySelector('#schedule-duration').onchange = function() {
+        const customGroup = modal.querySelector('#custom-duration-group');
+        if (this.value === 'custom') {
+            customGroup.style.display = 'block';
+        } else {
+            customGroup.style.display = 'none';
+        }
+    };
+    
+    window.currentScheduleTimeModal = modal;
+}
+
+// 确认定时发布
+async function confirmSchedulePublish(examId) {
+    try {
+        const startTimeInput = document.getElementById('schedule-start-time');
+        const durationSelect = document.getElementById('schedule-duration');
+        const customDurationInput = document.getElementById('custom-duration');
+        
+        const startTime = startTimeInput.value;
+        if (!startTime) {
+            showNotification('请选择考试开始时间', 'warning');
+            return;
+        }
+        
+        // 验证时间不能是过去的时间
+        const selectedTime = new Date(startTime);
+        const now = new Date();
+        if (selectedTime <= now) {
+            showNotification('考试开始时间不能早于当前时间', 'warning');
+            return;
+        }
+        
+        // 获取考试时长
+        let duration = parseInt(durationSelect.value);
+        if (durationSelect.value === 'custom') {
+            duration = parseInt(customDurationInput.value);
+            if (!duration || duration < 30 || duration > 300) {
+                showNotification('自定义时长必须在30-300分钟之间', 'warning');
+                return;
+            }
+        }
+        
+        // 计算结束时间
+        const endTime = new Date(selectedTime.getTime() + duration * 60 * 1000);
+        
+        const confirmed = await showConfirmDialog(
+            '确认定时发布',
+            `试卷将在 ${formatDateTime(selectedTime)} 自动发布，并在 ${formatDateTime(endTime)} 结束。\n\n确定要设置定时发布吗？`,
+            '确认发布'
+        );
+        
+        if (!confirmed) return;
+        
+        showLoading('正在设置定时发布...');
+        
+        const response = await TeacherAPI.publishExam(examId, {
+            startTime: startTime,
+            duration: duration
+        });
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('定时发布设置成功！试卷将在指定时间自动发布', 'success');
+            hideScheduleTimeModal();
+            // 刷新试卷列表
+            await loadExamList();
+        } else {
+            showNotification('定时发布设置失败：' + response.message, 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('定时发布设置失败:', error);
+        showNotification('定时发布设置失败，请重试', 'error');
+    }
+}
+
+// 隐藏定时发布模态框
+function hideScheduleModal() {
+    if (window.currentScheduleModal) {
+        document.body.removeChild(window.currentScheduleModal);
+        window.currentScheduleModal = null;
+    }
+}
+
+// 隐藏定时发布时间设置模态框
+function hideScheduleTimeModal() {
+    if (window.currentScheduleTimeModal) {
+        document.body.removeChild(window.currentScheduleTimeModal);
+        window.currentScheduleTimeModal = null;
+    }
+}
+
+// 取消定时发布
+async function cancelScheduledPublish(examId) {
+    try {
+        const confirmed = await showConfirmDialog(
+            '取消定时发布',
+            '确定要取消该试卷的定时发布设置吗？\n\n取消后试卷将回到草稿状态，您可以重新设置发布时间。',
+            '确认取消'
+        );
+        
+        if (!confirmed) return;
+        
+        showLoading('正在取消定时发布...');
+        
+        // 调用API取消定时发布
+        const response = await TeacherAPI.publishExam(examId, {
+            cancelSchedule: true
+        });
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('定时发布已取消', 'success');
+            // 刷新试卷列表
+            await loadExamList();
+        } else {
+            showNotification('取消定时发布失败：' + response.message, 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('取消定时发布失败:', error);
+        showNotification('取消定时发布失败，请重试', 'error');
+    }
 }
 
 

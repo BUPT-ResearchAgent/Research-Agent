@@ -393,6 +393,60 @@ public class ExamService {
     }
     
     /**
+     * 取消定时发布
+     */
+    public void cancelScheduledPublish(Long examId) {
+        Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("考试不存在"));
+        
+        // 重置发布相关字段
+        exam.setIsPublished(false);
+        exam.setPublishedAt(null);
+        exam.setStartTime(null);
+        exam.setEndTime(null);
+        
+        examRepository.save(exam);
+    }
+    
+    /**
+     * 更新考试时长
+     */
+    public void updateExamDuration(Long examId, Integer duration) {
+        Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("考试不存在"));
+        
+        exam.setDuration(duration);
+        examRepository.save(exam);
+    }
+    
+    /**
+     * 处理定时发布的试卷
+     */
+    public void processScheduledPublish() {
+        try {
+            // 查找所有设置了开始时间但还未发布的试卷
+            List<Exam> scheduledExams = examRepository.findScheduledExamsToPublish();
+            
+            LocalDateTime now = LocalDateTime.now();
+            
+            for (Exam exam : scheduledExams) {
+                if (exam.getStartTime() != null && !exam.getStartTime().isAfter(now) && !exam.getIsPublished()) {
+                    // 时间已到，自动发布试卷
+                    exam.setIsPublished(true);
+                    exam.setPublishedAt(now);
+                    examRepository.save(exam);
+                    
+                    System.out.println("自动发布试卷: " + exam.getTitle() + " (ID: " + exam.getId() + ")");
+                }
+            }
+            
+        } catch (Exception e) {
+            System.err.println("处理定时发布试卷失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
      * 更新考试内容
      */
     public Exam updateExamContent(Long examId, String content) {
