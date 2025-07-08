@@ -388,7 +388,7 @@ body {
     }
     
     .knowledge-mastery-card {
-        min-height: 400px;
+        min-height: 360px;
     }
     
     .main-content .content-column .content-card {
@@ -516,9 +516,10 @@ body {
     border: 2px solid #b8bfff33;
     backdrop-filter: blur(6px);
     transition: box-shadow 0.2s, border 0.2s;
-    min-height: 380px;
+    min-height: 340px;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .knowledge-mastery-card:hover {
@@ -550,14 +551,23 @@ body {
 .content-card .table-container,
 .content-card .recent-activity,
 .content-card .chart-container,
-.recent-courses-card .table-container,
-.knowledge-mastery-card .chart-container {
+.recent-courses-card .table-container {
     flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     overflow-y: auto; /* 内容过多时可滚动 */
     min-height: 0; /* 允许flex子元素收缩 */
+}
+
+/* 知识点掌握情况特殊处理 - 确保完整显示 */
+.knowledge-mastery-card .chart-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    overflow: visible; /* 允许内容完整显示 */
+    min-height: auto; /* 自动计算高度 */
 }
 
 /* 特别针对最新通知和待办事项模块的内容区域 */
@@ -1495,11 +1505,13 @@ tr:hover {
     box-shadow: 0 4px 16px #7f7fff44;
 }
 
-/* 知识点掌握情况模块的柱状图优化 */
+/* 知识点掌握情况模块的内容容器 */
 .knowledge-mastery-card .chart-bars {
-    align-items: flex-end !important; /* 强制确保所有柱子底部对齐 */
-    justify-content: space-around; /* 柱子均匀分布 */
-    padding: 0 10px; /* 减小左右内边距 */
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: visible !important;
 }
 
 .knowledge-mastery-card .bar-container {

@@ -129,7 +129,7 @@ public class ExamService {
             
             // 根据内容来源设置不同的标识
             if (ragContent.contains("=== 基于知识库检索的相关内容 ===")) {
-                exam.setChapter("基于知识库内容");
+            exam.setChapter("基于知识库内容");
                 exam.setExamType("知识库RAG生成");
             } else if (ragContent.contains("=== 基于课程资料的相关内容 ===")) {
                 exam.setChapter("基于课程资料内容");

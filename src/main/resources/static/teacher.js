@@ -659,8 +659,23 @@ async function debugCourseInfo(courseId) {
         console.log('========== 课程调试信息 ==========');
         console.log('正在检查课程', courseId, '的详细信息...');
         
-        // 获取课程的考试列表
-        const examsResponse = await fetch(`/api/teacher/exams?courseId=${courseId}`, {
+        // 获取教师的考试列表（需要先获取teacherId）
+        const userResponse = await fetch('/api/auth/check', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!userResponse.ok) {
+            throw new Error('无法获取用户信息');
+        }
+        
+        const userResult = await userResponse.json();
+        if (!userResult.success || !userResult.data) {
+            throw new Error('用户信息无效');
+        }
+        
+        const teacherId = userResult.data.id;
+        const examsResponse = await fetch(`/api/exam/list?teacherId=${teacherId}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -668,7 +683,9 @@ async function debugCourseInfo(courseId) {
         if (examsResponse.ok) {
             const examsResult = await examsResponse.json();
             if (examsResult.success) {
-                const exams = examsResult.data || [];
+                const allExams = examsResult.data || [];
+                // 过滤出该课程的考试
+                const exams = allExams.filter(exam => exam.courseId === parseInt(courseId));
                 console.log('课程考试列表:', exams);
                 console.log('考试数量:', exams.length);
                 
@@ -909,77 +926,578 @@ function formatTime(date) {
     return `${hours}:${minutes}:${seconds}`;
 }
 
-// 显示知识点掌握情况
+// 显示知识点掌握情况 - 紧凑型现代化设计
 function displayKnowledgeMastery(masteryData) {
     const chartContainer = document.querySelector('.knowledge-mastery-card .chart-bars');
     if (!chartContainer) return;
     
     if (!masteryData || masteryData.length === 0) {
         chartContainer.innerHTML = `
-            <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
-                <i class="fas fa-chart-bar" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                <p>暂无知识点掌握数据</p>
-                <p>完成课程测评后这里会显示学生的知识点掌握情况</p>
-                <button onclick="manualRefreshKnowledgeMastery()" class="btn btn-sm btn-primary" style="margin-top: 16px;">
+            <div style="text-align: center; padding: 32px 0; color: #7f8c8d;">
+                <i class="fas fa-chart-pie" style="font-size: 36px; margin-bottom: 12px; color: #bdc3c7;"></i>
+                <p>暂无学习掌握度数据</p>
+                <p style="font-size: 14px; margin-top: 8px;">完成课程测评后这里会显示学生的知识掌握情况分析</p>
+                <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px;">
+                    <button onclick="manualRefreshKnowledgeMastery()" class="btn btn-sm btn-primary">
                     <i class="fas fa-sync-alt"></i> 刷新数据
                 </button>
+                    <button onclick="debugKnowledgeMasteryData()" class="btn btn-sm btn-warning">
+                        <i class="fas fa-bug"></i> 诊断问题
+                    </button>
+                </div>
             </div>
         `;
         return;
     }
     
-    // 最多显示前10个知识点，避免界面过于拥挤
+    // 显示前10个知识点，保持紧凑
     const displayData = masteryData.slice(0, 10);
     
-    let barsHtml = '';
+    // 计算整体掌握情况统计
+    const totalAnswers = displayData.reduce((sum, item) => sum + (item.totalAnswers || 0), 0);
+    const totalCorrect = displayData.reduce((sum, item) => sum + (item.correctAnswers || 0), 0);
+    const overallRate = totalAnswers > 0 ? (totalCorrect / totalAnswers * 100) : 0;
+    
+    // 创建两栏布局
+    let contentHtml = `
+        <!-- 概览信息条 -->
+        <div style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            text-align: center;
+        ">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                <div style="text-align: center;">
+                    <h4 style="margin: 0; font-size: 16px; font-weight: 600;">学习掌握度概览</h4>
+                    <p style="margin: 4px 0 0 0; opacity: 0.9; font-size: 13px;">
+                        ${displayData.length} 个知识点 • ${totalAnswers} 次答题 • 平均掌握率 ${overallRate.toFixed(1)}%
+                    </p>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="mini-circle-progress" style="
+                        width: 50px; 
+                        height: 50px; 
+                        border-radius: 50%; 
+                        background: conic-gradient(#fff ${overallRate * 3.6}deg, rgba(255,255,255,0.2) 0deg);
+                        display: flex; 
+                        align-items: center; 
+                        justify-content: center;
+                        font-weight: bold;
+                        font-size: 12px;
+                    ">${overallRate.toFixed(0)}%</div>
+                    <button onclick="manualRefreshKnowledgeMastery()" class="btn btn-sm" style="
+                        background: rgba(255,255,255,0.15);
+                        border: 1px solid rgba(255,255,255,0.2);
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 6px;
+                        font-size: 12px;
+                    " title="刷新数据">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 两栏布局容器 -->
+        <div class="two-column-layout" style="
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            margin-bottom: 16px;
+        ">
+            <!-- 左栏：统计信息 -->
+            <div class="stats-column" style="
+                background: white;
+                border: 1px solid #eee;
+                border-radius: 12px;
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            ">
+                <h5 style="margin: 0; font-size: 14px; font-weight: 600; color: #2c3e50;">学习概况</h5>
+                
+                <!-- 整体统计 -->
+                <div style="
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    padding: 12px;
+                    margin-top: 8px;
+                ">
+                    <div style="font-size: 11px; color: #6c757d; margin-bottom: 8px;">整体表现</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #2c3e50; margin-bottom: 4px;">
+                        ${overallRate.toFixed(1)}%
+                    </div>
+                    <div style="font-size: 11px; color: #6c757d;">
+                        ${totalCorrect} / ${totalAnswers} 正确率
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右栏：知识点掌握度横向滚动 -->
+            <div class="grid-column">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h5 style="margin: 0; font-size: 14px; font-weight: 600; color: #2c3e50;">各知识点详情</h5>
+                    <div style="font-size: 12px; color: #6c757d;">
+                        <i class="fas fa-arrows-alt-h"></i> 横向滑动查看更多
+                    </div>
+                </div>
+                <div class="horizontal-mastery-scroll">
+    `;
+    
+    // 生成横向网格的知识点掌握度条目
     displayData.forEach((item, index) => {
         const masteryRate = item.masteryRate || 0;
         const level = item.level || '需要强化';
+        const knowledgePoint = item.knowledgePoint || '未知知识点';
+        const correctAnswers = item.correctAnswers || 0;
+        const totalAnswers = item.totalAnswers || 0;
+        const totalQuestions = item.totalQuestions || 0;
         
-        // 根据掌握率设置颜色和动画
-        let barClass = 'low';
+        // 根据掌握率设置主题色彩
+        let themeColor, statusIcon, bgColor;
         if (masteryRate >= 80) {
-            barClass = 'high';
+            themeColor = '#27ae60';
+            statusIcon = 'fas fa-check-circle';
+            bgColor = '#27ae6015';
         } else if (masteryRate >= 60) {
-            barClass = 'medium';
+            themeColor = '#f39c12';
+            statusIcon = 'fas fa-exclamation-circle';
+            bgColor = '#f39c1215';
+        } else {
+            themeColor = '#e74c3c';
+            statusIcon = 'fas fa-times-circle';
+            bgColor = '#e74c3c15';
         }
         
-        barsHtml += `
-            <div class="bar-container" style="animation: fadeInUp 0.3s ease-out ${index * 0.1}s both;">
-                <div class="bar-label">
-                    <span>${item.knowledgePoint}</span>
-                    <span class="mastery-trend" id="trend-${index}"></span>
+        contentHtml += `
+            <div class="horizontal-mastery-card" style="
+                background: white;
+                border: 1px solid #eee;
+                border-radius: 12px;
+                padding: 16px;
+                text-align: center;
+                transition: all 0.2s ease;
+                animation: slideInRight 0.3s ease-out ${index * 0.08}s both;
+                min-width: 160px;
+                height: 180px;
+                flex-shrink: 0;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+            " onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'; this.style.transform='translateY(-2px)'"
+               onmouseout="this.style.boxShadow='none'; this.style.transform='translateY(0)'">
+                
+                <!-- 顶部：知识点名称和状态 -->
+                <div>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px;">
+                        <i class="${statusIcon}" style="color: ${themeColor}; font-size: 12px;"></i>
+                        <span style="
+                            background: ${bgColor}; 
+                            color: ${themeColor}; 
+                            padding: 2px 6px; 
+                            border-radius: 8px; 
+                            font-size: 10px; 
+                            font-weight: 500;
+                        ">${level}</span>
+                    </div>
+                    
+                    <h4 style="
+                        margin: 0 0 12px 0; 
+                        font-size: 13px; 
+                        font-weight: 600; 
+                        color: #2c3e50;
+                        line-height: 1.3;
+                        height: 36px;
+                        overflow: hidden;
+                        display: -webkit-box;
+                        -webkit-line-clamp: 2;
+                        -webkit-box-orient: vertical;
+                    " title="${knowledgePoint}">${knowledgePoint}</h4>
                 </div>
-                <div class="bar ${barClass}" style="width: ${masteryRate}%;">
-                    <div class="bar-value">${masteryRate.toFixed(1)}%</div>
+                
+                <!-- 中间：掌握率显示 -->
+                <div style="margin: 8px 0;">
+                    <div style="
+                        font-size: 32px;
+                        font-weight: bold;
+                        color: ${themeColor};
+                        line-height: 1;
+                        margin-bottom: 6px;
+                    ">${masteryRate.toFixed(0)}%</div>
+                    
+                    <!-- 小型进度条 -->
+                    <div style="
+                        width: 100%;
+                        height: 5px;
+                        background: #f1f2f6;
+                        border-radius: 3px;
+                        overflow: hidden;
+                        margin-bottom: 8px;
+                    ">
+                        <div style="
+                            width: ${masteryRate}%;
+                            height: 100%;
+                            background: ${themeColor};
+                            border-radius: 3px;
+                            transition: width 0.8s ease ${index * 0.1}s;
+                        "></div>
+                    </div>
                 </div>
-                <div style="font-size: 11px; color: #7f8c8d; margin-top: 2px;">
-                    ${level} (${item.totalAnswers}次答题, ${item.totalQuestions}题)
+                
+                <!-- 底部：统计信息 -->
+                <div style="font-size: 11px; color: #7f8c8d; line-height: 1.2;">
+                    <div>${correctAnswers}/${totalAnswers} 答对</div>
+                    <div>${totalQuestions} 道题目</div>
                 </div>
             </div>
         `;
     });
     
-    // 添加刷新按钮和时间信息
-    const refreshControlsHtml = `
-        <div class="knowledge-mastery-controls" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 10px; background: rgba(52, 152, 219, 0.1); border-radius: 6px;">
-            <div class="refresh-info">
-                <span class="knowledge-mastery-refresh-time" style="font-size: 12px; color: #7f8c8d;">最后更新: ${formatTime(new Date())}</span>
-                <span style="margin: 0 8px; color: #bdc3c7;">|</span>
-                <span style="font-size: 12px; color: #27ae60;">
-                    <i class="fas fa-sync-alt fa-spin" style="margin-right: 4px;"></i>
-                    自动同步中
-                </span>
+    contentHtml += `
+                </div>
             </div>
-            <button onclick="manualRefreshKnowledgeMastery()" class="btn btn-sm btn-primary" title="手动刷新数据">
-                <i class="fas fa-sync-alt"></i> 刷新
+        </div>
+        
+        <!-- 底部操作栏 -->
+        <div style="
+            margin-top: 16px; 
+            padding: 12px 16px; 
+            background: #f8f9fa; 
+            border-radius: 8px; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        ">
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 12px; color: #6c757d;">
+                <span><i class="fas fa-clock"></i> ${formatTime(new Date())}</span>
+                <span><i class="fas fa-sync-alt fa-spin"></i> 自动同步</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="debugKnowledgeMasteryData()" class="btn btn-sm" style="
+                    background: transparent;
+                    border: 1px solid #dee2e6;
+                    color: #6c757d;
+                    font-size: 11px;
+                    padding: 4px 8px;
+                " title="诊断问题">
+                    <i class="fas fa-bug"></i> 诊断
             </button>
         </div>
+        </div>
+        
+        <style>
+            @keyframes slideInRight {
+                from {
+                    opacity: 0;
+                    transform: translateX(30px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+            
+            .two-column-layout {
+                display: grid;
+                grid-template-columns: 1fr 3fr;
+                gap: 20px;
+                width: 100%;
+                overflow: hidden;
+            }
+            
+            .grid-column {
+                min-width: 0;
+                overflow: hidden;
+            }
+            
+            .stats-column {
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+            
+            .horizontal-mastery-scroll {
+                display: flex;
+                gap: 12px;
+                overflow-x: auto;
+                overflow-y: visible;
+                padding: 4px 0 12px 0;
+                scroll-behavior: smooth;
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            
+            .horizontal-mastery-scroll::-webkit-scrollbar {
+                height: 8px;
+            }
+            
+            .horizontal-mastery-scroll::-webkit-scrollbar-track {
+                background: #f1f2f6;
+                border-radius: 4px;
+            }
+            
+            .horizontal-mastery-scroll::-webkit-scrollbar-thumb {
+                background: #c1c1c1;
+                border-radius: 4px;
+                transition: background 0.2s;
+            }
+            
+            .horizontal-mastery-scroll::-webkit-scrollbar-thumb:hover {
+                background: #a8a8a8;
+            }
+            
+            .horizontal-mastery-card {
+                cursor: pointer;
+                box-sizing: border-box;
+            }
+            
+            .horizontal-mastery-card:first-child {
+                margin-left: 0;
+            }
+            
+            .horizontal-mastery-card:last-child {
+                margin-right: 0;
+            }
+            
+            /* 响应式调整 */
+            @media (max-width: 1200px) {
+                .two-column-layout {
+                    grid-template-columns: 1fr 1.8fr;
+                    gap: 16px;
+                }
+                .horizontal-mastery-card {
+                    min-width: 140px !important;
+                    height: 160px !important;
+                }
+            }
+            
+            @media (max-width: 768px) {
+                .two-column-layout {
+                    grid-template-columns: 1fr;
+                    gap: 16px;
+                }
+                .horizontal-mastery-card {
+                    min-width: 130px !important;
+                    height: 150px !important;
+                    padding: 12px !important;
+                }
+                .stats-column {
+                    order: 2;
+                }
+                .grid-column {
+                    order: 1;
+                }
+                .horizontal-mastery-scroll {
+                    margin: 0;
+                    max-width: 100%;
+                }
+            }
+        </style>
     `;
     
-    chartContainer.innerHTML = refreshControlsHtml + barsHtml;
+    chartContainer.innerHTML = contentHtml;
     
-    console.log('知识点掌握情况显示完成，共', displayData.length, '个知识点');
+    console.log('紧凑型知识点掌握度显示完成，共', displayData.length, '个知识点');
+}
+
+// 调试知识点掌握情况数据
+async function debugKnowledgeMasteryData() {
+    const courseSelect = document.getElementById('dashboard-course-select');
+    const selectedCourseId = courseSelect ? courseSelect.value : null;
+    
+    if (!selectedCourseId) {
+        showNotification('请先选择一个课程', 'warning');
+        return;
+    }
+    
+    showLoading('正在诊断权限和数据问题...');
+    
+    try {
+        // 首先进行权限诊断
+        console.log('========== 权限诊断开始 ==========');
+        
+        // 1. 检查用户登录状态
+        console.log('1. 检查用户登录状态...');
+        const authResponse = await fetch('/api/auth/check', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!authResponse.ok) {
+            console.error('❌ 用户认证请求失败:', authResponse.status);
+            showKnowledgeMasteryDiagnostic('用户认证失败，请重新登录。');
+            hideLoading();
+            return;
+        }
+        
+        const authResult = await authResponse.json();
+        console.log('用户认证结果:', authResult);
+        
+        if (!authResult.success) {
+            console.error('❌ 用户未登录:', authResult.message);
+            showKnowledgeMasteryDiagnostic('用户未登录，请重新登录后再试。');
+            hideLoading();
+            return;
+        }
+        
+        const currentUser = authResult.data;
+        console.log('✅ 用户已登录:', currentUser.username, '角色:', currentUser.role);
+        
+        // 2. 检查用户角色权限
+        console.log('2. 检查用户角色权限...');
+        if (currentUser.role !== 'teacher') {
+            console.error('❌ 用户角色不是教师:', currentUser.role);
+            showKnowledgeMasteryDiagnostic(`当前用户角色是 "${currentUser.role}"，只有教师才能查看知识点掌握情况。`);
+            hideLoading();
+            return;
+        }
+        console.log('✅ 用户角色验证通过: teacher');
+        
+        // 3. 检查教师信息
+        console.log('3. 检查教师信息...');
+        const teacherCoursesResponse = await fetch('/api/teacher/courses', {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!teacherCoursesResponse.ok) {
+            console.error('❌ 获取教师课程失败:', teacherCoursesResponse.status);
+            showKnowledgeMasteryDiagnostic('无法获取教师课程信息，可能教师档案不完整。');
+            hideLoading();
+            return;
+        }
+        
+        const teacherCoursesResult = await teacherCoursesResponse.json();
+        console.log('教师课程结果:', teacherCoursesResult);
+        
+        if (!teacherCoursesResult.success) {
+            console.error('❌ 教师课程信息获取失败:', teacherCoursesResult.message);
+            showKnowledgeMasteryDiagnostic('教师信息验证失败：' + teacherCoursesResult.message);
+            hideLoading();
+            return;
+        }
+        
+        const teacherCourses = teacherCoursesResult.data || [];
+        console.log('✅ 教师课程列表:', teacherCourses);
+        console.log('课程数量:', teacherCourses.length);
+        
+        // 4. 检查课程权限
+        console.log('4. 检查课程权限...');
+        const selectedCourse = teacherCourses.find(course => course.id.toString() === selectedCourseId.toString());
+        
+        if (!selectedCourse) {
+            console.error('❌ 教师没有权限访问课程:', selectedCourseId);
+            console.log('教师有权限的课程ID列表:', teacherCourses.map(c => c.id));
+            showKnowledgeMasteryDiagnostic('您没有权限访问所选课程。请确认课程选择是否正确，或联系管理员检查课程分配。');
+            hideLoading();
+            return;
+        }
+        
+        console.log('✅ 课程权限验证通过:', selectedCourse.courseName);
+        
+        // 5. 直接测试知识点掌握情况API
+        console.log('5. 测试知识点掌握情况API...');
+        const masteryResponse = await fetch(`/api/teacher/knowledge-mastery/${selectedCourseId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        console.log('知识点掌握API响应状态:', masteryResponse.status);
+        
+        if (!masteryResponse.ok) {
+            console.error('❌ 知识点掌握API调用失败:', masteryResponse.status);
+            
+            // 尝试获取错误详情
+            try {
+                const errorText = await masteryResponse.text();
+                console.error('API错误详情:', errorText);
+                showKnowledgeMasteryDiagnostic(`API调用失败（状态码：${masteryResponse.status}）：${errorText}`);
+            } catch (e) {
+                showKnowledgeMasteryDiagnostic(`API调用失败，状态码：${masteryResponse.status}`);
+            }
+            hideLoading();
+            return;
+        }
+        
+        const masteryResult = await masteryResponse.json();
+        console.log('知识点掌握API结果:', masteryResult);
+        
+        if (!masteryResult.success) {
+            console.error('❌ 知识点掌握API返回错误:', masteryResult.message);
+            showKnowledgeMasteryDiagnostic('知识点掌握情况获取失败：' + masteryResult.message);
+            hideLoading();
+            return;
+        }
+        
+        console.log('✅ 知识点掌握API调用成功');
+        console.log('返回数据长度:', masteryResult.data ? masteryResult.data.length : 'null');
+        
+        if (!masteryResult.data || masteryResult.data.length === 0) {
+            console.log('⚠️ 权限验证通过，但知识点掌握数据为空');
+            console.log('开始检查数据问题...');
+            console.log('================================');
+            
+            // 继续数据检查流程
+            await continueDataDiagnosis(selectedCourseId);
+        } else {
+            console.log('✅ 权限和数据都正常');
+            showKnowledgeMasteryDiagnostic('权限验证通过，数据获取成功！正在刷新显示...');
+            
+            // 重新显示数据
+            displayKnowledgeMastery(masteryResult.data);
+        }
+        
+        console.log('========== 权限诊断完成 ==========');
+        hideLoading();
+        
+    } catch (error) {
+        console.error('权限诊断过程中出现错误:', error);
+        showKnowledgeMasteryDiagnostic('权限诊断失败：' + error.message);
+        hideLoading();
+    }
+}
+
+// 继续数据诊断（权限通过后的数据检查）
+async function continueDataDiagnosis(selectedCourseId) {
+    try {
+        // 显示诊断加载状态
+        const chartContainer = document.querySelector('.knowledge-mastery-card .chart-bars');
+        if (chartContainer) {
+            chartContainer.innerHTML = `
+                <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px; color: #3498db;"></i>
+                    <p>权限验证通过，正在检查数据问题...</p>
+                    <p style="font-size: 12px;">检查课程考试、题目设置、学生答题情况等</p>
+                </div>
+            `;
+        }
+        
+        // 强制重新加载知识点掌握情况（非静默模式，会触发调试）
+        await loadKnowledgeMastery(selectedCourseId, false);
+        
+    } catch (error) {
+        console.error('调试知识点掌握情况失败:', error);
+        showNotification('调试过程中出现错误: ' + error.message, 'error');
+        
+        // 恢复空状态显示
+        displayKnowledgeMastery([]);
+    } finally {
+        hideLoading();
+    }
 }
 
 // 手动刷新知识点掌握情况
@@ -7411,7 +7929,7 @@ function displayExamList(examList) {
                         </button>` :
                         `<button class="btn btn-sm btn-success" onclick="showPublishExamWithModal(${exam.id})" 
                                 title="发布" ${isReadonly ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
-                            <i class="fas fa-paper-plane"></i>
+                        <i class="fas fa-paper-plane"></i>
                         </button>`
                     }
                     <button class="btn btn-sm btn-danger" onclick="deleteExam(${exam.id})" 
