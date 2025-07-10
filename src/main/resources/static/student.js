@@ -3676,7 +3676,7 @@ async function updateRecentCoursesTable(courses) {
     if (courses.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="5" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <td colspan="4" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
                     <i class="fas fa-book-open" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
                     <p>暂无学习记录</p>
                     <p>加入课程后这里会显示您的学习进度</p>
@@ -3695,20 +3695,15 @@ async function updateRecentCoursesTable(courses) {
                 const examResult = await examResponse.json();
                 const examCount = examResult.success ? examResult.data.length : 0;
                 
-                // 获取学生在该课程的薄弱知识点
-                const weakKnowledge = await analyzeWeakKnowledge(course.id, course.name);
-                
                 return {
                     ...course,
-                    examCount,
-                    weakKnowledge
+                    examCount
                 };
             } catch (error) {
                 console.error(`获取课程 ${course.id} 详细信息失败:`, error);
                 return {
                     ...course,
-                    examCount: 0,
-                    weakKnowledge: '数据获取中...'
+                    examCount: 0
                 };
             }
         }));
@@ -3752,13 +3747,6 @@ async function updateRecentCoursesTable(courses) {
                         </div>
                     </td>
                     <td>
-                        <div style="max-width: 150px;">
-                            <span class="weak-knowledge-badge" style="padding: 4px 8px; border-radius: 12px; font-size: 11px; background: rgba(231, 76, 60, 0.1); color: var(--danger-color); display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${course.weakKnowledge}">
-                                ${course.weakKnowledge}
-                            </span>
-                        </div>
-                    </td>
-                    <td>
                         <button class="btn btn-sm btn-primary" onclick="enterCourse('${course.id}')" style="padding: 4px 12px; font-size: 12px;">
                             <i class="fas fa-play"></i> 开始学习
                         </button>
@@ -3769,50 +3757,7 @@ async function updateRecentCoursesTable(courses) {
     }
 }
 
-// 分析学生在课程中的薄弱知识点
-async function analyzeWeakKnowledge(courseId, courseName) {
-    try {
-        if (!currentUser || !currentUser.userId) {
-            return '暂无数据';
-        }
-        
-        // 调用薄弱知识点分析API
-        const weakKnowledgeResponse = await fetch(`/api/student/courses/${courseId}/weak-knowledge?userId=${currentUser.userId}`, {
-            method: 'GET',
-            credentials: 'include'
-        });
-        
-        if (!weakKnowledgeResponse.ok) {
-            console.error('薄弱知识点API调用失败，状态码:', weakKnowledgeResponse.status);
-            return '数据获取失败';
-        }
-        
-        const weakKnowledgeResult = await weakKnowledgeResponse.json();
-        
-        if (!weakKnowledgeResult.success) {
-            console.error('薄弱知识点分析失败:', weakKnowledgeResult.message);
-            return weakKnowledgeResult.message || '分析失败';
-        }
-        
-        if (!weakKnowledgeResult.data || weakKnowledgeResult.data.length === 0) {
-            return '暂无数据';
-        }
-        
-        // 返回薄弱知识点（显示前2个，用逗号分隔）
-        const weakKnowledgePoints = weakKnowledgeResult.data;
-        
-        if (weakKnowledgePoints.length === 1) {
-            return weakKnowledgePoints[0];
-        } else {
-            // 最多显示前2个知识点
-            return weakKnowledgePoints.slice(0, 2).join(', ');
-        }
-        
-    } catch (error) {
-        console.error('分析薄弱知识点失败:', error);
-        return '分析中...';
-    }
-}
+
 
 // ==================== 在线学习助手功能 ====================
 

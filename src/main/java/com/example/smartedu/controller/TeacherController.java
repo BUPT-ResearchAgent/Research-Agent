@@ -980,33 +980,90 @@ public class TeacherController {
             }
             stats.put("pendingGradeCount", pendingGradeCount);
             
-            // 计算平均正确率
+            // 直接查询数据库获取所有考试成绩来计算平均分
             double averageScore = 0.0;
             try {
-                int totalGradedExams = 0;
-                double totalScore = 0.0;
+                System.out.println("========== 直接查询数据库计算总体平均分 ==========");
+                System.out.println("教师课程数量: " + courseIds.size());
                 
-                if (!courseIds.isEmpty()) {
-                    for (Long courseId : courseIds) {
-                        List<Exam> exams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
-                        for (Exam exam : exams) {
-                            List<ExamResult> results = examResultRepository.findByExamAndGradeStatus(exam, "GRADED");
-                            for (ExamResult result : results) {
-                                if (result.getFinalScore() != null && result.getTotalScore() != null && result.getTotalScore() > 0) {
-                                    totalScore += (result.getFinalScore() / result.getTotalScore()) * 100;
-                                    totalGradedExams++;
+                List<Double> allScores = new ArrayList<>();
+                
+                // 直接查询所有考试结果
+                for (Long courseId : courseIds) {
+                    System.out.println("查询课程 " + courseId + " 的所有考试结果...");
+                    
+                    // 获取该课程的所有考试
+                    List<Exam> courseExams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+                    System.out.println("  课程考试数量: " + courseExams.size());
+                    
+                    for (Exam exam : courseExams) {
+                        System.out.println("  考试: " + exam.getTitle() + " (ID: " + exam.getId() + ")");
+                        
+                        // 查询该考试的所有结果
+                        List<ExamResult> allExamResults = examResultRepository.findByExam(exam);
+                        System.out.println("    总考试结果数: " + allExamResults.size());
+                        
+                        for (ExamResult result : allExamResults) {
+                            System.out.println("      结果ID: " + result.getId() + 
+                                             ", 学生ID: " + result.getStudentId() + 
+                                             ", 提交时间: " + result.getSubmitTime() + 
+                                             ", finalScore: " + result.getFinalScore() + 
+                                             ", score: " + result.getScore() + 
+                                             ", 状态: " + result.getGradeStatus());
+                            
+                            // 如果有提交时间，就提取分数
+                            if (result.getSubmitTime() != null) {
+                                Double scoreToUse = null;
+                                
+                                // 优先使用 finalScore
+                                if (result.getFinalScore() != null) {
+                                    scoreToUse = result.getFinalScore();
+                                    System.out.println("        使用 finalScore: " + scoreToUse);
+                                } else if (result.getScore() != null) {
+                                    scoreToUse = result.getScore().doubleValue();
+                                    System.out.println("        使用 score: " + scoreToUse);
+                                }
+                                
+                                if (scoreToUse != null) {
+                                    allScores.add(scoreToUse);
+                                    System.out.println("        添加分数: " + scoreToUse + ", 当前总数: " + allScores.size());
                                 }
                             }
                         }
                     }
                 }
                 
-                if (totalGradedExams > 0) {
-                    averageScore = totalScore / totalGradedExams;
+                System.out.println("所有收集到的分数: " + allScores);
+                System.out.println("总分数个数: " + allScores.size());
+                
+                // 计算平均分
+                if (!allScores.isEmpty()) {
+                    averageScore = allScores.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                    System.out.println("计算得到的平均分: " + averageScore);
+                } else {
+                    System.out.println("没有找到任何分数数据！");
+                    
+                    // 额外调试：直接查询数据库看看是否有数据
+                    System.out.println("=== 额外调试信息 ===");
+                    List<ExamResult> allResults = examResultRepository.findAll();
+                    System.out.println("数据库中总的ExamResult记录数: " + allResults.size());
+                    
+                    for (int i = 0; i < Math.min(5, allResults.size()); i++) {
+                        ExamResult r = allResults.get(i);
+                        System.out.println("  记录" + (i+1) + ": ID=" + r.getId() + 
+                                         ", 考试ID=" + r.getExam().getId() + 
+                                         ", 学生ID=" + r.getStudentId() + 
+                                         ", finalScore=" + r.getFinalScore() + 
+                                         ", score=" + r.getScore() + 
+                                         ", 提交时间=" + r.getSubmitTime());
+                    }
                 }
-                System.out.println("平均正确率: " + averageScore + "%");
+                
+                System.out.println("最终平均分: " + String.format("%.2f", averageScore));
+                System.out.println("=============================================");
             } catch (Exception e) {
-                System.out.println("计算平均正确率失败: " + e.getMessage());
+                System.out.println("计算平均分失败: " + e.getMessage());
+                e.printStackTrace();
                 averageScore = 0.0;
             }
             stats.put("averageScore", averageScore);

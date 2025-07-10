@@ -491,11 +491,11 @@ function updateStatsCards(stats) {
         studentsElement.textContent = stats.totalStudents ? stats.totalStudents.toLocaleString() : '0';
     }
     
-    // 更新平均正确率
+    // 更新平均分
     const avgScoreElement = document.querySelector('.stat-card:nth-child(2) .stat-value');
     if (avgScoreElement) {
         const avgScore = stats.averageScore || 0;
-        avgScoreElement.textContent = avgScore.toFixed(1) + '%';
+        avgScoreElement.textContent = avgScore.toFixed(1);
     }
     
     // 更新待批改试卷数量
