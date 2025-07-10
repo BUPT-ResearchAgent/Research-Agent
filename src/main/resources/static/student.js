@@ -3594,56 +3594,70 @@ async function updateDashboardStats() {
             return;
         }
 
-        // 获取我的课程数据
-        const response = await fetch(`/api/student/my-courses?userId=${currentUser.userId}`, {
+        // 获取控制面板统计数据
+        const statsResponse = await fetch(`/api/student/dashboard/stats?userId=${currentUser.userId}`, {
             method: 'GET',
             credentials: 'include'
         });
         
-        const result = await response.json();
+        const statsResult = await statsResponse.json();
         
-        if (result.success) {
-            const myCourses = result.data || [];
+        if (statsResult.success) {
+            const stats = statsResult.data;
             
-            // 更新已选课程数量
+            // 更新已选课程数量（保持不变）
             const courseCountElement = document.querySelector('.stat-card:nth-child(1) .stat-value');
             if (courseCountElement) {
-                courseCountElement.textContent = myCourses.length;
+                courseCountElement.textContent = stats.myCourses || 0;
             }
             
-            // 计算平均学习进度（这里暂时设为0，后续可以根据实际需求计算）
-            const progressElement = document.querySelector('.stat-card:nth-child(2) .stat-value');
-            if (progressElement) {
-                progressElement.textContent = '0%';
+            // 更新总考试数（学习进度改为总考试数）
+            const examCountElement = document.querySelector('.stat-card:nth-child(2) .stat-value');
+            if (examCountElement) {
+                examCountElement.textContent = stats.examCount || 0;
             }
             
-            // 待完成作业数量（暂时设为0，后续可以根据实际需求计算）
-            const homeworkElement = document.querySelector('.stat-card:nth-child(3) .stat-value');
-            if (homeworkElement) {
-                homeworkElement.textContent = '0';
+            // 更新待参加考试数量（待完成作业改为待参加考试）
+            const pendingExamElement = document.querySelector('.stat-card:nth-child(3) .stat-value');
+            if (pendingExamElement) {
+                pendingExamElement.textContent = stats.pendingExams || 0;
             }
             
-            // 平均成绩（暂时设为--，后续可以根据实际需求计算）
+            // 更新平均成绩（实现平均成绩统计）
             const gradeElement = document.querySelector('.stat-card:nth-child(4) .stat-value');
             if (gradeElement) {
-                gradeElement.textContent = '--';
+                if (stats.averageScore !== null && stats.averageScore !== undefined && stats.averageScore > 0) {
+                    gradeElement.textContent = Math.round(stats.averageScore * 10) / 10 + '分';
+                } else {
+                    gradeElement.textContent = '暂无成绩';
+                }
             }
+            
+        } else {
+            console.error('获取统计数据失败:', statsResult.message);
+            showNotification('获取统计数据失败，显示默认内容', 'warning');
+        }
+
+        // 获取我的课程数据用于更新表格
+        const coursesResponse = await fetch(`/api/student/my-courses?userId=${currentUser.userId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const coursesResult = await coursesResponse.json();
+        
+        if (coursesResult.success) {
+            const myCourses = coursesResult.data || [];
             
             // 更新最近学习表格
             updateRecentCoursesTable(myCourses);
-            
-            // 更新最新通知显示
-            await updateDashboardRecentNotices();
-            
-            // 加载各科成绩分析
-            await loadGradeAnalysis();
-            
-        } else {
-            console.error('获取课程数据失败:', result.message);
-            showNotification('获取课程数据失败，显示默认内容', 'warning');
-            // 确保即使API失败也显示默认内容
-            showDefaultDashboardContent();
         }
+        
+        // 更新最新通知显示
+        await updateDashboardRecentNotices();
+        
+        // 加载各科成绩分析
+        await loadGradeAnalysis();
         
     } catch (error) {
         console.error('更新控制面板数据失败:', error);
