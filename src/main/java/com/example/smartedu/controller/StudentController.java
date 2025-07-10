@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Optional;
 import java.util.ArrayList;
+import java.util.AbstractMap;
 
 @RestController
 @RequestMapping("/api/student")
@@ -2213,6 +2214,118 @@ public class StudentController {
             e.printStackTrace();
             System.out.println("获取成绩分析失败: " + e.getMessage());
             return ApiResponse.error("获取成绩分析失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 分析学生在特定课程中的薄弱知识点
+     */
+    @GetMapping("/courses/{courseId}/weak-knowledge")
+    public ApiResponse<List<String>> analyzeWeakKnowledge(@PathVariable Long courseId, @RequestParam Long userId) {
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            Student student = studentOpt.get();
+            
+            // 获取该课程的所有考试
+            List<Exam> courseExams = examRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+            if (courseExams.isEmpty()) {
+                return ApiResponse.success("分析薄弱知识点成功", List.of("暂无考试数据"));
+            }
+            
+            // 统计各知识点的错误情况
+            Map<String, Integer> totalQuestions = new HashMap<>();  // 知识点总题数
+            Map<String, Integer> wrongAnswers = new HashMap<>();    // 知识点错题数
+            
+            for (Exam exam : courseExams) {
+                // 获取学生的考试结果
+                Optional<ExamResult> examResultOpt = examResultRepository.findByStudentAndExam(student, exam);
+                if (!examResultOpt.isPresent() || examResultOpt.get().getSubmitTime() == null) {
+                    continue; // 跳过未参加或未提交的考试
+                }
+                
+                // 获取考试的所有题目
+                List<Question> questions = questionRepository.findByExamId(exam.getId());
+                
+                // 获取学生的答题记录
+                List<StudentAnswer> studentAnswers = studentAnswerRepository.findByStudentIdAndExamId(student.getId(), exam.getId());
+                Map<Long, StudentAnswer> answerMap = studentAnswers.stream()
+                    .collect(java.util.stream.Collectors.toMap(StudentAnswer::getQuestionId, answer -> answer));
+                
+                // 分析每道题目
+                for (Question question : questions) {
+                    String knowledgePoint = question.getKnowledgePoint();
+                    if (knowledgePoint == null || knowledgePoint.trim().isEmpty()) {
+                        knowledgePoint = "未分类";
+                    }
+                    
+                    // 统计总题数
+                    totalQuestions.put(knowledgePoint, totalQuestions.getOrDefault(knowledgePoint, 0) + 1);
+                    
+                    // 检查是否答错
+                    StudentAnswer studentAnswer = answerMap.get(question.getId());
+                    if (studentAnswer != null) {
+                        boolean isCorrect = checkAnswer(question, studentAnswer.getAnswer());
+                        if (!isCorrect) {
+                            wrongAnswers.put(knowledgePoint, wrongAnswers.getOrDefault(knowledgePoint, 0) + 1);
+                        }
+                    } else {
+                        // 没有答题记录视为答错
+                        wrongAnswers.put(knowledgePoint, wrongAnswers.getOrDefault(knowledgePoint, 0) + 1);
+                    }
+                }
+            }
+            
+            if (totalQuestions.isEmpty()) {
+                return ApiResponse.success("分析薄弱知识点成功", List.of("暂无答题数据"));
+            }
+            
+            // 计算错误率并排序
+            List<Map.Entry<String, Double>> errorRates = new ArrayList<>();
+            for (Map.Entry<String, Integer> entry : totalQuestions.entrySet()) {
+                String knowledgePoint = entry.getKey();
+                int total = entry.getValue();
+                int wrong = wrongAnswers.getOrDefault(knowledgePoint, 0);
+                double errorRate = (double) wrong / total;
+                
+                // 只考虑错误率大于0且总题数大于等于2的知识点
+                if (errorRate > 0 && total >= 2) {
+                    errorRates.add(new AbstractMap.SimpleEntry<>(knowledgePoint, errorRate));
+                }
+            }
+            
+            // 按错误率降序排序
+            errorRates.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+            
+            // 返回最薄弱的1-2个知识点
+            List<String> weakKnowledgePoints = new ArrayList<>();
+            if (errorRates.isEmpty()) {
+                weakKnowledgePoints.add("学习良好");
+            } else {
+                // 取前2个最薄弱的知识点
+                for (int i = 0; i < Math.min(2, errorRates.size()); i++) {
+                    Map.Entry<String, Double> entry = errorRates.get(i);
+                    String knowledgePoint = entry.getKey();
+                    double errorRate = entry.getValue();
+                    
+                    if (errorRate >= 0.7) {
+                        weakKnowledgePoints.add("薄弱: " + knowledgePoint);
+                    } else if (errorRate >= 0.4) {
+                        weakKnowledgePoints.add("需加强: " + knowledgePoint);
+                    } else {
+                        weakKnowledgePoints.add("关注: " + knowledgePoint);
+                    }
+                }
+            }
+            
+            return ApiResponse.success("分析薄弱知识点成功", weakKnowledgePoints);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("分析薄弱知识点失败：" + e.getMessage());
         }
     }
 } 

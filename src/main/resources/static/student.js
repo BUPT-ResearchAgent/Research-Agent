@@ -3626,7 +3626,8 @@ async function updateDashboardStats() {
             // 更新平均成绩（实现平均成绩统计）
             const gradeElement = document.querySelector('.stat-card:nth-child(4) .stat-value');
             if (gradeElement) {
-                if (stats.averageScore !== null && stats.averageScore !== undefined && stats.averageScore > 0) {
+                // 只有当平均成绩大于0且考试次数大于0时才显示分数
+                if (stats.averageScore && stats.averageScore > 0 && stats.examCount > 0) {
                     gradeElement.textContent = Math.round(stats.averageScore * 10) / 10 + '分';
                 } else {
                     gradeElement.textContent = '暂无成绩';
@@ -3686,8 +3687,6 @@ async function updateRecentCoursesTable(courses) {
         // 为每个课程获取详细数据
         const courseDetails = await Promise.all(courses.map(async (course) => {
             try {
-                // 调试：打印课程教师信息
-                console.log(`课程 ${course.name} 的教师信息:`, course.teacher);
                 // 获取课程考试数量
                 const examResponse = await fetch(`/api/student/courses/${course.id}/exams?userId=${currentUser.userId}`, {
                     method: 'GET',
@@ -3777,39 +3776,36 @@ async function analyzeWeakKnowledge(courseId, courseName) {
             return '暂无数据';
         }
         
-        // 获取学生的成绩分析数据
-        const gradeResponse = await fetch(`/api/student/grade-analysis?userId=${currentUser.userId}`, {
+        // 调用薄弱知识点分析API
+        const weakKnowledgeResponse = await fetch(`/api/student/courses/${courseId}/weak-knowledge?userId=${currentUser.userId}`, {
             method: 'GET',
             credentials: 'include'
         });
         
-        if (!gradeResponse.ok) {
+        if (!weakKnowledgeResponse.ok) {
+            console.error('薄弱知识点API调用失败，状态码:', weakKnowledgeResponse.status);
+            return '数据获取失败';
+        }
+        
+        const weakKnowledgeResult = await weakKnowledgeResponse.json();
+        
+        if (!weakKnowledgeResult.success) {
+            console.error('薄弱知识点分析失败:', weakKnowledgeResult.message);
+            return weakKnowledgeResult.message || '分析失败';
+        }
+        
+        if (!weakKnowledgeResult.data || weakKnowledgeResult.data.length === 0) {
             return '暂无数据';
         }
         
-        const gradeResult = await gradeResponse.json();
-        if (!gradeResult.success || !gradeResult.data) {
-            return '暂无数据';
-        }
+        // 返回薄弱知识点（显示前2个，用逗号分隔）
+        const weakKnowledgePoints = weakKnowledgeResult.data;
         
-        // 查找当前课程的成绩数据
-        const courseGradeData = gradeResult.data.find(course => course.courseName === courseName);
-        
-        if (!courseGradeData || !courseGradeData.examDetails || courseGradeData.examDetails.length === 0) {
-            return '暂无考试数据';
-        }
-        
-        // 分析薄弱知识点：找出最低分的考试
-        const lowestScoreExam = courseGradeData.examDetails.reduce((lowest, current) => {
-            return (current.score < lowest.score) ? current : lowest;
-        });
-        
-        if (lowestScoreExam.score >= 80) {
-            return '学习良好';
-        } else if (lowestScoreExam.score >= 60) {
-            return `需加强: ${lowestScoreExam.examTitle}相关内容`;
+        if (weakKnowledgePoints.length === 1) {
+            return weakKnowledgePoints[0];
         } else {
-            return `薄弱: ${lowestScoreExam.examTitle}相关知识`;
+            // 最多显示前2个知识点
+            return weakKnowledgePoints.slice(0, 2).join(', ');
         }
         
     } catch (error) {

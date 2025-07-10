@@ -1063,11 +1063,8 @@ tr:hover {
 }
 
 .chart-bars {
-    display: flex;
-    align-items: flex-end;
-    height: 200px;
-    gap: 15px;
-    padding: 0 20px;
+    display: block;
+    padding: 20px;
     width: 100%;
 }
 
