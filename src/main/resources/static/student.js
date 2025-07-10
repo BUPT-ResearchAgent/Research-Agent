@@ -3650,7 +3650,7 @@ async function updateDashboardStats() {
             const myCourses = coursesResult.data || [];
             
             // 更新最近学习表格
-            updateRecentCoursesTable(myCourses);
+            await updateRecentCoursesTable(myCourses);
         }
         
         // 更新最新通知显示
@@ -3668,7 +3668,7 @@ async function updateDashboardStats() {
 }
 
 // 更新最近学习表格
-function updateRecentCoursesTable(courses) {
+async function updateRecentCoursesTable(courses) {
     const tableBody = document.querySelector('.recent-courses-card tbody');
     if (!tableBody) return;
     
@@ -3683,38 +3683,138 @@ function updateRecentCoursesTable(courses) {
             </tr>
         `;
     } else {
-        tableBody.innerHTML = courses.map(course => `
-            <tr>
-                <td>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div class="course-avatar" style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary-color), var(--accent-color)); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                            ${course.name ? course.name.charAt(0) : 'C'}
+        // 为每个课程获取详细数据
+        const courseDetails = await Promise.all(courses.map(async (course) => {
+            try {
+                // 调试：打印课程教师信息
+                console.log(`课程 ${course.name} 的教师信息:`, course.teacher);
+                // 获取课程考试数量
+                const examResponse = await fetch(`/api/student/courses/${course.id}/exams?userId=${currentUser.userId}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const examResult = await examResponse.json();
+                const examCount = examResult.success ? examResult.data.length : 0;
+                
+                // 获取学生在该课程的薄弱知识点
+                const weakKnowledge = await analyzeWeakKnowledge(course.id, course.name);
+                
+                return {
+                    ...course,
+                    examCount,
+                    weakKnowledge
+                };
+            } catch (error) {
+                console.error(`获取课程 ${course.id} 详细信息失败:`, error);
+                return {
+                    ...course,
+                    examCount: 0,
+                    weakKnowledge: '数据获取中...'
+                };
+            }
+        }));
+        
+        tableBody.innerHTML = courseDetails.map(course => {
+            // 处理教师信息
+            const teacherName = course.teacher && course.teacher.realName ? course.teacher.realName : '未指定';
+            const teacherInfo = course.teacher && course.teacher.title ? course.teacher.title : 
+                               (course.teacher && course.teacher.department ? course.teacher.department : '教师');
+            
+            return `
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div class="course-avatar" style="width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary-color), var(--accent-color)); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                                ${course.name ? course.name.charAt(0) : 'C'}
+                            </div>
+                            <div>
+                                <div style="font-weight: 500; color: var(--secondary-color);">${course.name || '未命名课程'}</div>
+                                <div style="font-size: 12px; color: #7f8c8d;">${course.courseCode || 'N/A'}</div>
+                            </div>
                         </div>
-                        <div>
-                            <div style="font-weight: 500; color: var(--secondary-color);">${course.name || '未命名课程'}</div>
-                            <div style="font-size: 12px; color: #7f8c8d;">${course.courseCode || 'N/A'}</div>
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 32px; height: 32px; background: #f8f9fa; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-user-tie" style="color: var(--primary-color); font-size: 14px;"></i>
+                            </div>
+                            <div>
+                                <div style="font-weight: 500; color: var(--secondary-color); font-size: 14px;">${teacherName}</div>
+                                <div style="font-size: 12px; color: #7f8c8d;">${teacherInfo}</div>
+                            </div>
                         </div>
-                    </div>
-                </td>
-                <td>
-                    <div class="progress-bar" style="width: 100%; height: 8px; background: #ecf0f1; border-radius: 4px; overflow: hidden;">
-                        <div class="progress-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary-color), var(--accent-color)); transition: width 0.3s ease;"></div>
-                    </div>
-                    <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">0%</div>
-                </td>
-                <td style="color: #7f8c8d; font-size: 14px;">暂无记录</td>
-                <td>
-                    <span class="status-badge" style="padding: 4px 8px; border-radius: 12px; font-size: 11px; background: #ecf0f1; color: #7f8c8d;">
-                        暂无作业
-                    </span>
-                </td>
-                <td>
-                    <button class="btn btn-sm btn-primary" onclick="enterCourse('${course.id}')" style="padding: 4px 12px; font-size: 12px;">
-                        <i class="fas fa-play"></i> 开始学习
-                    </button>
-                </td>
-            </tr>
-        `).join('');
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="background: rgba(52, 152, 219, 0.1); padding: 6px 12px; border-radius: 16px; font-size: 14px; color: var(--primary-color); font-weight: 500;">
+                                <i class="fas fa-file-alt" style="margin-right: 4px;"></i>
+                                ${course.examCount} 个考试
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="max-width: 150px;">
+                            <span class="weak-knowledge-badge" style="padding: 4px 8px; border-radius: 12px; font-size: 11px; background: rgba(231, 76, 60, 0.1); color: var(--danger-color); display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${course.weakKnowledge}">
+                                ${course.weakKnowledge}
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="enterCourse('${course.id}')" style="padding: 4px 12px; font-size: 12px;">
+                            <i class="fas fa-play"></i> 开始学习
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+}
+
+// 分析学生在课程中的薄弱知识点
+async function analyzeWeakKnowledge(courseId, courseName) {
+    try {
+        if (!currentUser || !currentUser.userId) {
+            return '暂无数据';
+        }
+        
+        // 获取学生的成绩分析数据
+        const gradeResponse = await fetch(`/api/student/grade-analysis?userId=${currentUser.userId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!gradeResponse.ok) {
+            return '暂无数据';
+        }
+        
+        const gradeResult = await gradeResponse.json();
+        if (!gradeResult.success || !gradeResult.data) {
+            return '暂无数据';
+        }
+        
+        // 查找当前课程的成绩数据
+        const courseGradeData = gradeResult.data.find(course => course.courseName === courseName);
+        
+        if (!courseGradeData || !courseGradeData.examDetails || courseGradeData.examDetails.length === 0) {
+            return '暂无考试数据';
+        }
+        
+        // 分析薄弱知识点：找出最低分的考试
+        const lowestScoreExam = courseGradeData.examDetails.reduce((lowest, current) => {
+            return (current.score < lowest.score) ? current : lowest;
+        });
+        
+        if (lowestScoreExam.score >= 80) {
+            return '学习良好';
+        } else if (lowestScoreExam.score >= 60) {
+            return `需加强: ${lowestScoreExam.examTitle}相关内容`;
+        } else {
+            return `薄弱: ${lowestScoreExam.examTitle}相关知识`;
+        }
+        
+    } catch (error) {
+        console.error('分析薄弱知识点失败:', error);
+        return '分析中...';
     }
 }
 
