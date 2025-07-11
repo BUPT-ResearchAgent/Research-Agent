@@ -10,6 +10,7 @@ import com.example.smartedu.service.CourseCodeService;
 import com.example.smartedu.service.CourseService;
 import com.example.smartedu.service.DeepSeekService;
 import com.example.smartedu.service.CapabilityAnalysisService;
+import com.example.smartedu.service.AIDetectionService;
 import com.example.smartedu.entity.CapabilityDimension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -33,11 +34,7 @@ import java.text.SimpleDateFormat;
 
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -83,6 +80,9 @@ public class TeacherController {
     
     @Autowired
     private CapabilityAnalysisService capabilityAnalysisService;
+    
+    @Autowired
+    private AIDetectionService aiDetectionService;
     
     /**
      * 获取教师课程列表
@@ -2604,6 +2604,210 @@ public class TeacherController {
     }
 
     /**
+     * 大作业AI检测和建议评分
+     */
+    @PostMapping("/assignment/ai-detect-and-grade")
+    public ApiResponse<Map<String, Object>> detectAndGradeAssignment(@RequestBody Map<String, Object> request,
+                                                                   jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            Long studentAnswerId = Long.valueOf(request.get("studentAnswerId").toString());
+            
+            // 获取学生答案
+            Optional<StudentAnswer> studentAnswerOpt = studentAnswerRepository.findById(studentAnswerId);
+            if (!studentAnswerOpt.isPresent()) {
+                return ApiResponse.error("学生答案不存在");
+            }
+            StudentAnswer studentAnswer = studentAnswerOpt.get();
+            
+            // 验证权限 - 检查是否是该教师的考试
+            Exam exam = studentAnswer.getExamResult().getExam();
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent() || !exam.getCourse().getTeacher().getId().equals(teacherOpt.get().getId())) {
+                return ApiResponse.error("权限不足，无法批改此作业");
+            }
+            
+            // 检查是否为大作业
+            Question question = studentAnswer.getQuestion();
+            if (!"assignment".equals(question.getType()) && !question.getType().contains("大作业")) {
+                return ApiResponse.error("此题目不是大作业题型");
+            }
+            
+            // 检查是否上传了文档
+            if (studentAnswer.getFileContent() == null || studentAnswer.getFileContent().trim().isEmpty()) {
+                return ApiResponse.error("学生未上传作业文档");
+            }
+            
+            System.out.println("=== 开始大作业AI检测和评分 ===");
+            System.out.println("学生答案ID: " + studentAnswerId);
+            System.out.println("文件名: " + studentAnswer.getFileName());
+            System.out.println("文件大小: " + studentAnswer.getFileSize() + " bytes");
+            
+            // 解码文件内容
+            String fileContent;
+            try {
+                byte[] decodedBytes = Base64.getDecoder().decode(studentAnswer.getFileContent());
+                fileContent = new String(decodedBytes, "UTF-8");
+                
+                // 如果是PDF或Word文档，内容可能无法直接读取，使用文件名和基本信息
+                if (studentAnswer.getFileName().toLowerCase().endsWith(".pdf") || 
+                    studentAnswer.getFileName().toLowerCase().endsWith(".doc") || 
+                    studentAnswer.getFileName().toLowerCase().endsWith(".docx")) {
+                    fileContent = "文档类型: " + getFileExtension(studentAnswer.getFileName()) + 
+                                 "\n文件名: " + studentAnswer.getFileName() + 
+                                 "\n文件大小: " + studentAnswer.getFileSize() + " bytes" +
+                                 "\n上传时间: " + studentAnswer.getUploadTime() +
+                                 "\n\n注意：此为二进制文档文件，内容无法直接提取文本进行AI检测。建议教师手动查看文档内容进行评分。";
+                }
+            } catch (Exception e) {
+                System.err.println("解码文件内容失败: " + e.getMessage());
+                fileContent = "文件内容解析失败，文件名: " + studentAnswer.getFileName();
+            }
+            
+            // 构建检测上下文，包含教师设置的作业要求
+            String assignmentRequirement = question.getAssignmentRequirement();
+            String context = String.format("大作业文档检测\n课程: %s\n题目: %s\n学生: %s\n文件: %s%s", 
+                                          exam.getCourse().getName(),
+                                          question.getContent(),
+                                          studentAnswer.getStudent().getRealName(),
+                                          studentAnswer.getFileName(),
+                                          assignmentRequirement != null && !assignmentRequirement.trim().isEmpty() ? 
+                                              "\n\n作业具体要求：\n" + assignmentRequirement : 
+                                              "\n\n注意：教师尚未设置具体的作业要求");
+            
+            // 调用AI检测服务
+            AIDetectionService.AIDetectionResult detectionResult = aiDetectionService.detectAIUsage(fileContent, context);
+            
+            // 根据AI检测结果计算建议分数
+            int maxScore = question.getScore() != null ? question.getScore() : 50;
+            int suggestedScore = calculateSuggestedScore(detectionResult, maxScore);
+            
+            // 构建返回结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("aiDetectionResult", buildDetectionResultMap(detectionResult));
+            result.put("suggestedScore", suggestedScore);
+            result.put("maxScore", maxScore);
+            result.put("fileName", studentAnswer.getFileName());
+            result.put("fileSize", studentAnswer.getFileSize());
+            result.put("uploadTime", studentAnswer.getUploadTime());
+            result.put("riskLevel", detectionResult.getOverallAssessment().getRiskLevel());
+            result.put("aiProbability", detectionResult.getOverallAssessment().getAiProbabilityScore());
+            
+            System.out.println("AI检测完成 - 风险等级: " + detectionResult.getOverallAssessment().getRiskLevel() + 
+                             ", 建议得分: " + suggestedScore + "/" + maxScore);
+            
+            return ApiResponse.success("AI检测和评分建议完成", result);
+            
+        } catch (Exception e) {
+            System.err.println("大作业AI检测失败: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.error("AI检测失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 构建AI检测结果映射
+     */
+    private Map<String, Object> buildDetectionResultMap(AIDetectionService.AIDetectionResult detectionResult) {
+        Map<String, Object> resultMap = new HashMap<>();
+        
+        // 基本分析信息
+        if (detectionResult.getBasicAnalysis() != null) {
+            Map<String, Object> basicAnalysis = new HashMap<>();
+            basicAnalysis.put("totalCharacters", detectionResult.getBasicAnalysis().getTotalCharacters());
+            basicAnalysis.put("totalWords", detectionResult.getBasicAnalysis().getTotalWords());
+            basicAnalysis.put("averageSentenceLength", detectionResult.getBasicAnalysis().getAverageSentenceLength());
+            basicAnalysis.put("vocabularyComplexity", detectionResult.getBasicAnalysis().getVocabularyComplexity());
+            resultMap.put("basicAnalysis", basicAnalysis);
+        }
+        
+        // 检测到的问题
+        List<Map<String, Object>> issues = new ArrayList<>();
+        if (detectionResult.getDetectedIssues() != null) {
+            for (AIDetectionService.AIDetectionIssue issue : detectionResult.getDetectedIssues()) {
+                Map<String, Object> issueMap = new HashMap<>();
+                issueMap.put("type", issue.getIssueType());
+                issueMap.put("description", issue.getDescription());
+                issueMap.put("confidence", issue.getConfidenceLevel());
+                issueMap.put("details", issue.getDetails());
+                issues.add(issueMap);
+            }
+        }
+        resultMap.put("detectedIssues", issues);
+        
+        // 总体评估
+        if (detectionResult.getOverallAssessment() != null) {
+            Map<String, Object> assessment = new HashMap<>();
+            assessment.put("aiProbabilityScore", detectionResult.getOverallAssessment().getAiProbabilityScore());
+            assessment.put("riskLevel", detectionResult.getOverallAssessment().getRiskLevel());
+            assessment.put("mainFindings", detectionResult.getOverallAssessment().getMainFindings());
+            assessment.put("recommendations", detectionResult.getOverallAssessment().getRecommendations());
+            assessment.put("summary", detectionResult.getOverallAssessment().getSummary());
+            resultMap.put("overallAssessment", assessment);
+        }
+        
+        // 详细分析报告
+        resultMap.put("detailedReport", detectionResult.getDetailedReport());
+        
+        return resultMap;
+    }
+    
+    /**
+     * 根据AI检测结果计算建议分数
+     */
+    private int calculateSuggestedScore(AIDetectionService.AIDetectionResult detectionResult, int maxScore) {
+        if (detectionResult == null || detectionResult.getOverallAssessment() == null) {
+            return (int) (maxScore * 0.7); // 默认给70%的分数
+        }
+        
+        String riskLevel = detectionResult.getOverallAssessment().getRiskLevel();
+        double aiProbability = detectionResult.getOverallAssessment().getAiProbabilityScore();
+        
+        double scoreRatio;
+        
+        switch (riskLevel.toLowerCase()) {
+            case "high":
+                // 高风险：严重怀疑AI生成，建议分数较低
+                scoreRatio = Math.max(0.2, 0.8 - aiProbability * 0.6);
+                break;
+            case "medium":
+                // 中等风险：部分可能AI生成，适度扣分
+                scoreRatio = Math.max(0.4, 0.9 - aiProbability * 0.4);
+                break;
+            case "low":
+                // 低风险：基本原创，轻微扣分
+                scoreRatio = Math.max(0.6, 1.0 - aiProbability * 0.2);
+                break;
+            case "normal":
+            default:
+                // 正常：原创性良好，基本不扣分
+                scoreRatio = Math.max(0.7, 1.0 - aiProbability * 0.1);
+                break;
+        }
+        
+        return Math.round((float) (maxScore * scoreRatio));
+    }
+    
+    /**
+     * 获取文件扩展名（用于AI检测）
+     */
+    private String getFileExtension(String fileName) {
+        if (fileName == null || !fileName.contains(".")) {
+            return "";
+        }
+        return fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+    }
+
+    /**
      * 应用AI批改分数
      */
     @PostMapping("/grades/apply-ai-score")
@@ -3145,6 +3349,88 @@ public class TeacherController {
                 "success", false,
                 "message", "生成教学改进建议失败：" + e.getMessage()
             ));
+        }
+    }
+    
+    /**
+     * 保存大作业要求
+     */
+    @PostMapping("/assignment/requirement/{questionId}")
+    public ApiResponse<String> saveAssignmentRequirement(@PathVariable Long questionId,
+                                                       @RequestBody Map<String, Object> request,
+                                                       jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 获取题目
+            Optional<Question> questionOpt = questionRepository.findById(questionId);
+            if (!questionOpt.isPresent()) {
+                return ApiResponse.error("题目不存在");
+            }
+            Question question = questionOpt.get();
+            
+            // 验证权限 - 检查是否是该教师的题目
+            Exam exam = question.getExam();
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent() || !exam.getCourse().getTeacher().getId().equals(teacherOpt.get().getId())) {
+                return ApiResponse.error("权限不足，无法修改此题目");
+            }
+            
+            // 验证是否为大作业题型
+            if (!"assignment".equals(question.getType()) && !question.getType().contains("大作业")) {
+                return ApiResponse.error("此题目不是大作业题型");
+            }
+            
+            String requirement = (String) request.get("requirement");
+            Map<String, Object> weights = (Map<String, Object>) request.get("weights");
+            
+            if (requirement == null || requirement.trim().isEmpty()) {
+                return ApiResponse.error("作业要求不能为空");
+            }
+            
+            System.out.println("=== 保存大作业要求 ===");
+            System.out.println("题目ID: " + questionId);
+            System.out.println("作业要求长度: " + requirement.length() + " 字符");
+            System.out.println("评分权重: " + weights);
+            
+            // 保存大作业要求到题目
+            question.setAssignmentRequirement(requirement);
+            
+            // 可以考虑将权重设置保存到其他字段或单独的表中
+            // 这里暂时将权重作为JSON字符串保存到explanation字段的特定部分
+            String currentExplanation = question.getExplanation() != null ? question.getExplanation() : "";
+            try {
+                String weightsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(weights);
+                String newExplanation = currentExplanation.replaceAll("\\*\\*评分权重设置:\\*\\*[\\s\\S]*?(?=\\n\\n|$)", "");
+                newExplanation = newExplanation.trim() + "\n\n**评分权重设置:**\n" + weightsJson;
+                question.setExplanation(newExplanation);
+            } catch (Exception e) {
+                System.err.println("权重JSON序列化失败: " + e.getMessage());
+            }
+            
+            // 更新题目内容，将要求显示在题目中
+            String currentContent = question.getContent();
+            String updatedContent = currentContent.replaceAll("\\[待教师设置具体要求\\]", requirement);
+            question.setContent(updatedContent);
+            
+            questionRepository.save(question);
+            
+            System.out.println("✅ 大作业要求保存成功");
+            
+            return ApiResponse.success("大作业要求保存成功");
+            
+        } catch (Exception e) {
+            System.err.println("保存大作业要求失败: " + e.getMessage());
+            e.printStackTrace();
+            return ApiResponse.error("保存失败：" + e.getMessage());
         }
     }
 

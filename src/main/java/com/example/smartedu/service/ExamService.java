@@ -89,6 +89,7 @@ public class ExamService {
             // 解析题型配置
             Map<String, Object> questionTypesMap = (Map<String, Object>) request.getQuestionTypes();
             List<String> questionTypes = new ArrayList<>();
+            boolean isAssignmentMode = false;
             
             if (questionTypesMap != null) {
                 for (Map.Entry<String, Object> entry : questionTypesMap.entrySet()) {
@@ -99,11 +100,16 @@ public class ExamService {
                     if (value instanceof Number) {
                         count = ((Number) value).intValue();
                     } else if (value instanceof Map) {
-                        // 处理自定义题型的复杂对象结构 {count: xx, requirement: xx}
+                        // 处理自定义题型和大作业题型的复杂对象结构 {count: xx, requirement: xx}
                         Map<String, Object> customType = (Map<String, Object>) value;
                         Object countValue = customType.get("count");
                         if (countValue instanceof Number) {
                             count = ((Number) countValue).intValue();
+                        }
+                        
+                        // 检查是否为大作业模式
+                        if ("assignment".equals(entry.getKey()) && Boolean.TRUE.equals(customType.get("isAssignment"))) {
+                            isAssignmentMode = true;
                         }
                     }
                     
@@ -117,40 +123,57 @@ public class ExamService {
                 throw new RuntimeException("请至少选择一种题型");
             }
             
-            // 调用DeepSeek API生成试卷内容，根据是否启用能力分析选择不同的生成方法
+            // 根据是否为大作业模式选择不同的处理方式
             String examJson;
-            if (request.getEnableCapabilityAnalysis() != null && request.getEnableCapabilityAnalysis()) {
-                // 使用能力导向的出题方法
-                examJson = deepSeekService.generateCapabilityBasedExamQuestions(
-                    course.getName(),
-                    "基于知识库内容",
-                    questionTypesMap,
-                    (Map<String, Object>) request.getDifficulty(),
-                    (Map<String, Object>) request.getCapabilityRequirements(),
-                    request.getTotalScore(),
-                    request.getDuration(),
-                    ragContent,
-                    request.getSpecialRequirements()
-                );
+            if (isAssignmentMode) {
+                // 大作业模式：不调用AI生成，直接创建作业框架
+                System.out.println("检测到大作业模式，跳过AI生成，创建作业框架");
+                examJson = createAssignmentFramework(course.getName(), questionTypesMap);
             } else {
-                // 使用传统的出题方法
-                examJson = deepSeekService.generateExamQuestionsWithSettings(
-                    course.getName(),
-                    "基于知识库内容",
-                    questionTypesMap,
-                    (Map<String, Object>) request.getDifficulty(),
-                    request.getTotalScore(),
-                    request.getDuration(),
-                    ragContent,
-                    request.getSpecialRequirements()
-                );
+                // 普通模式：调用DeepSeek API生成试卷内容
+                if (request.getEnableCapabilityAnalysis() != null && request.getEnableCapabilityAnalysis()) {
+                    // 使用能力导向的出题方法
+                    examJson = deepSeekService.generateCapabilityBasedExamQuestions(
+                        course.getName(),
+                        "基于知识库内容",
+                        questionTypesMap,
+                        (Map<String, Object>) request.getDifficulty(),
+                        (Map<String, Object>) request.getCapabilityRequirements(),
+                        request.getTotalScore(),
+                        request.getDuration(),
+                        ragContent,
+                        request.getSpecialRequirements()
+                    );
+                } else {
+                    // 使用传统的出题方法
+                    examJson = deepSeekService.generateExamQuestionsWithSettings(
+                        course.getName(),
+                        "基于知识库内容",
+                        questionTypesMap,
+                        (Map<String, Object>) request.getDifficulty(),
+                        request.getTotalScore(),
+                        request.getDuration(),
+                        ragContent,
+                        request.getSpecialRequirements()
+                    );
+                }
             }
             
             // 创建考试记录
         Exam exam = new Exam();
-            // 生成时间格式：yyyyMMddHHmm
-            String timeStamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
-            exam.setTitle(course.getName() + "+" + timeStamp);
+            // 使用用户输入的测评名称，如果没有输入则使用默认格式
+            String examTitle = request.getTitle();
+            System.out.println("🔍 后端接收到的title: " + examTitle);
+            if (examTitle == null || examTitle.trim().isEmpty()) {
+                // 如果没有输入测评名称，使用默认格式：课程名称+时间戳
+                String timeStamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
+                examTitle = course.getName() + "+" + timeStamp;
+                System.out.println("🔄 使用默认格式生成title: " + examTitle);
+            } else {
+                System.out.println("✅ 使用用户输入的title: " + examTitle);
+            }
+            exam.setTitle(examTitle);
+            System.out.println("📝 最终设置的exam title: " + exam.getTitle());
             exam.setCourse(course);
             
             // 根据内容来源设置不同的标识
@@ -185,6 +208,46 @@ public class ExamService {
         }
     }
     
+    /**
+     * 创建大作业框架
+     */
+    private String createAssignmentFramework(String courseName, Map<String, Object> questionTypesMap) {
+        try {
+            // 从题型配置中获取大作业信息
+            Map<String, Object> assignmentConfig = (Map<String, Object>) questionTypesMap.get("assignment");
+            int assignmentCount = ((Number) assignmentConfig.get("count")).intValue();
+            int scorePerAssignment = ((Number) assignmentConfig.get("scorePerQuestion")).intValue();
+            
+            StringBuilder framework = new StringBuilder();
+            
+            for (int i = 1; i <= assignmentCount; i++) {
+                framework.append("### 大作业").append(i).append("（").append(scorePerAssignment).append("分）\n\n");
+                framework.append("**作业要求**：\n");
+                framework.append("[待教师设置具体要求]\n\n");
+                framework.append("**提交方式**：文档上传或文本输入\n\n");
+                framework.append("**评分方式**：AI智能评分+教师审核\n\n");
+                framework.append("**答案**：根据作业要求由AI分析学生提交内容并评分\n\n");
+                framework.append("**解析**：本题为大作业题目，学生可上传PDF、Word等文档或直接输入文本答案\n\n");
+                framework.append("**知识点**：").append(courseName).append("综合应用\n\n");
+                framework.append("---\n\n");
+            }
+            
+            return framework.toString();
+            
+        } catch (Exception e) {
+            System.err.println("创建大作业框架失败: " + e.getMessage());
+            // 创建默认的单个大作业框架
+            return "### 大作业1（50分）\n\n" +
+                   "**作业要求**：\n" +
+                   "[待教师设置具体要求]\n\n" +
+                   "**提交方式**：文档上传或文本输入\n\n" +
+                   "**评分方式**：AI智能评分+教师审核\n\n" +
+                   "**答案**：根据作业要求由AI分析学生提交内容并评分\n\n" +
+                   "**解析**：本题为大作业题目，学生可上传PDF、Word等文档或直接输入文本答案\n\n" +
+                   "**知识点**：" + courseName + "综合应用\n\n";
+        }
+    }
+
     /**
      * 使用RAG检索相关知识内容
      */
@@ -1094,6 +1157,8 @@ public class ExamService {
             return "calculation";
         } else if (lowerType.contains("案例") || lowerType.contains("case") || lowerType.contains("分析")) {
             return "case_analysis";
+        } else if (lowerType.contains("assignment") || lowerType.contains("大作业") || lowerType.contains("作业")) {
+            return "assignment";
         } else if (lowerType.contains("解答") || lowerType.contains("论述") || lowerType.contains("essay") || lowerType.contains("answer")) {
             return "essay";
         } else {
@@ -1128,6 +1193,9 @@ public class ExamService {
         } else if (lowerBlock.contains("案例") || lowerBlock.contains("情景") || lowerBlock.contains("情况") ||
                    lowerBlock.contains("场景") || lowerBlock.contains("实例")) {
             return "case_analysis";
+        } else if (lowerBlock.contains("大作业") || lowerBlock.contains("作业要求") || lowerBlock.contains("文档上传") ||
+                   lowerBlock.contains("提交方式") || lowerBlock.contains("文件上传") || lowerBlock.contains("assignment")) {
+            return "assignment";
         } else if (lowerBlock.contains("简述") || lowerBlock.contains("简答")) {
             return "short_answer";
         } else if (lowerBlock.contains("论述") || lowerBlock.contains("分析") ||
@@ -2229,14 +2297,22 @@ public class ExamService {
             Exam exam = examRepository.findById(examId)
                     .orElseThrow(() -> new RuntimeException("试卷不存在"));
             
-            // 检查是否有学生已经参与考试
-            long participantCount = examResultRepository.countByExam(exam);
-            if (participantCount > 0) {
-                throw new RuntimeException("该试卷已有学生参与，无法删除");
+            // 删除相关的学生答案记录
+            List<Question> questions = questionRepository.findByExamId(examId);
+            for (Question question : questions) {
+                List<StudentAnswer> studentAnswers = studentAnswerRepository.findByQuestionId(question.getId());
+                if (!studentAnswers.isEmpty()) {
+                    studentAnswerRepository.deleteAll(studentAnswers);
+                }
+            }
+            
+            // 删除相关的考试结果记录
+            List<ExamResult> examResults = examResultRepository.findByExam(exam);
+            if (!examResults.isEmpty()) {
+                examResultRepository.deleteAll(examResults);
             }
             
             // 删除相关的题目
-            List<Question> questions = questionRepository.findByExamId(examId);
             if (!questions.isEmpty()) {
                 questionRepository.deleteAll(questions);
             }

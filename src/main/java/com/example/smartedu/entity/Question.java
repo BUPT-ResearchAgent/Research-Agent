@@ -48,6 +48,9 @@ public class Question {
     @Column(name = "cognitive_level", length = 20)
     private String cognitiveLevel = "application"; // 认知层次
     
+    @Column(name = "assignment_requirement", columnDefinition = "TEXT")
+    private String assignmentRequirement; // 大作业具体要求，用于AI评分
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_id", nullable = false)
     @JsonBackReference
@@ -178,5 +181,13 @@ public class Question {
     
     public void setStudentAnswers(List<StudentAnswer> studentAnswers) {
         this.studentAnswers = studentAnswers;
+    }
+    
+    public String getAssignmentRequirement() {
+        return assignmentRequirement;
+    }
+    
+    public void setAssignmentRequirement(String assignmentRequirement) {
+        this.assignmentRequirement = assignmentRequirement;
     }
 } 

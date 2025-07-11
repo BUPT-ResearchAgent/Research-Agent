@@ -15,15 +15,13 @@ import org.springframework.http.ResponseEntity;
 import com.example.smartedu.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Optional;
-import java.util.ArrayList;
-import java.util.AbstractMap;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/student")
@@ -1474,6 +1472,131 @@ public class StudentController {
         } catch (Exception e) {
             return ApiResponse.error("暂存答案失败：" + e.getMessage());
         }
+    }
+
+    /**
+     * 上传大作业文档
+     */
+    @PostMapping("/assignment/upload")
+    public ApiResponse<Map<String, Object>> uploadAssignmentDocument(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("questionId") Long questionId,
+            @RequestParam("examId") Long examId,
+            @RequestParam("userId") Long userId) {
+        
+        try {
+            // 验证学生身份
+            Optional<Student> studentOpt = studentManagementService.getStudentByUserId(userId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生信息不存在");
+            }
+            Student student = studentOpt.get();
+            
+            // 验证考试和题目存在
+            Optional<Question> questionOpt = questionRepository.findById(questionId);
+            if (!questionOpt.isPresent()) {
+                return ApiResponse.error("题目不存在");
+            }
+            Question question = questionOpt.get();
+            
+            if (!question.getExam().getId().equals(examId)) {
+                return ApiResponse.error("题目与考试不匹配");
+            }
+            
+            // 验证文件
+            if (file.isEmpty()) {
+                return ApiResponse.error("请选择要上传的文件");
+            }
+            
+            String fileName = file.getOriginalFilename();
+            if (fileName == null) {
+                return ApiResponse.error("文件名不能为空");
+            }
+            
+            // 验证文件类型
+            String fileExtension = getFileExtension(fileName);
+            if (!isAllowedAssignmentFileType(fileExtension)) {
+                return ApiResponse.error("不支持的文件类型。支持的格式：pdf, doc, docx, txt, rtf");
+            }
+            
+            // 验证文件大小（50MB）
+            if (file.getSize() > 50 * 1024 * 1024) {
+                return ApiResponse.error("文件大小不能超过50MB");
+            }
+            
+            // 保存文件内容到数据库（Base64编码）
+            String fileContentBase64 = Base64.getEncoder().encodeToString(file.getBytes());
+            
+            // 查找或创建学生答案记录
+            Optional<ExamResult> examResultOpt = examResultRepository.findByStudentIdAndExamId(student.getId(), examId);
+            ExamResult examResult;
+            
+            if (!examResultOpt.isPresent()) {
+                // 创建考试结果记录
+                examResult = new ExamResult();
+                examResult.setStudent(student);
+                examResult.setExam(question.getExam());
+                examResult.setStartTime(LocalDateTime.now());
+                examResult.setTotalScore(question.getExam().getTotalScore());
+                examResult.setGradeStatus("PENDING");
+                examResult = examResultRepository.save(examResult);
+            } else {
+                examResult = examResultOpt.get();
+            }
+            
+            // 查找或创建学生答案
+            Optional<StudentAnswer> existingAnswer = studentAnswerRepository.findByStudentIdAndQuestionId(student.getId(), questionId);
+            StudentAnswer studentAnswer;
+            
+            if (existingAnswer.isPresent()) {
+                studentAnswer = existingAnswer.get();
+            } else {
+                studentAnswer = new StudentAnswer();
+                studentAnswer.setStudent(student);
+                studentAnswer.setQuestion(question);
+                studentAnswer.setExamResult(examResult);
+                studentAnswer.setMaxScore(question.getScore());
+            }
+            
+            // 更新答案信息
+            studentAnswer.setAnswer("FILE:" + fileName);
+            studentAnswer.setFileContent(fileContentBase64);
+            studentAnswer.setFileName(fileName);
+            studentAnswer.setFileSize(file.getSize());
+            studentAnswer.setUploadTime(LocalDateTime.now());
+            
+            studentAnswerRepository.save(studentAnswer);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("fileName", fileName);
+            response.put("fileSize", file.getSize());
+            response.put("uploadTime", LocalDateTime.now());
+            response.put("questionId", questionId);
+            
+            return ApiResponse.success("文档上传成功", response);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("文档上传失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取文件扩展名
+     */
+    private String getFileExtension(String fileName) {
+        if (fileName == null || !fileName.contains(".")) {
+            return "";
+        }
+        return fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+    }
+    
+    /**
+     * 检查是否为允许的大作业文件类型
+     */
+    private boolean isAllowedAssignmentFileType(String extension) {
+        String[] allowedTypes = {"pdf", "doc", "docx", "txt", "rtf"};
+        return Arrays.asList(allowedTypes).contains(extension.toLowerCase());
     }
 
     /**

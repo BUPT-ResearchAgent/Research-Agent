@@ -2850,6 +2850,9 @@ function getQuestionTypeInfo(question) {
     } else if (questionType.includes('essay') || questionType.includes('解答') || questionType.includes('论述') || questionType.includes('answer')) {
         actualType = 'essay';
         displayName = '解答题';
+    } else if (questionType.includes('assignment') || questionType.includes('大作业') || questionType.includes('作业')) {
+        actualType = 'assignment';
+        displayName = '大作业题目';
     } else {
         // 默认判断
         actualType = 'essay';
@@ -2902,6 +2905,74 @@ function renderFillBlankQuestion(question, savedAnswer) {
     
     html += '</div>';
     return html;
+}
+
+// 渲染大作业题目 - 文档上传
+function renderAssignmentQuestion(question, savedAnswer) {
+    const questionId = question.id;
+    const uploadId = `assignment_upload_${questionId}`;
+    const previewId = `assignment_preview_${questionId}`;
+    
+    // 检查是否已经上传了文件
+    const hasUploadedFile = savedAnswer && savedAnswer.startsWith('FILE:');
+    const fileName = hasUploadedFile ? savedAnswer.replace('FILE:', '') : '';
+    
+    return `
+        <div class="assignment-upload-container" style="border: 2px solid #f39c12; border-radius: 12px; padding: 20px; background: linear-gradient(135deg, #fff3cd 0%, #fef9e7 100%);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                <i class="fas fa-upload" style="color: #f39c12; font-size: 18px;"></i>
+                <h4 style="margin: 0; color: #d68910; font-weight: 600;">文档上传</h4>
+                <span style="font-size: 12px; background: #f39c12; color: white; padding: 2px 6px; border-radius: 10px;">大作业</span>
+            </div>
+            
+            <div style="margin-bottom: 15px; font-size: 14px; color: #856404; line-height: 1.5;">
+                <i class="fas fa-info-circle"></i> 
+                请根据作业要求完成相关文档并上传。支持格式：PDF、Word、TXT等文档类型。
+            </div>
+            
+            <div class="upload-area" style="border: 2px dashed #ddb84a; border-radius: 8px; padding: 20px; text-align: center; background: white; cursor: pointer; transition: all 0.3s ease;" 
+                 onclick="document.getElementById('${uploadId}').click()"
+                 onmouseover="this.style.borderColor='#f39c12'; this.style.backgroundColor='#fefbf0'"
+                 onmouseout="this.style.borderColor='#ddb84a'; this.style.backgroundColor='white'">
+                
+                <input type="file" id="${uploadId}" 
+                       style="display: none;" 
+                       accept=".pdf,.doc,.docx,.txt,.rtf"
+                       onchange="handleAssignmentFileUpload(${questionId}, this)">
+                
+                <div id="${previewId}">
+                    ${hasUploadedFile ? `
+                        <div style="color: #27ae60;">
+                            <i class="fas fa-file-alt" style="font-size: 24px; margin-bottom: 8px;"></i>
+                            <p style="margin: 8px 0; font-weight: 600;">已上传文件</p>
+                            <p style="margin: 0; font-size: 14px; color: #2c3e50;">${fileName}</p>
+                            <div style="margin-top: 10px;">
+                                <button type="button" onclick="document.getElementById('${uploadId}').click()" 
+                                        style="background: #f39c12; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 8px;">
+                                    <i class="fas fa-sync-alt"></i> 重新上传
+                                </button>
+                                <button type="button" onclick="removeAssignmentFile(${questionId})" 
+                                        style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                    <i class="fas fa-trash"></i> 删除文件
+                                </button>
+                            </div>
+                        </div>
+                    ` : `
+                        <div style="color: #856404;">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 24px; margin-bottom: 8px;"></i>
+                            <p style="margin: 8px 0; font-weight: 600;">点击上传文档</p>
+                            <p style="margin: 0; font-size: 12px;">或拖拽文件到此区域</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+            
+            <div style="margin-top: 12px; font-size: 12px; color: #856404;">
+                <i class="fas fa-exclamation-triangle"></i> 
+                注意：单个文件大小不超过50MB，提交后请等待AI分析和教师评分。
+            </div>
+        </div>
+    `;
 }
 
 // 渲染题目选项
@@ -2986,6 +3057,10 @@ function renderQuestionOptions(question, questionNumber) {
             // 填空题处理
             return renderFillBlankQuestion(question, savedAnswer);
             
+        case 'assignment':
+            // 大作业题型处理 - 文档上传
+            return renderAssignmentQuestion(question, savedAnswer);
+            
         case 'short_answer':
         case 'programming':
         case 'calculation':
@@ -3052,6 +3127,125 @@ function saveFillBlankAnswer(questionId, blankIndex, answer) {
     // 保存更新后的答案（用|分隔多个空位的答案）
     studentAnswers[questionId] = answers.join('|');
     updateAnsweredCount();
+}
+
+// 处理大作业文件上传
+async function handleAssignmentFileUpload(questionId, fileInput) {
+    const file = fileInput.files[0];
+    if (!file) return;
+    
+    // 验证文件大小（50MB限制）
+    if (file.size > 50 * 1024 * 1024) {
+        showNotification('文件大小不能超过50MB', 'error');
+        fileInput.value = '';
+        return;
+    }
+    
+    // 验证文件类型
+    const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.rtf'];
+    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+    if (!allowedTypes.includes(fileExtension)) {
+        showNotification('不支持的文件格式，请上传PDF、Word或TXT文档', 'error');
+        fileInput.value = '';
+        return;
+    }
+    
+    try {
+        showLoading('正在上传文档...');
+        
+        // 创建FormData
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('questionId', questionId);
+        formData.append('examId', currentExam.id);
+        
+        // 获取当前用户ID
+        const userId = await getCurrentUserId();
+        formData.append('userId', userId);
+        
+        // 上传文件
+        const response = await fetch('/api/student/assignment/upload', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+        
+        const result = await response.json();
+        hideLoading();
+        
+        if (result.success) {
+            // 保存上传成功的文件信息
+            saveAnswer(questionId, `FILE:${file.name}`);
+            
+            // 更新上传区域显示
+            updateAssignmentPreview(questionId, file.name, true);
+            
+            showNotification('文档上传成功', 'success');
+        } else {
+            showNotification(result.message || '文档上传失败', 'error');
+            fileInput.value = '';
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('文档上传失败:', error);
+        showNotification('文档上传失败，请重试', 'error');
+        fileInput.value = '';
+    }
+}
+
+// 删除大作业文件
+function removeAssignmentFile(questionId) {
+    // 清空答案
+    saveAnswer(questionId, '');
+    
+    // 更新预览区域
+    updateAssignmentPreview(questionId, '', false);
+    
+    // 清空文件输入
+    const fileInput = document.getElementById(`assignment_upload_${questionId}`);
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    
+    showNotification('文件已删除', 'info');
+}
+
+// 更新大作业预览区域
+function updateAssignmentPreview(questionId, fileName, hasFile) {
+    const previewId = `assignment_preview_${questionId}`;
+    const uploadId = `assignment_upload_${questionId}`;
+    const previewElement = document.getElementById(previewId);
+    
+    if (!previewElement) return;
+    
+    if (hasFile) {
+        previewElement.innerHTML = `
+            <div style="color: #27ae60;">
+                <i class="fas fa-file-alt" style="font-size: 24px; margin-bottom: 8px;"></i>
+                <p style="margin: 8px 0; font-weight: 600;">已上传文件</p>
+                <p style="margin: 0; font-size: 14px; color: #2c3e50;">${fileName}</p>
+                <div style="margin-top: 10px;">
+                    <button type="button" onclick="document.getElementById('${uploadId}').click()" 
+                            style="background: #f39c12; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 8px;">
+                        <i class="fas fa-sync-alt"></i> 重新上传
+                    </button>
+                    <button type="button" onclick="removeAssignmentFile(${questionId})" 
+                            style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                        <i class="fas fa-trash"></i> 删除文件
+                    </button>
+                </div>
+            </div>
+        `;
+    } else {
+        previewElement.innerHTML = `
+            <div style="color: #856404;">
+                <i class="fas fa-cloud-upload-alt" style="font-size: 24px; margin-bottom: 8px;"></i>
+                <p style="margin: 8px 0; font-weight: 600;">点击上传文档</p>
+                <p style="margin: 0; font-size: 12px;">或拖拽文件到此区域</p>
+            </div>
+        `;
+    }
 }
 
 // 更新已答题数量

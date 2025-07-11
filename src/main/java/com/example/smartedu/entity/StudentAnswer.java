@@ -54,6 +54,19 @@ public class StudentAnswer {
     @Column(name = "teacher_feedback", columnDefinition = "TEXT")
     private String teacherFeedback; // 教师反馈
     
+    // 大作业文件相关字段
+    @Column(name = "file_content", columnDefinition = "LONGTEXT")
+    private String fileContent; // 文件内容的Base64编码
+    
+    @Column(name = "file_name")
+    private String fileName; // 文件名
+    
+    @Column(name = "file_size")
+    private Long fileSize; // 文件大小（字节）
+    
+    @Column(name = "upload_time")
+    private LocalDateTime uploadTime; // 文件上传时间
+    
     public StudentAnswer() {
         this.answerTime = LocalDateTime.now();
     }
@@ -176,5 +189,38 @@ public class StudentAnswer {
     
     public void setTeacherFeedback(String teacherFeedback) {
         this.teacherFeedback = teacherFeedback;
+    }
+    
+    // 文件相关字段的getter和setter方法
+    public String getFileContent() {
+        return fileContent;
+    }
+    
+    public void setFileContent(String fileContent) {
+        this.fileContent = fileContent;
+    }
+    
+    public String getFileName() {
+        return fileName;
+    }
+    
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+    
+    public Long getFileSize() {
+        return fileSize;
+    }
+    
+    public void setFileSize(Long fileSize) {
+        this.fileSize = fileSize;
+    }
+    
+    public LocalDateTime getUploadTime() {
+        return uploadTime;
+    }
+    
+    public void setUploadTime(LocalDateTime uploadTime) {
+        this.uploadTime = uploadTime;
     }
 } 

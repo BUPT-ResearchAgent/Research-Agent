@@ -347,6 +347,14 @@ class TeacherAPI {
         }
         return this.request(url);
     }
+    
+    // 保存大作业要求
+    static async saveAssignmentRequirement(questionId, data) {
+        return this.request(`/api/teacher/assignment/requirement/${questionId}`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    }
 }
 
 // 显示消息提示

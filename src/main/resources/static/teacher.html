@@ -1103,6 +1103,14 @@
                         </div>
                         
                         <div class="form-group">
+                            <label>测评名称：<span style="color: #e74c3c;">*</span></label>
+                            <input type="text" id="exam-title" class="form-input" placeholder="请输入测评名称，如：期中测试、单元测评、综合练习等" maxlength="100">
+                            <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
+                                💡 提示：建议使用简洁明了的名称，便于学生识别
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
                             <label>智能内容检索：</label>
                             <div class="rag-info-box" style="background-color: #f8f9fa; border: 1px solid #e9ecef; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                                 <div style="display: flex; align-items: center; margin-bottom: 8px;">
@@ -1174,6 +1182,21 @@
                                         <input type="number" id="q-answer-score" class="form-input-sm" placeholder="15" min="5" max="100" style="width: 70px;">
                                         <span style="color: #6c757d;">分/题</span>
                                     </div>
+                                </div>
+                                <div class="question-type-item assignment-type">
+                                    <label>
+                                        <input type="checkbox" id="q-assignment">
+                                        <span>📋 大作业</span>
+                                        <span class="new-feature-badge">新功能</span>
+                                    </label>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="number" id="q-assignment-count" class="form-input-sm" placeholder="1" min="1" max="5" value="1" style="width: 70px;">
+                                        <span>题</span>
+                                        <span style="color: #6c757d;">×</span>
+                                        <input type="number" id="q-assignment-score" class="form-input-sm" placeholder="50" min="20" max="100" style="width: 70px;">
+                                        <span style="color: #6c757d;">分/题</span>
+                                    </div>
+
                                 </div>
                             </div>
                             
@@ -3575,6 +3598,123 @@ D. D. 8
                 <button type="button" id="save-profile" class="btn btn-primary">
                     <i class="fas fa-save"></i>
                     保存修改
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 大作业要求设置模态框 -->
+    <div id="assignment-requirement-modal" class="course-modal-overlay" style="display: none;">
+        <div class="course-modal-container" style="max-width: 800px;">
+            <div class="course-modal-header">
+                <div class="modal-title-section">
+                    <div class="modal-icon">
+                        <i class="fas fa-tasks"></i>
+                    </div>
+                    <h3>设置大作业要求</h3>
+                </div>
+                <button id="close-assignment-requirement-modal" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="course-modal-body">
+                <div class="assignment-info" style="background: #e8f5e8; border: 1px solid #c3e6cb; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <i class="fas fa-info-circle" style="color: #155724;"></i>
+                        <span style="font-weight: 600; color: #155724;">作业信息</span>
+                    </div>
+                    <div style="color: #155724; font-size: 14px; line-height: 1.6;">
+                        <div><strong>题目：</strong><span id="assignment-question-title">大作业1</span></div>
+                        <div><strong>分值：</strong><span id="assignment-question-score">50</span>分</div>
+                        <div><strong>提交方式：</strong>文档上传（PDF、Word等）或文本输入</div>
+                        <div><strong>评分方式：</strong>AI智能分析 + 教师审核</div>
+                    </div>
+                </div>
+                
+                <form id="assignment-requirement-form">
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-edit"></i>
+                            作业具体要求 <span class="required">*</span>
+                        </label>
+                        <textarea id="assignment-requirement-content" 
+                                  class="course-form-input" 
+                                  rows="8" 
+                                  placeholder="请输入详细的作业要求，包括：&#10;1. 作业内容和目标&#10;2. 具体要求和规范&#10;3. 评分标准&#10;4. 提交格式要求&#10;5. 其他注意事项&#10;&#10;例如：&#10;请完成一份关于人工智能应用的调研报告，要求：&#10;1. 字数不少于3000字&#10;2. 包含至少5个真实案例分析&#10;3. 引用不少于10篇相关文献&#10;4. 格式规范，逻辑清晰&#10;5. 原创性，不得抄袭"
+                                  required></textarea>
+                        <div class="form-hint" style="margin-top: 8px; font-size: 12px; color: #6c757d;">
+                            <i class="fas fa-lightbulb"></i> 
+                            详细的要求有助于AI更准确地评分。建议包含评分标准、格式要求等具体信息。
+                        </div>
+                    </div>
+                    
+                    <div class="course-form-group">
+                        <label class="course-form-label">
+                            <i class="fas fa-star"></i>
+                            评分权重设置
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <i class="fas fa-brain" style="color: #3498db;"></i>
+                                    <span style="font-weight: 500;">内容质量</span>
+                                </div>
+                                <input type="range" id="content-weight" min="0" max="100" value="40" 
+                                       style="width: 100%;" oninput="updateWeightDisplay()">
+                                <div style="text-align: center; font-size: 14px; color: #666;">
+                                    <span id="content-weight-text">40%</span>
+                                </div>
+                            </div>
+                            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <i class="fas fa-file-alt" style="color: #e74c3c;"></i>
+                                    <span style="font-weight: 500;">格式规范</span>
+                                </div>
+                                <input type="range" id="format-weight" min="0" max="100" value="20" 
+                                       style="width: 100%;" oninput="updateWeightDisplay()">
+                                <div style="text-align: center; font-size: 14px; color: #666;">
+                                    <span id="format-weight-text">20%</span>
+                                </div>
+                            </div>
+                            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <i class="fas fa-lightbulb" style="color: #f39c12;"></i>
+                                    <span style="font-weight: 500;">创新性</span>
+                                </div>
+                                <input type="range" id="innovation-weight" min="0" max="100" value="25" 
+                                       style="width: 100%;" oninput="updateWeightDisplay()">
+                                <div style="text-align: center; font-size: 14px; color: #666;">
+                                    <span id="innovation-weight-text">25%</span>
+                                </div>
+                            </div>
+                            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <i class="fas fa-check-circle" style="color: #27ae60;"></i>
+                                    <span style="font-weight: 500;">完整性</span>
+                                </div>
+                                <input type="range" id="completeness-weight" min="0" max="100" value="15" 
+                                       style="width: 100%;" oninput="updateWeightDisplay()">
+                                <div style="text-align: center; font-size: 14px; color: #666;">
+                                    <span id="completeness-weight-text">15%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="weight-total" style="text-align: center; margin-top: 12px; padding: 8px; background: #e3f2fd; border-radius: 6px;">
+                            <span style="font-weight: 600; color: #1976d2;">总计：<span id="total-weight">100</span>%</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="course-modal-footer">
+                <button type="button" id="cancel-assignment-requirement" class="btn btn-secondary">
+                    <i class="fas fa-times"></i>
+                    取消
+                </button>
+                <button type="button" id="save-assignment-requirement" class="btn btn-primary">
+                    <i class="fas fa-save"></i>
+                    保存要求
                 </button>
             </div>
         </div>

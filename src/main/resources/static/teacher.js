@@ -2778,12 +2778,25 @@ async function generateExam() {
     try {
         // 必填项验证
         const courseId = document.getElementById('exam-course-select').value;
+        const examTitle = document.getElementById('exam-title').value.trim();
         const duration = document.getElementById('exam-duration').value;
         const totalScore = document.getElementById('exam-total-score').value;
         
         // 1. 验证选择课程（必填）
         if (!courseId) {
             showNotification('请选择课程 *', 'warning');
+            return;
+        }
+        
+        // 2. 验证测评名称（必填）
+        console.log('输入框值检查:', {
+            'exam-title元素': document.getElementById('exam-title'),
+            '原始值': document.getElementById('exam-title')?.value,
+            '去空格后': examTitle,
+            '长度': examTitle.length
+        });
+        if (!examTitle) {
+            showNotification('请输入测评名称 *', 'warning');
             return;
         }
         
@@ -2828,6 +2841,25 @@ async function generateExam() {
                         count: questionCount,
                         requirement: customRequirement.value.trim(),
                         scorePerQuestion: questionScore
+                    };
+                }
+            }
+        }
+        
+        // 处理大作业题型
+        const assignmentCheckbox = document.getElementById('q-assignment');
+        const assignmentCount = document.getElementById('q-assignment-count');
+        const assignmentScore = document.getElementById('q-assignment-score');
+        
+        if (assignmentCheckbox && assignmentCheckbox.checked) {
+            if (assignmentCount) {
+                const questionCount = parseInt(assignmentCount.value) || 1;
+                const questionScore = parseInt(assignmentScore.value) || 50;
+                if (questionCount > 0) {
+                    questionTypes['assignment'] = {
+                        count: questionCount,
+                        scorePerQuestion: questionScore,
+                        isAssignment: true
                     };
                 }
             }
@@ -2896,6 +2928,7 @@ async function generateExam() {
         const enableCapabilityAnalysis = document.getElementById('enable-capability-analysis')?.checked || false;
         
         const examData = {
+            title: examTitle,
             courseId: parseInt(courseId),
             materialIds: selectedMaterials,
             duration: parseInt(duration),
@@ -2908,6 +2941,7 @@ async function generateExam() {
         };
         
         console.log('生成试卷数据:', examData);
+        console.log('发送的测评名称:', examTitle);
         
         showLoading('AI正在使用RAG技术从知识库生成试卷...');
         
@@ -2987,10 +3021,14 @@ function displayExamPreview(examData) {
                 }
             }
             
-            questionsHtml += `
+                            // 检查是否为大作业题型
+                const isAssignmentType = question.type === 'assignment' || question.type.includes('大作业');
+                
+                questionsHtml += `
                 <div class="question-item">
                     <h4>第${index + 1}题 (${question.score || 2}分)
                         ${question.knowledgePoint ? `<span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">知识点：${question.knowledgePoint}</span>` : ''}
+                        ${isAssignmentType ? `<span style="background: #f39c12; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">📋 大作业</span>` : ''}
                     </h4>
                     <div class="question-content">${formatTeacherMarkdown(question.content || '题目内容加载失败')}</div>
                     ${options.length > 0 ? `
@@ -3003,10 +3041,31 @@ function displayExamPreview(examData) {
                             }).join('')}
                         </div>
                     ` : ''}
-                    <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
-                        <span style="font-weight: 600; color: #155724;">参考答案：</span>
-                        <div style="color: #155724; margin-top: 8px;">${formatTeacherMarkdown(question.answer || 'N/A')}</div>
-                    </div>
+                    
+                    ${isAssignmentType ? `
+                        <div class="assignment-requirement-section" style="margin-bottom: 15px; padding: 12px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-weight: 600; color: #856404;">
+                                    <i class="fas fa-tasks"></i> 作业要求设置
+                                </span>
+                                <button class="btn btn-sm btn-primary" onclick="showAssignmentRequirementModal(${question.id}, '第${index + 1}题', ${question.score})" 
+                                        style="font-size: 12px; padding: 4px 8px;">
+                                    <i class="fas fa-edit"></i> 设置要求
+                                </button>
+                            </div>
+                            <div style="color: #856404; font-size: 14px;">
+                                ${question.assignmentRequirement ? 
+                                    '✅ 已设置作业要求' : 
+                                    '⚠️ 请点击"设置要求"按钮来配置详细的作业要求和评分标准'}
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
+                            <span style="font-weight: 600; color: #155724;">参考答案：</span>
+                            <div style="color: #155724; margin-top: 8px;">${formatTeacherMarkdown(question.answer || 'N/A')}</div>
+                        </div>
+                    `}
+                    
                     ${question.explanation ? `
                         <div class="question-explanation" style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 8px;">
                             <span style="font-weight: 600; color: #0c5460;">解析：</span>
@@ -8105,19 +8164,21 @@ async function downloadExam(examId) {
 // 删除试卷
 async function deleteExam(examId) {
     try {
-        // 检查试卷状态，如果已发布则不允许删除
+        // 获取试卷详情以显示更详细的确认信息
         const examResponse = await TeacherAPI.getExamDetail(examId);
+        let confirmMessage = '确定要删除这份试卷吗？删除后将无法恢复。';
+        
         if (examResponse.success && examResponse.data) {
             const exam = examResponse.data;
             if (exam.isPublished) {
-                showNotification('已发布的试卷不能删除', 'warning');
-                return;
+                // 已发布的试卷提供更详细的警告信息
+                confirmMessage = '这是一份已发布的试卷，删除后将影响所有相关的考试记录和学生答题数据。\n\n确定要删除吗？此操作不可撤销。';
             }
         }
         
         const confirmed = await showConfirmDialog(
             '删除试卷',
-            '确定要删除这份试卷吗？删除后将无法恢复。',
+            confirmMessage,
             '删除'
         );
         
@@ -12047,6 +12108,218 @@ async function generateCapabilityGoals(questionId, buttonElement) {
     }
 }
 
+// 切换大作业模式
+function toggleAssignmentMode(checkbox) {
+    if (checkbox.checked) {
+        // 当选择大作业模式时，提示用户注意事项
+        const confirmed = confirm(
+            '大作业模式说明：\n\n' +
+            '• 不需要AI生成题目，教师直接设置作业要求\n' +
+            '• 学生通过上传文档完成作业\n' +
+            '• AI将自动检测文档内容并提供评分建议\n' +
+            '• 教师可参考AI建议进行最终评分\n\n' +
+            '确定启用大作业模式吗？'
+        );
+        
+        if (!confirmed) {
+            checkbox.checked = false;
+            return;
+        }
+        
+        // 禁用其他题型选项（大作业模式下只能有一种题型）
+        const otherCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="q-"]:not(#q-assignment)');
+        otherCheckboxes.forEach(cb => {
+            if (cb.checked) {
+                cb.checked = false;
+                showNotification('大作业模式下，其他题型已自动取消选择', 'info');
+            }
+            cb.disabled = true;
+        });
+        
+        // 设置默认值
+        const countInput = document.getElementById('q-assignment-count');
+        const scoreInput = document.getElementById('q-assignment-score');
+        if (countInput && !countInput.value) countInput.value = '1';
+        if (scoreInput && !scoreInput.value) scoreInput.value = '50';
+        
+        showNotification('已启用大作业模式，其他题型已禁用', 'success');
+    } else {
+        // 重新启用其他题型选项
+        const otherCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="q-"]:not(#q-assignment)');
+        otherCheckboxes.forEach(cb => {
+            cb.disabled = false;
+        });
+        
+        showNotification('已关闭大作业模式，其他题型重新启用', 'info');
+    }
+}
+
+// 显示大作业要求设置模态框
+function showAssignmentRequirementModal(questionId, questionTitle, questionScore) {
+    const modal = document.getElementById('assignment-requirement-modal');
+    const titleElement = document.getElementById('assignment-question-title');
+    const scoreElement = document.getElementById('assignment-question-score');
+    const contentTextarea = document.getElementById('assignment-requirement-content');
+    
+    // 设置作业信息
+    titleElement.textContent = questionTitle || '大作业题目';
+    scoreElement.textContent = questionScore || '50';
+    
+    // 存储questionId用于保存
+    modal.setAttribute('data-question-id', questionId);
+    
+    // 清空内容
+    contentTextarea.value = '';
+    
+    // 重置权重
+    resetWeightDisplay();
+    
+    // 显示模态框
+    modal.style.display = 'flex';
+}
+
+// 隐藏大作业要求设置模态框
+function hideAssignmentRequirementModal() {
+    const modal = document.getElementById('assignment-requirement-modal');
+    modal.style.display = 'none';
+}
+
+// 更新权重显示
+function updateWeightDisplay() {
+    const contentWeight = parseInt(document.getElementById('content-weight').value);
+    const formatWeight = parseInt(document.getElementById('format-weight').value);
+    const innovationWeight = parseInt(document.getElementById('innovation-weight').value);
+    const completenessWeight = parseInt(document.getElementById('completeness-weight').value);
+    
+    // 更新显示文本
+    document.getElementById('content-weight-text').textContent = contentWeight + '%';
+    document.getElementById('format-weight-text').textContent = formatWeight + '%';
+    document.getElementById('innovation-weight-text').textContent = innovationWeight + '%';
+    document.getElementById('completeness-weight-text').textContent = completenessWeight + '%';
+    
+    // 计算总计
+    const total = contentWeight + formatWeight + innovationWeight + completenessWeight;
+    document.getElementById('total-weight').textContent = total;
+    
+    // 根据总计显示不同颜色
+    const totalElement = document.getElementById('weight-total');
+    if (total === 100) {
+        totalElement.style.background = '#e8f5e8';
+        totalElement.querySelector('span').style.color = '#155724';
+    } else {
+        totalElement.style.background = '#fff3cd';
+        totalElement.querySelector('span').style.color = '#856404';
+    }
+}
+
+// 重置权重显示
+function resetWeightDisplay() {
+    document.getElementById('content-weight').value = 40;
+    document.getElementById('format-weight').value = 20;
+    document.getElementById('innovation-weight').value = 25;
+    document.getElementById('completeness-weight').value = 15;
+    updateWeightDisplay();
+}
+
+// 保存大作业要求
+async function saveAssignmentRequirement() {
+    const modal = document.getElementById('assignment-requirement-modal');
+    const questionId = modal.getAttribute('data-question-id');
+    const requirement = document.getElementById('assignment-requirement-content').value.trim();
+    
+    if (!requirement) {
+        showNotification('请输入作业具体要求', 'warning');
+        return;
+    }
+    
+    // 获取权重设置
+    const weights = {
+        content: parseInt(document.getElementById('content-weight').value),
+        format: parseInt(document.getElementById('format-weight').value),
+        innovation: parseInt(document.getElementById('innovation-weight').value),
+        completeness: parseInt(document.getElementById('completeness-weight').value)
+    };
+    
+    // 验证权重总计
+    const totalWeight = weights.content + weights.format + weights.innovation + weights.completeness;
+    if (totalWeight !== 100) {
+        showNotification('评分权重总计必须为100%，当前为' + totalWeight + '%', 'warning');
+        return;
+    }
+    
+    try {
+        showLoading('正在保存作业要求...');
+        
+        const response = await TeacherAPI.saveAssignmentRequirement(questionId, {
+            requirement: requirement,
+            weights: weights
+        });
+        
+        hideLoading();
+        
+        if (response.success) {
+            showNotification('大作业要求保存成功！', 'success');
+            hideAssignmentRequirementModal();
+            
+            // 刷新试卷预览
+            if (window.currentExam) {
+                const examDetailResponse = await TeacherAPI.getExamDetail(window.currentExam.id);
+                if (examDetailResponse.success) {
+                    displayExamPreview(examDetailResponse.data);
+                }
+            }
+        } else {
+            showNotification('保存失败：' + (response.message || '未知错误'), 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('保存大作业要求失败:', error);
+        showNotification('保存失败，请重试', 'error');
+    }
+}
+
+// 大作业要求模态框事件监听器
+document.addEventListener('DOMContentLoaded', function() {
+    // 关闭按钮事件
+    const closeBtn = document.getElementById('close-assignment-requirement-modal');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', hideAssignmentRequirementModal);
+    }
+    
+    // 取消按钮事件
+    const cancelBtn = document.getElementById('cancel-assignment-requirement');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', hideAssignmentRequirementModal);
+    }
+    
+    // 保存按钮事件
+    const saveBtn = document.getElementById('save-assignment-requirement');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveAssignmentRequirement);
+    }
+    
+    // ESC键关闭模态框
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('assignment-requirement-modal');
+            if (modal && modal.style.display === 'flex') {
+                hideAssignmentRequirementModal();
+            }
+        }
+    });
+    
+    // 点击背景关闭模态框
+    const modal = document.getElementById('assignment-requirement-modal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                hideAssignmentRequirementModal();
+            }
+        });
+    }
+});
+
 // 格式化教师端的Markdown内容（用于试卷答案和解析）
 function formatTeacherMarkdown(message) {
     // 检查Marked.js是否可用
@@ -12606,6 +12879,288 @@ function hideGradeDetailModal() {
     window.currentGradeDetailData = null;
 }
 
+// 渲染题目答案部分
+function renderQuestionAnswerSection(question, studentAnswer, options) {
+    const questionType = question.type ? question.type.toLowerCase() : '';
+    
+    // 大作业题型特殊处理
+    if (questionType === 'assignment' || questionType.includes('大作业') || questionType.includes('作业')) {
+        return renderAssignmentQuestionSection(question, studentAnswer);
+    }
+    
+    // 选择题
+    if (options.length > 0) {
+        return `
+            <div class="question-options" style="margin-bottom: 15px;">
+                ${options.map((option, i) => {
+                    const optionLabel = String.fromCharCode(65 + i);
+                    const isSelected = studentAnswer && studentAnswer.answer === optionLabel;
+                    const isCorrectOption = question.answer === optionLabel || question.correctAnswer === optionLabel;
+                    
+                    let optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #f8f9fa;';
+                    if (isSelected && isCorrectOption) {
+                        optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #d4edda; border: 1px solid #c3e6cb;';
+                    } else if (isSelected) {
+                        optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #f8d7da; border: 1px solid #f5c6cb;';
+                    } else if (isCorrectOption) {
+                        optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #d1ecf1; border: 1px solid #bee5eb;';
+                    }
+                    
+                    return `
+                        <div style="${optionStyle}">
+                            <span style="font-weight: 500; color: #3498db; margin-right: 8px;">${optionLabel}.</span>
+                            ${formatTeacherMarkdown(option)}
+                            ${isSelected ? '<span style="color: #e74c3c; margin-left: 8px;"><i class="fas fa-user"></i> 学生选择</span>' : ''}
+                            ${isCorrectOption ? '<span style="color: #27ae60; margin-left: 8px;"><i class="fas fa-check"></i> 正确答案</span>' : ''}
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    }
+    
+    // 普通主观题
+    return `
+        <div style="margin-bottom: 15px;">
+            <div style="padding: 8px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 8px;">
+                <strong>学生答案：</strong> ${studentAnswer ? formatTeacherMarkdown(studentAnswer.answer) : '未作答'}
+            </div>
+            <div style="padding: 8px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px;">
+                <strong>参考答案：</strong> ${formatTeacherMarkdown(question.answer || question.correctAnswer || 'N/A')}
+            </div>
+        </div>
+    `;
+}
+
+// 渲染大作业题目部分
+function renderAssignmentQuestionSection(question, studentAnswer) {
+    const hasUploadedFile = studentAnswer && studentAnswer.answer && studentAnswer.answer.startsWith('FILE:');
+    const fileName = hasUploadedFile ? studentAnswer.answer.replace('FILE:', '') : '';
+    
+    let assignmentHtml = `
+        <div class="assignment-section" style="margin-bottom: 15px; border: 2px solid #f39c12; border-radius: 12px; padding: 20px; background: linear-gradient(135deg, #fff3cd 0%, #fef9e7 100%);">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                <i class="fas fa-file-upload" style="color: #f39c12; font-size: 18px;"></i>
+                <h4 style="margin: 0; color: #d68910; font-weight: 600;">大作业提交</h4>
+                <span style="font-size: 12px; background: #f39c12; color: white; padding: 2px 6px; border-radius: 10px;">文档上传</span>
+            </div>
+    `;
+    
+    if (hasUploadedFile) {
+        // 显示已上传的文件信息
+        assignmentHtml += `
+            <div style="background: white; border: 1px solid #ddb84a; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <i class="fas fa-file-alt" style="color: #27ae60; font-size: 20px;"></i>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; color: #2c3e50;">${fileName}</div>
+                        ${studentAnswer.fileSize ? `<div style="font-size: 12px; color: #7f8c8d;">文件大小: ${formatFileSize(studentAnswer.fileSize)}</div>` : ''}
+                        ${studentAnswer.uploadTime ? `<div style="font-size: 12px; color: #7f8c8d;">上传时间: ${formatDateTime(studentAnswer.uploadTime)}</div>` : ''}
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" onclick="performAssignmentAIDetection(${studentAnswer.id})" 
+                            class="btn btn-warning" style="font-size: 12px; padding: 6px 12px;">
+                        <i class="fas fa-robot"></i> AI检测评分
+                    </button>
+                    <button type="button" onclick="downloadAssignmentFile(${studentAnswer.id})" 
+                            class="btn btn-info" style="font-size: 12px; padding: 6px 12px;">
+                        <i class="fas fa-download"></i> 下载文档
+                    </button>
+                </div>
+                
+                <!-- AI检测结果区域 -->
+                <div id="ai-detection-result-${studentAnswer.id}" style="margin-top: 15px; display: none;">
+                    <!-- AI检测结果将在这里显示 -->
+                </div>
+            </div>
+        `;
+    } else {
+        // 显示未提交状态
+        assignmentHtml += `
+            <div style="background: white; border: 1px solid #dc3545; border-radius: 8px; padding: 15px; text-align: center;">
+                <i class="fas fa-exclamation-triangle" style="color: #dc3545; font-size: 24px; margin-bottom: 10px;"></i>
+                <div style="color: #dc3545; font-weight: 600;">学生未提交作业文档</div>
+                <div style="color: #6c757d; font-size: 12px; margin-top: 5px;">请联系学生上传作业文档后再进行批改</div>
+            </div>
+        `;
+    }
+    
+    assignmentHtml += `</div>`;
+    return assignmentHtml;
+}
+
+// 执行大作业AI检测
+async function performAssignmentAIDetection(studentAnswerId) {
+    try {
+        showLoading('正在进行AI检测分析...');
+        
+        const response = await fetch('/api/teacher/assignment/ai-detect-and-grade', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                studentAnswerId: studentAnswerId
+            })
+        });
+        
+        const result = await response.json();
+        hideLoading();
+        
+        if (result.success) {
+            displayAIDetectionResult(studentAnswerId, result.data);
+            showNotification('AI检测完成', 'success');
+        } else {
+            showNotification(result.message || 'AI检测失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('AI检测失败:', error);
+        showNotification('AI检测失败，请重试', 'error');
+    }
+}
+
+// 显示AI检测结果
+function displayAIDetectionResult(studentAnswerId, detectionData) {
+    const resultContainer = document.getElementById(`ai-detection-result-${studentAnswerId}`);
+    if (!resultContainer) return;
+    
+    const riskLevel = detectionData.riskLevel || 'normal';
+    const aiProbability = Math.round((detectionData.aiProbability || 0) * 100);
+    const suggestedScore = detectionData.suggestedScore || 0;
+    const maxScore = detectionData.maxScore || 100;
+    
+    let riskColor = '#27ae60';
+    let riskText = '正常';
+    
+    switch (riskLevel.toLowerCase()) {
+        case 'high':
+            riskColor = '#e74c3c';
+            riskText = '高风险';
+            break;
+        case 'medium':
+            riskColor = '#f39c12';
+            riskText = '中等风险';
+            break;
+        case 'low':
+            riskColor = '#f1c40f';
+            riskText = '低风险';
+            break;
+    }
+    
+    resultContainer.innerHTML = `
+        <div style="border: 1px solid #dee2e6; border-radius: 8px; background: white; overflow: hidden;">
+            <div style="background: #f8f9fa; padding: 12px; border-bottom: 1px solid #dee2e6;">
+                <h6 style="margin: 0; color: #495057; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-robot"></i> AI检测结果
+                </h6>
+            </div>
+            
+            <div style="padding: 15px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div style="text-align: center; padding: 10px; border: 1px solid ${riskColor}; border-radius: 6px; background: ${riskColor}15;">
+                        <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">风险等级</div>
+                        <div style="font-weight: 600; color: ${riskColor};">${riskText}</div>
+                    </div>
+                    <div style="text-align: center; padding: 10px; border: 1px solid #17a2b8; border-radius: 6px; background: #17a2b815;">
+                        <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">AI概率</div>
+                        <div style="font-weight: 600; color: #17a2b8;">${aiProbability}%</div>
+                    </div>
+                </div>
+                
+                <div style="background: #e8f5e8; border: 1px solid #c3e6cb; border-radius: 6px; padding: 12px; margin-bottom: 15px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="font-weight: 600; color: #155724;">AI建议评分</span>
+                        <span style="font-size: 18px; font-weight: 700; color: #155724;">${suggestedScore}/${maxScore}分</span>
+                    </div>
+                    <div style="font-size: 12px; color: #155724;">
+                        基于AI检测结果的建议分数，教师可参考此分数进行最终评分
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="applyAISuggestedScore(${studentAnswerId}, ${suggestedScore})" 
+                            class="btn btn-success" style="font-size: 12px; padding: 6px 12px;">
+                        <i class="fas fa-check"></i> 采用AI建议
+                    </button>
+                    <button type="button" onclick="showDetailedAIReport(${studentAnswerId})" 
+                            class="btn btn-info" style="font-size: 12px; padding: 6px 12px;">
+                        <i class="fas fa-eye"></i> 详细报告
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 保存检测数据用于后续操作
+    window.aiDetectionResults = window.aiDetectionResults || {};
+    window.aiDetectionResults[studentAnswerId] = detectionData;
+    
+    resultContainer.style.display = 'block';
+}
+
+// 采用AI建议分数
+async function applyAISuggestedScore(studentAnswerId, suggestedScore) {
+    // 这里可以直接更新批改界面的分数输入框
+    showNotification(`已采用AI建议分数：${suggestedScore}分`, 'success');
+    
+    // 如果当前正在批改界面，更新分数
+    const scoreInput = document.querySelector(`input[data-student-answer-id="${studentAnswerId}"]`);
+    if (scoreInput) {
+        scoreInput.value = suggestedScore;
+    }
+}
+
+// 显示详细AI报告
+function showDetailedAIReport(studentAnswerId) {
+    const detectionData = window.aiDetectionResults && window.aiDetectionResults[studentAnswerId];
+    if (!detectionData) {
+        showNotification('AI检测数据不存在', 'error');
+        return;
+    }
+    
+    // 显示详细报告弹窗（可以实现一个模态框）
+    alert('详细AI报告功能待实现'); // 临时处理
+}
+
+// 下载大作业文档
+async function downloadAssignmentFile(studentAnswerId) {
+    try {
+        showLoading('正在准备下载...');
+        
+        const response = await fetch(`/api/teacher/assignment/${studentAnswerId}/download`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `assignment_${studentAnswerId}.pdf`; // 默认文件名
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showNotification('文档下载成功', 'success');
+        } else {
+            showNotification('文档下载失败', 'error');
+        }
+        
+    } catch (error) {
+        console.error('下载失败:', error);
+        showNotification('下载失败，请重试', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
 // 显示成绩详情的试卷内容
 function displayGradeDetailQuestions(questions, studentAnswers) {
     const container = document.getElementById('detail-questions-container');
@@ -12658,42 +13213,7 @@ function displayGradeDetailQuestions(questions, studentAnswers) {
                     ${formatTeacherMarkdown(question.content || question.questionText || '')}
                 </div>
                 
-                ${options.length > 0 ? `
-                    <div class="question-options" style="margin-bottom: 15px;">
-                        ${options.map((option, i) => {
-                            const optionLabel = String.fromCharCode(65 + i);
-                            const isSelected = studentAnswer && studentAnswer.answer === optionLabel;
-                            const isCorrectOption = question.answer === optionLabel || question.correctAnswer === optionLabel;
-                            
-                            let optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #f8f9fa;';
-                            if (isSelected && isCorrectOption) {
-                                optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #d4edda; border: 1px solid #c3e6cb;';
-                            } else if (isSelected) {
-                                optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #f8d7da; border: 1px solid #f5c6cb;';
-                            } else if (isCorrectOption) {
-                                optionStyle = 'padding: 8px; margin: 4px 0; border-radius: 4px; background: #d1ecf1; border: 1px solid #bee5eb;';
-                            }
-                            
-                            return `
-                                <div style="${optionStyle}">
-                                    <span style="font-weight: 500; color: #3498db; margin-right: 8px;">${optionLabel}.</span>
-                                    ${formatTeacherMarkdown(option)}
-                                    ${isSelected ? '<span style="color: #e74c3c; margin-left: 8px;"><i class="fas fa-user"></i> 学生选择</span>' : ''}
-                                    ${isCorrectOption ? '<span style="color: #27ae60; margin-left: 8px;"><i class="fas fa-check"></i> 正确答案</span>' : ''}
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                ` : `
-                    <div style="margin-bottom: 15px;">
-                        <div style="padding: 8px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 8px;">
-                            <strong>学生答案：</strong> ${studentAnswer ? formatTeacherMarkdown(studentAnswer.answer) : '未作答'}
-                        </div>
-                        <div style="padding: 8px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px;">
-                            <strong>参考答案：</strong> ${formatTeacherMarkdown(question.answer || question.correctAnswer || 'N/A')}
-                        </div>
-                    </div>
-                `}
+                ${renderQuestionAnswerSection(question, studentAnswer, options)}
                 
                 ${question.explanation ? `
                     <div class="explanation-section" style="padding: 12px; background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px;">
@@ -14125,6 +14645,18 @@ function setupQuestionTypeScoreListeners() {
             }
         });
     }
+    
+    // 大作业题型
+    const assignmentCheckbox = document.getElementById('q-assignment');
+    if (assignmentCheckbox) {
+        assignmentCheckbox.removeEventListener('change', handleAssignmentToggle);
+        assignmentCheckbox.addEventListener('change', handleAssignmentToggle);
+    }
+}
+
+// 处理大作业模式切换
+function handleAssignmentToggle(event) {
+    toggleAssignmentMode(event.target);
 }
 
 // 能力维度设置相关函数

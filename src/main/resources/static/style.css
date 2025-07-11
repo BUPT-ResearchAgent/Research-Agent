@@ -2307,6 +2307,89 @@ input[type="checkbox"].checkbox-sm {
     box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.1), inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* 大作业题目 - 橙色主题 */
+.question-type-item.assignment-type {
+    border: 2px solid #f39c12;
+    border-radius: 8px;
+    padding: 12px;
+    background: linear-gradient(135deg, #fff3cd 0%, #fef9e7 100%);
+}
+
+.question-type-item.assignment-type:hover {
+    background: linear-gradient(135deg, #fff5eb 0%, #fed7aa 100%);
+    border-color: #f39c12;
+    box-shadow: 0 4px 10px rgba(243, 156, 18, 0.15);
+}
+
+.question-type-item.assignment-type:has(input[type="checkbox"]:checked) {
+    background: linear-gradient(135deg, #fef3e8 0%, #fed7aa 100%);
+    border-color: #f39c12;
+    box-shadow: 0 4px 12px rgba(243, 156, 18, 0.2);
+}
+
+#q-assignment {
+    width: 16px !important;
+    height: 16px !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+    accent-color: #f39c12 !important;
+    display: inline-block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    position: relative !important;
+    background: white !important;
+    border: 1px solid #ccc !important;
+}
+
+.question-type-item.assignment-type input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    cursor: pointer;
+    accent-color: #f39c12;
+}
+
+.question-type-item.assignment-type label {
+    margin-bottom: 0;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    color: #d68910;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+
+.question-type-item.assignment-type span {
+    color: #d68910;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.question-type-item.assignment-type .form-input-sm {
+    border-color: #f39c12;
+    color: #d68910;
+}
+
+.question-type-item.assignment-type .form-input-sm:focus {
+    border-color: #f39c12;
+    box-shadow: 0 0 0 3px rgba(243, 156, 18, 0.1), inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.new-feature-badge {
+    font-size: 12px !important;
+    background: #f39c12 !important;
+    color: white !important;
+    padding: 2px 6px !important;
+    border-radius: 10px !important;
+    margin-left: 8px !important;
+    font-weight: 500 !important;
+}
+
+
+
 /* 难度配置 */
 .difficulty-config {
     margin-top: 12px;

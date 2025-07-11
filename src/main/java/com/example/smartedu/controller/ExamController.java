@@ -27,10 +27,20 @@ public class ExamController {
     @PostMapping("/generate")
     public ApiResponse<ExamDTO> generateExam(@RequestBody ExamGenerationRequest request) {
         try {
+            System.out.println("🚀 Controller接收到生成考试请求");
+            System.out.println("📝 请求中的title: " + request.getTitle());
+            System.out.println("📚 请求中的courseId: " + request.getCourseId());
+            
             Exam exam = examService.generateExam(request);
+            
+            System.out.println("✅ 考试生成成功，ID: " + exam.getId());
+            System.out.println("📋 生成的考试标题: " + exam.getTitle());
+            
             ExamDTO examDTO = new ExamDTO(exam);
             return ApiResponse.success("考试生成成功", examDTO);
         } catch (Exception e) {
+            System.err.println("❌ 生成考试失败: " + e.getMessage());
+            e.printStackTrace();
             return ApiResponse.error("生成考试失败：" + e.getMessage());
         }
     }
