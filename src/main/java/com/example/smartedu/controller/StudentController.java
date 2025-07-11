@@ -211,6 +211,7 @@ public class StudentController {
         response.put("status", course.getStatus());
         response.put("createdAt", course.getCreatedAt());
         response.put("updatedAt", course.getUpdatedAt());
+        response.put("trainingObjectives", course.getTrainingObjectives());
         
         // 添加教师信息
         if (course.getTeacher() != null) {
@@ -278,6 +279,39 @@ public class StudentController {
             return ApiResponse.success("获取课程详情成功", courseWithTeacher);
         } catch (Exception e) {
             return ApiResponse.error("获取课程详情失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取课程培养目标
+     */
+    @GetMapping("/courses/{courseId}/training-objectives")
+    public ApiResponse<Map<String, Object>> getCourseTrainingObjectives(@PathVariable Long courseId) {
+        try {
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+            
+            Course course = courseOpt.get();
+            Map<String, Object> response = new HashMap<>();
+            response.put("courseId", courseId);
+            response.put("courseName", course.getName());
+            response.put("courseCode", course.getCourseCode());
+            response.put("trainingObjectives", course.getTrainingObjectives());
+            
+            // 添加教师信息
+            if (course.getTeacher() != null) {
+                Map<String, Object> teacher = new HashMap<>();
+                teacher.put("realName", course.getTeacher().getRealName());
+                teacher.put("department", course.getTeacher().getDepartment());
+                teacher.put("title", course.getTeacher().getTitle());
+                response.put("teacher", teacher);
+            }
+            
+            return ApiResponse.success("获取课程培养目标成功", response);
+        } catch (Exception e) {
+            return ApiResponse.error("获取课程培养目标失败：" + e.getMessage());
         }
     }
     

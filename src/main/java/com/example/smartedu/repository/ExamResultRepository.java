@@ -104,4 +104,10 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
      */
     @Query("SELECT MIN(er.finalScore) FROM ExamResult er WHERE er.exam = :exam")
     Double getMinScoreByExam(@Param("exam") Exam exam);
+    
+    /**
+     * 根据学生ID和课程ID查找所有考试结果，按提交时间排序
+     */
+    @Query("SELECT er FROM ExamResult er JOIN er.exam e WHERE er.studentId = :studentId AND e.course.id = :courseId ORDER BY er.submitTime ASC")
+    List<ExamResult> findByStudentIdAndCourseIdOrderBySubmitTime(@Param("studentId") Long studentId, @Param("courseId") Long courseId);
 } 

@@ -33,6 +33,21 @@ public class Question {
     @Column(length = 100)
     private String knowledgePoint; // 知识点标记
     
+    @Column(name = "training_objective", length = 500)
+    private String trainingObjective; // 关联的培养目标
+    
+    @Column(name = "primary_capability", length = 50)
+    private String primaryCapability; // 主要考核的能力维度
+    
+    @Column(name = "secondary_capabilities", columnDefinition = "TEXT")
+    private String secondaryCapabilities; // 次要考核的能力维度，JSON格式
+    
+    @Column(name = "difficulty_level")
+    private Integer difficultyLevel = 3; // 能力难度等级，1-5级
+    
+    @Column(name = "cognitive_level", length = 20)
+    private String cognitiveLevel = "application"; // 认知层次
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "exam_id", nullable = false)
     @JsonBackReference
@@ -107,6 +122,46 @@ public class Question {
     
     public void setKnowledgePoint(String knowledgePoint) {
         this.knowledgePoint = knowledgePoint;
+    }
+    
+    public String getTrainingObjective() {
+        return trainingObjective;
+    }
+    
+    public void setTrainingObjective(String trainingObjective) {
+        this.trainingObjective = trainingObjective;
+    }
+    
+    public String getPrimaryCapability() {
+        return primaryCapability;
+    }
+    
+    public void setPrimaryCapability(String primaryCapability) {
+        this.primaryCapability = primaryCapability;
+    }
+    
+    public String getSecondaryCapabilities() {
+        return secondaryCapabilities;
+    }
+    
+    public void setSecondaryCapabilities(String secondaryCapabilities) {
+        this.secondaryCapabilities = secondaryCapabilities;
+    }
+    
+    public Integer getDifficultyLevel() {
+        return difficultyLevel;
+    }
+    
+    public void setDifficultyLevel(Integer difficultyLevel) {
+        this.difficultyLevel = difficultyLevel;
+    }
+    
+    public String getCognitiveLevel() {
+        return cognitiveLevel;
+    }
+    
+    public void setCognitiveLevel(String cognitiveLevel) {
+        this.cognitiveLevel = cognitiveLevel;
     }
     
     public Exam getExam() {

@@ -9,6 +9,8 @@ import com.example.smartedu.service.TeacherManagementService;
 import com.example.smartedu.service.CourseCodeService;
 import com.example.smartedu.service.CourseService;
 import com.example.smartedu.service.DeepSeekService;
+import com.example.smartedu.service.CapabilityAnalysisService;
+import com.example.smartedu.entity.CapabilityDimension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
@@ -78,6 +80,9 @@ public class TeacherController {
     
     @Autowired
     private QuestionRepository questionRepository;
+    
+    @Autowired
+    private CapabilityAnalysisService capabilityAnalysisService;
     
     /**
      * 获取教师课程列表
@@ -764,12 +769,194 @@ public class TeacherController {
             course.setClassTime(courseData.getClassTime());
             course.setClassLocation(courseData.getClassLocation());
             course.setMaxStudents(courseData.getMaxStudents());
+            course.setTrainingObjectives(courseData.getTrainingObjectives());
             course.setUpdatedAt(LocalDateTime.now());
             
             Course savedCourse = courseRepository.save(course);
             return ApiResponse.success("课程更新成功", savedCourse);
         } catch (Exception e) {
             return ApiResponse.error("更新课程失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 设置课程培养目标
+     */
+    @PostMapping("/courses/{courseId}/training-objectives")
+    public ApiResponse<Course> setCourseTrainingObjectives(@PathVariable Long courseId,
+                                                         @RequestBody Map<String, Object> request,
+                                                         jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+            
+            Course course = courseOpt.get();
+            
+            // 验证当前教师是否拥有该课程
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Teacher currentTeacher = teacherOpt.get();
+            if (!course.getTeacher().getId().equals(currentTeacher.getId())) {
+                return ApiResponse.error("您没有权限修改此课程的培养目标");
+            }
+            
+            String trainingObjectives = (String) request.get("trainingObjectives");
+            course.setTrainingObjectives(trainingObjectives);
+            course.setUpdatedAt(LocalDateTime.now());
+            
+            Course savedCourse = courseRepository.save(course);
+            return ApiResponse.success("课程培养目标设置成功", savedCourse);
+        } catch (Exception e) {
+            return ApiResponse.error("设置课程培养目标失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取课程培养目标
+     */
+    @GetMapping("/courses/{courseId}/training-objectives")
+    public ApiResponse<Map<String, Object>> getCourseTrainingObjectives(@PathVariable Long courseId) {
+        try {
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+            
+            Course course = courseOpt.get();
+            Map<String, Object> response = new HashMap<>();
+            response.put("courseId", courseId);
+            response.put("courseName", course.getName());
+            response.put("trainingObjectives", course.getTrainingObjectives());
+            
+            return ApiResponse.success("获取课程培养目标成功", response);
+        } catch (Exception e) {
+            return ApiResponse.error("获取课程培养目标失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 为题目设置培养目标
+     */
+    @PostMapping("/questions/{questionId}/training-objective")
+    public ApiResponse<Question> setQuestionTrainingObjective(@PathVariable Long questionId,
+                                                            @RequestBody Map<String, Object> request,
+                                                            jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Optional<Question> questionOpt = questionRepository.findById(questionId);
+            if (!questionOpt.isPresent()) {
+                return ApiResponse.error("题目不存在");
+            }
+            
+            Question question = questionOpt.get();
+            
+            // 验证当前教师是否拥有该题目所属的考试
+            Exam exam = question.getExam();
+            Course course = exam.getCourse();
+            
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Teacher currentTeacher = teacherOpt.get();
+            if (!course.getTeacher().getId().equals(currentTeacher.getId())) {
+                return ApiResponse.error("您没有权限修改此题目的培养目标");
+            }
+            
+            String trainingObjective = (String) request.get("trainingObjective");
+            question.setTrainingObjective(trainingObjective);
+            
+            Question savedQuestion = questionRepository.save(question);
+            return ApiResponse.success("题目培养目标设置成功", savedQuestion);
+        } catch (Exception e) {
+            return ApiResponse.error("设置题目培养目标失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 批量为题目设置培养目标
+     */
+    @PostMapping("/exams/{examId}/questions/training-objectives")
+    public ApiResponse<String> setExamQuestionsTrainingObjectives(@PathVariable Long examId,
+                                                                @RequestBody Map<String, Object> request,
+                                                                jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Optional<Exam> examOpt = examRepository.findById(examId);
+            if (!examOpt.isPresent()) {
+                return ApiResponse.error("考试不存在");
+            }
+            
+            Exam exam = examOpt.get();
+            Course course = exam.getCourse();
+            
+            // 验证当前教师是否拥有该考试
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Teacher currentTeacher = teacherOpt.get();
+            if (!course.getTeacher().getId().equals(currentTeacher.getId())) {
+                return ApiResponse.error("您没有权限修改此考试的题目培养目标");
+            }
+            
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> questionObjectives = (List<Map<String, Object>>) request.get("questionObjectives");
+            
+            int updatedCount = 0;
+            for (Map<String, Object> qo : questionObjectives) {
+                Long questionId = Long.valueOf(qo.get("questionId").toString());
+                String trainingObjective = (String) qo.get("trainingObjective");
+                
+                Optional<Question> questionOpt = questionRepository.findById(questionId);
+                if (questionOpt.isPresent()) {
+                    Question question = questionOpt.get();
+                    if (question.getExam().getId().equals(examId)) {
+                        question.setTrainingObjective(trainingObjective);
+                        questionRepository.save(question);
+                        updatedCount++;
+                    }
+                }
+            }
+            
+            return ApiResponse.success("成功为 " + updatedCount + " 道题目设置了培养目标");
+        } catch (Exception e) {
+            return ApiResponse.error("批量设置题目培养目标失败：" + e.getMessage());
         }
     }
 
@@ -2786,6 +2973,123 @@ public class TeacherController {
     /**
      * 生成教学改进建议
      */
+    /**
+     * 获取所有能力维度
+     */
+    @GetMapping("/capability-dimensions")
+    public ApiResponse<List<Map<String, Object>>> getCapabilityDimensions() {
+        try {
+            List<Map<String, Object>> dimensions = new ArrayList<>();
+            
+            for (CapabilityDimension dimension : CapabilityDimension.values()) {
+                Map<String, Object> dimensionData = new HashMap<>();
+                dimensionData.put("code", dimension.getCode());
+                dimensionData.put("displayName", dimension.getDisplayName());
+                dimensionData.put("description", dimension.getDescription());
+                dimensionData.put("recommendedWeight", dimension.getRecommendedWeight());
+                dimensions.add(dimensionData);
+            }
+            
+            return ApiResponse.success("获取能力维度成功", dimensions);
+        } catch (Exception e) {
+            return ApiResponse.error("获取能力维度失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 分析学生能力表现
+     */
+    @GetMapping("/capability-analysis/{studentId}/{examId}")
+    public ApiResponse<Map<String, Object>> analyzeStudentCapabilities(@PathVariable Long studentId, 
+                                                                      @PathVariable Long examId,
+                                                                      jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Map<String, Object> analysis = capabilityAnalysisService.analyzeStudentCapabilities(studentId, examId);
+            return ApiResponse.success("能力分析完成", analysis);
+        } catch (Exception e) {
+            return ApiResponse.error("能力分析失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 分析学生能力发展轨迹
+     */
+    @GetMapping("/capability-development/{studentId}/{courseId}")
+    public ApiResponse<Map<String, Object>> analyzeCapabilityDevelopment(@PathVariable Long studentId,
+                                                                        @PathVariable Long courseId,
+                                                                        jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            Map<String, Object> development = capabilityAnalysisService.analyzeCapabilityDevelopment(studentId, courseId);
+            return ApiResponse.success("能力发展分析完成", development);
+        } catch (Exception e) {
+            return ApiResponse.error("能力发展分析失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 批量分析课程学生能力表现
+     */
+    @GetMapping("/course-capability-analysis/{courseId}")
+    public ApiResponse<Map<String, Object>> analyzeCourseCapabilities(@PathVariable Long courseId,
+                                                                     jakarta.servlet.http.HttpSession session) {
+        try {
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("用户未登录，请重新登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足，非教师用户");
+            }
+            
+            // 验证教师是否拥有该课程
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+            
+            Course course = courseOpt.get();
+            Teacher currentTeacher = teacherOpt.get();
+            if (!course.getTeacher().getId().equals(currentTeacher.getId())) {
+                return ApiResponse.error("您没有权限查看此课程的能力分析");
+            }
+            
+            // 获取课程所有考试的学生能力分析
+            Map<String, Object> courseAnalysis = new HashMap<>();
+            // 这里可以实现更复杂的课程级别能力分析逻辑
+            
+            return ApiResponse.success("课程能力分析完成", courseAnalysis);
+        } catch (Exception e) {
+            return ApiResponse.error("课程能力分析失败：" + e.getMessage());
+        }
+    }
+
     @PostMapping("/improvements")
     public ResponseEntity<Map<String, Object>> generateImprovements(@RequestBody Map<String, Object> request) {
         try {

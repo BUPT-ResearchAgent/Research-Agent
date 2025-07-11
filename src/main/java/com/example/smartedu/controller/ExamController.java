@@ -178,6 +178,58 @@ public class ExamController {
     }
     
     /**
+     * 生成题目的能力培养目标
+     */
+    @PostMapping("/question/{questionId}/capability-goals")
+    public ApiResponse<String> generateQuestionCapabilityGoals(@PathVariable Long questionId) {
+        try {
+            String capabilityGoals = examService.generateQuestionCapabilityGoals(questionId);
+            return ApiResponse.success("生成成功", capabilityGoals);
+        } catch (Exception e) {
+            return ApiResponse.error("生成失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取学生能力雷达图数据
+     */
+    @GetMapping("/{examId}/capability-radar/{studentId}")
+    public ApiResponse<Map<String, Object>> getStudentCapabilityRadarData(@PathVariable Long examId, @PathVariable Long studentId) {
+        try {
+            Map<String, Object> radarData = examService.getStudentCapabilityRadarData(examId, studentId);
+            return ApiResponse.success("获取成功", radarData);
+        } catch (Exception e) {
+            return ApiResponse.error("获取失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取全班平均能力雷达图数据
+     */
+    @GetMapping("/{examId}/capability-radar/class-average")
+    public ApiResponse<Map<String, Object>> getClassAverageCapabilityRadarData(@PathVariable Long examId) {
+        try {
+            Map<String, Object> radarData = examService.getClassAverageCapabilityRadarData(examId);
+            return ApiResponse.success("获取成功", radarData);
+        } catch (Exception e) {
+            return ApiResponse.error("获取失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取考试的参与学生列表
+     */
+    @GetMapping("/{examId}/participants")
+    public ApiResponse<List<Map<String, Object>>> getExamParticipants(@PathVariable Long examId) {
+        try {
+            List<Map<String, Object>> participants = examService.getExamParticipants(examId);
+            return ApiResponse.success("获取成功", participants);
+        } catch (Exception e) {
+            return ApiResponse.error("获取失败：" + e.getMessage());
+        }
+    }
+    
+    /**
      * 删除试卷
      */
     @DeleteMapping("/{examId}")

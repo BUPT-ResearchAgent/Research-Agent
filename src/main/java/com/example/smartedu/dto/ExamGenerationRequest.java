@@ -15,6 +15,8 @@ public class ExamGenerationRequest {
     private String specialRequirements; // 特殊要求（可选，RAG检索时作为关键词）
     private LocalDateTime startTime;
     private String classId; // 测评班级
+    private Object capabilityRequirements; // 能力维度要求配置（Map格式）
+    private Boolean enableCapabilityAnalysis = false; // 是否启用能力分析模式
     
     public ExamGenerationRequest() {}
     
@@ -105,5 +107,21 @@ public class ExamGenerationRequest {
     
     public void setSpecialRequirements(String specialRequirements) {
         this.specialRequirements = specialRequirements;
+    }
+    
+    public Object getCapabilityRequirements() {
+        return capabilityRequirements;
+    }
+    
+    public void setCapabilityRequirements(Object capabilityRequirements) {
+        this.capabilityRequirements = capabilityRequirements;
+    }
+    
+    public Boolean getEnableCapabilityAnalysis() {
+        return enableCapabilityAnalysis;
+    }
+    
+    public void setEnableCapabilityAnalysis(Boolean enableCapabilityAnalysis) {
+        this.enableCapabilityAnalysis = enableCapabilityAnalysis;
     }
 } 

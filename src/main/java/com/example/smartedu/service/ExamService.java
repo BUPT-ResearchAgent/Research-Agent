@@ -14,6 +14,9 @@ import java.util.Map;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -45,6 +48,9 @@ public class ExamService {
     
     @Autowired
     private EmbeddingService embeddingService;
+    
+    @Autowired
+    private StudentAnswerRepository studentAnswerRepository;
     
     /**
      * 生成考试
@@ -108,17 +114,34 @@ public class ExamService {
                 throw new RuntimeException("请至少选择一种题型");
             }
             
-            // 调用DeepSeek API生成试卷内容，使用RAG检索的内容
-            String examJson = deepSeekService.generateExamQuestionsWithSettings(
-                course.getName(),
-                "基于知识库内容",
-                questionTypesMap,
-                (Map<String, Object>) request.getDifficulty(),
-                request.getTotalScore(),
-                request.getDuration(),
-                ragContent,
-                request.getSpecialRequirements()
-            );
+            // 调用DeepSeek API生成试卷内容，根据是否启用能力分析选择不同的生成方法
+            String examJson;
+            if (request.getEnableCapabilityAnalysis() != null && request.getEnableCapabilityAnalysis()) {
+                // 使用能力导向的出题方法
+                examJson = deepSeekService.generateCapabilityBasedExamQuestions(
+                    course.getName(),
+                    "基于知识库内容",
+                    questionTypesMap,
+                    (Map<String, Object>) request.getDifficulty(),
+                    (Map<String, Object>) request.getCapabilityRequirements(),
+                    request.getTotalScore(),
+                    request.getDuration(),
+                    ragContent,
+                    request.getSpecialRequirements()
+                );
+            } else {
+                // 使用传统的出题方法
+                examJson = deepSeekService.generateExamQuestionsWithSettings(
+                    course.getName(),
+                    "基于知识库内容",
+                    questionTypesMap,
+                    (Map<String, Object>) request.getDifficulty(),
+                    request.getTotalScore(),
+                    request.getDuration(),
+                    ragContent,
+                    request.getSpecialRequirements()
+                );
+            }
             
             // 创建考试记录
         Exam exam = new Exam();
@@ -976,7 +999,17 @@ public class ExamService {
             // 提取知识点
             String knowledgePoint = extractContent(block, "**知识点**：", "**");
             if (knowledgePoint != null && !knowledgePoint.trim().isEmpty()) {
-                question.setKnowledgePoint(knowledgePoint.trim());
+                String trimmedKnowledgePoint = knowledgePoint.trim();
+                question.setKnowledgePoint(trimmedKnowledgePoint);
+                
+                // 检查知识点是否包含能力维度代码
+                String capabilityCode = extractCapabilityCode(trimmedKnowledgePoint);
+                if (capabilityCode != null) {
+                    question.setPrimaryCapability(capabilityCode);
+                    // 设置默认的认知层次和难度等级
+                    question.setCognitiveLevel("application");
+                    question.setDifficultyLevel(3);
+                }
             } else {
                 // 如果没有显式提取到知识点，使用DeepSeek生成
                 String generatedKnowledgePoint = generateKnowledgePoint(question.getContent(), questionType);
@@ -2362,5 +2395,255 @@ public class ExamService {
         }
         
         return question;
+    }
+    
+    /**
+     * 从知识点字符串中提取能力维度代码
+     */
+    private String extractCapabilityCode(String knowledgePoint) {
+        if (knowledgePoint == null || knowledgePoint.trim().isEmpty()) {
+            return null;
+        }
+        
+        String lowerKnowledgePoint = knowledgePoint.toLowerCase().trim();
+        
+        // 定义能力维度代码及其可能的表示形式
+        String[][] capabilityMappings = {
+            {"knowledge", "理论掌握", "基础理论", "概念理解", "知识记忆"},
+            {"application", "实践应用", "应用能力", "实际操作", "问题解决"},
+            {"innovation", "创新思维", "创新能力", "创造性思维", "发散思维"},
+            {"transfer", "知识迁移", "迁移能力", "举一反三", "综合运用"},
+            {"learning", "学习能力", "自主学习", "学习策略", "持续学习"},
+            {"systematic", "系统思维", "系统分析", "整体思维", "大局观"},
+            {"ideology", "思政素养", "价值观", "道德判断", "社会责任"},
+            {"communication", "沟通协作", "表达能力", "团队合作", "协调能力"},
+            {"analysis", "分析综合", "逻辑分析", "综合判断", "推理能力"},
+            {"research", "实验研究", "研究方法", "实验设计", "数据分析"}
+        };
+        
+        // 首先检查是否直接包含能力代码
+        for (String[] mapping : capabilityMappings) {
+            String code = mapping[0];
+            if (lowerKnowledgePoint.contains(code)) {
+                return code;
+            }
+        }
+        
+        // 然后检查是否包含能力维度的中文表示
+        for (String[] mapping : capabilityMappings) {
+            String code = mapping[0];
+            for (int i = 1; i < mapping.length; i++) {
+                if (lowerKnowledgePoint.contains(mapping[i].toLowerCase())) {
+                    return code;
+                }
+            }
+        }
+        
+        return null; // 没有找到匹配的能力维度
+    }
+    
+    /**
+     * 为题目生成能力培养目标
+     */
+    public String generateQuestionCapabilityGoals(Long questionId) {
+        try {
+            Question question = questionRepository.findById(questionId)
+                .orElseThrow(() -> new RuntimeException("题目不存在"));
+            
+            return deepSeekService.generateCapabilityGoalsForQuestion(
+                question.getContent(),
+                question.getType(),
+                question.getPrimaryCapability(),
+                question.getKnowledgePoint()
+            );
+        } catch (Exception e) {
+            System.err.println("生成题目能力培养目标失败: " + e.getMessage());
+            throw new RuntimeException("生成能力培养目标失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取学生能力雷达图数据
+     */
+    public Map<String, Object> getStudentCapabilityRadarData(Long examId, Long studentId) {
+        try {
+            // 验证考试和学生存在
+            Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("考试不存在"));
+            
+            // 获取学生的考试结果
+            Optional<ExamResult> examResultOpt = examResultRepository.findByStudentIdAndExamId(studentId, examId);
+            if (!examResultOpt.isPresent()) {
+                throw new RuntimeException("学生尚未参加此考试");
+            }
+            
+            ExamResult examResult = examResultOpt.get();
+            
+            // 获取学生答案
+            List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(examResult.getId());
+            
+            // 分析学生各能力维度表现
+            Map<String, Double> capabilityScores = analyzeStudentCapabilityPerformance(studentAnswers);
+            
+            Map<String, Object> radarData = new HashMap<>();
+            radarData.put("labels", Arrays.asList("理论掌握", "实践应用", "创新思维", "知识迁移", "学习能力", "系统思维"));
+            radarData.put("values", Arrays.asList(
+                capabilityScores.getOrDefault("knowledge", 0.0),
+                capabilityScores.getOrDefault("application", 0.0),
+                capabilityScores.getOrDefault("innovation", 0.0),
+                capabilityScores.getOrDefault("transfer", 0.0),
+                capabilityScores.getOrDefault("learning", 0.0),
+                capabilityScores.getOrDefault("systematic", 0.0)
+            ));
+            radarData.put("studentName", examResult.getStudentName());
+            radarData.put("examTitle", exam.getTitle());
+            
+            return radarData;
+        } catch (Exception e) {
+            System.err.println("获取学生能力雷达图数据失败: " + e.getMessage());
+            throw new RuntimeException("获取能力雷达图数据失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取全班平均能力雷达图数据
+     */
+    public Map<String, Object> getClassAverageCapabilityRadarData(Long examId) {
+        try {
+            Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("考试不存在"));
+            
+            // 获取所有参与考试的学生结果
+            List<ExamResult> allResults = examResultRepository.findByExam(exam);
+            
+            if (allResults.isEmpty()) {
+                throw new RuntimeException("暂无学生参加此考试");
+            }
+            
+            // 计算各能力维度的平均分
+            Map<String, Double> totalCapabilityScores = new HashMap<>();
+            totalCapabilityScores.put("knowledge", 0.0);
+            totalCapabilityScores.put("application", 0.0);
+            totalCapabilityScores.put("innovation", 0.0);
+            totalCapabilityScores.put("transfer", 0.0);
+            totalCapabilityScores.put("learning", 0.0);
+            totalCapabilityScores.put("systematic", 0.0);
+            
+            int participantCount = 0;
+            
+            for (ExamResult result : allResults) {
+                List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(result.getId());
+                if (!studentAnswers.isEmpty()) {
+                    Map<String, Double> studentCapabilityScores = analyzeStudentCapabilityPerformance(studentAnswers);
+                    
+                    for (String capability : totalCapabilityScores.keySet()) {
+                        totalCapabilityScores.put(capability, 
+                            totalCapabilityScores.get(capability) + studentCapabilityScores.getOrDefault(capability, 0.0));
+                    }
+                    participantCount++;
+                }
+            }
+            
+            if (participantCount == 0) {
+                throw new RuntimeException("没有有效的答题数据");
+            }
+            
+            // 计算平均值
+            Map<String, Double> averageCapabilityScores = new HashMap<>();
+            for (String capability : totalCapabilityScores.keySet()) {
+                averageCapabilityScores.put(capability, totalCapabilityScores.get(capability) / participantCount);
+            }
+            
+            Map<String, Object> radarData = new HashMap<>();
+            radarData.put("labels", Arrays.asList("理论掌握", "实践应用", "创新思维", "知识迁移", "学习能力", "系统思维"));
+            radarData.put("values", Arrays.asList(
+                averageCapabilityScores.getOrDefault("knowledge", 0.0),
+                averageCapabilityScores.getOrDefault("application", 0.0),
+                averageCapabilityScores.getOrDefault("innovation", 0.0),
+                averageCapabilityScores.getOrDefault("transfer", 0.0),
+                averageCapabilityScores.getOrDefault("learning", 0.0),
+                averageCapabilityScores.getOrDefault("systematic", 0.0)
+            ));
+            radarData.put("participantCount", participantCount);
+            radarData.put("examTitle", exam.getTitle());
+            
+            return radarData;
+        } catch (Exception e) {
+            System.err.println("获取全班平均能力雷达图数据失败: " + e.getMessage());
+            throw new RuntimeException("获取能力雷达图数据失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取考试的参与学生列表
+     */
+    public List<Map<String, Object>> getExamParticipants(Long examId) {
+        try {
+            Exam exam = examRepository.findById(examId)
+                .orElseThrow(() -> new RuntimeException("考试不存在"));
+            
+            List<ExamResult> examResults = examResultRepository.findByExam(exam);
+            
+            List<Map<String, Object>> participants = new ArrayList<>();
+            for (ExamResult result : examResults) {
+                Map<String, Object> participant = new HashMap<>();
+                participant.put("id", result.getStudentId());
+                participant.put("name", result.getStudentName());
+                participant.put("score", result.getScore());
+                participant.put("submitTime", result.getSubmitTime());
+                participants.add(participant);
+            }
+            
+            return participants;
+        } catch (Exception e) {
+            System.err.println("获取考试参与学生列表失败: " + e.getMessage());
+            throw new RuntimeException("获取参与学生列表失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 分析学生各能力维度表现
+     */
+    private Map<String, Double> analyzeStudentCapabilityPerformance(List<StudentAnswer> studentAnswers) {
+        Map<String, Double> capabilityScores = new HashMap<>();
+        Map<String, Integer> capabilityQuestionCounts = new HashMap<>();
+        
+        // 初始化能力维度
+        String[] capabilities = {"knowledge", "application", "innovation", "transfer", "learning", "systematic"};
+        for (String capability : capabilities) {
+            capabilityScores.put(capability, 0.0);
+            capabilityQuestionCounts.put(capability, 0);
+        }
+        
+        for (StudentAnswer answer : studentAnswers) {
+            Question question = answer.getQuestion();
+            String primaryCapability = question.getPrimaryCapability();
+            
+            if (primaryCapability != null && capabilityScores.containsKey(primaryCapability)) {
+                double score = answer.getScore() != null ? answer.getScore() : 0.0;
+                double questionMaxScore = question.getScore() != null ? question.getScore() : 1.0;
+                
+                // 计算百分制得分
+                double normalizedScore = questionMaxScore > 0 ? (score / questionMaxScore) * 100 : 0;
+                
+                capabilityScores.put(primaryCapability, 
+                    capabilityScores.get(primaryCapability) + normalizedScore);
+                capabilityQuestionCounts.put(primaryCapability, 
+                    capabilityQuestionCounts.get(primaryCapability) + 1);
+            }
+        }
+        
+        // 计算各能力维度的平均分
+        Map<String, Double> finalCapabilityScores = new HashMap<>();
+        for (String capability : capabilities) {
+            int questionCount = capabilityQuestionCounts.get(capability);
+            if (questionCount > 0) {
+                finalCapabilityScores.put(capability, capabilityScores.get(capability) / questionCount);
+            } else {
+                finalCapabilityScores.put(capability, 0.0);
+            }
+        }
+        
+        return finalCapabilityScores;
     }
 }

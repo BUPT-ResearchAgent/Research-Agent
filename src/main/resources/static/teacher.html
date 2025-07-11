@@ -391,6 +391,124 @@
             font-size: 14px;
             font-weight: 500;
         }
+        
+        /* 培养目标相关样式 */
+        .training-objectives-container {
+            border: 2px dashed #e1e8ed;
+            border-radius: 8px;
+            padding: 16px;
+            background: #f8f9fa;
+        }
+        
+        .objective-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 12px;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .objective-item:hover {
+            border-color: #3498db;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+        }
+        
+        .objective-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .objective-input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+        
+        .remove-objective-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 6px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.3s ease;
+        }
+        
+        .remove-objective-btn:hover {
+            background: #c0392b;
+        }
+        
+        .add-objective-btn {
+            background: #3498db;
+            color: white;
+            border: 2px dashed #3498db;
+            padding: 10px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            width: 100%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .add-objective-btn:hover {
+            background: #2980b9;
+            border-color: #2980b9;
+            transform: translateY(-1px);
+        }
+        
+        .training-objectives-display {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+        
+        .training-objectives-display .objective-display-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .training-objectives-display .objective-display-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .training-objectives-display .objective-text {
+            flex: 1;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+        
+        .training-objectives-display .objective-number {
+            background: #3498db;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 20px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -1010,9 +1128,12 @@
                                         <input type="checkbox" id="q-multiple-choice">
                                         <span>📝 选择题</span>
                                     </label>
-                                    <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="q-multiple-choice-count" class="form-input-sm" placeholder="0" min="0" max="50">
-                                    <span>题</span>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="number" id="q-multiple-choice-count" class="form-input-sm" placeholder="0" min="0" max="100" style="width: 70px;">
+                                        <span>题</span>
+                                        <span style="color: #6c757d;">×</span>
+                                        <input type="number" id="q-multiple-choice-score" class="form-input-sm" placeholder="5" min="1" max="50" style="width: 70px;">
+                                        <span style="color: #6c757d;">分/题</span>
                                     </div>
                                 </div>
                                 <div class="question-type-item">
@@ -1020,9 +1141,12 @@
                                         <input type="checkbox" id="q-fill-blank">
                                         <span>✏️ 填空题</span>
                                     </label>
-                                    <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="q-fill-blank-count" class="form-input-sm" placeholder="0" min="0" max="20">
-                                    <span>题</span>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="number" id="q-fill-blank-count" class="form-input-sm" placeholder="0" min="0" max="100" style="width: 70px;">
+                                        <span>题</span>
+                                        <span style="color: #6c757d;">×</span>
+                                        <input type="number" id="q-fill-blank-score" class="form-input-sm" placeholder="8" min="1" max="50" style="width: 70px;">
+                                        <span style="color: #6c757d;">分/题</span>
                                     </div>
                                 </div>
                                 <div class="question-type-item">
@@ -1030,9 +1154,12 @@
                                         <input type="checkbox" id="q-true-false">
                                         <span>✅ 判断题</span>
                                     </label>
-                                    <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="number" id="q-true-false-count" class="form-input-sm" placeholder="0" min="0" max="20">
-                                    <span>题</span>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="number" id="q-true-false-count" class="form-input-sm" placeholder="0" min="0" max="100" style="width: 70px;">
+                                        <span>题</span>
+                                        <span style="color: #6c757d;">×</span>
+                                        <input type="number" id="q-true-false-score" class="form-input-sm" placeholder="3" min="1" max="30" style="width: 70px;">
+                                        <span style="color: #6c757d;">分/题</span>
                                     </div>
                                 </div>
                                 <div class="question-type-item">
@@ -1040,26 +1167,316 @@
                                         <input type="checkbox" id="q-answer">
                                         <span>📝 解答题</span>
                                     </label>
-                                    <div style="display: flex; align-items: center; gap: 4px;">
-                                        <input type="number" id="q-answer-count" class="form-input-sm" placeholder="0" min="0" max="10">
-                                    <span>题</span>
-                                </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="number" id="q-answer-count" class="form-input-sm" placeholder="0" min="0" max="50" style="width: 70px;">
+                                        <span>题</span>
+                                        <span style="color: #6c757d;">×</span>
+                                        <input type="number" id="q-answer-score" class="form-input-sm" placeholder="15" min="5" max="100" style="width: 70px;">
+                                        <span style="color: #6c757d;">分/题</span>
+                                    </div>
                                 </div>
                             </div>
                             
                             <!-- 自定义题型 -->
                             <div class="custom-question-type">
-                                <div class="custom-question-item">
-                                    <label>
+                                <div class="custom-question-item" style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px; border: 1px solid #e9ecef; border-radius: 8px; background-color: #f8f9fa;">
+                                    <label style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
                                         <input type="checkbox" id="q-custom">
-                                        <span>🎯 自定义题型</span>
+                                        <span style="font-weight: 500;">🎯 自定义题型</span>
                                     </label>
                                     <input type="text" id="q-custom-requirement" class="form-input-custom" 
-                                           placeholder="请描述题型要求，如：案例分析题、实操题、综合应用题、编程题等..." 
-                                           style="width: 200px;">
-                                    <div style="display: flex; align-items: center; gap: 6px;">
-                                        <input type="number" id="q-custom-count" class="form-input-sm" placeholder="0" min="0" max="10">
-                                    <span>题</span>
+                                           placeholder="如：案例分析题、实操题、综合应用题、编程题等..." 
+                                           style="flex: 1; min-width: 200px; max-width: 300px;">
+                                    <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                                        <input type="number" id="q-custom-count" class="form-input-sm" placeholder="0" min="0" max="50" style="width: 70px;">
+                                        <span>题</span>
+                                        <span style="color: #6c757d;">×</span>
+                                        <input type="number" id="q-custom-score" class="form-input-sm" placeholder="20" min="5" max="100" style="width: 70px;">
+                                        <span style="color: #6c757d;">分/题</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 能力培养导向设置 -->
+                        <div class="form-group">
+                            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                                <label style="display: flex; align-items: center; gap: 12px; color: white; margin: 0; cursor: pointer;">
+                                    <input type="checkbox" id="enable-capability-analysis" onchange="toggleCapabilitySettings()" 
+                                           style="width: 18px; height: 18px; accent-color: #fff;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-graduation-cap" style="font-size: 18px;"></i>
+                                        <span style="font-size: 16px; font-weight: 600;">能力培养导向出题</span>
+                                        <span style="font-size: 12px; background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px;">智能AI</span>
+                                    </div>
+                                    <i class="fas fa-info-circle" title="基于人才培养目标，为每道题目明确能力考核维度" 
+                                       style="margin-left: auto; color: rgba(255,255,255,0.8); cursor: help;"></i>
+                                </label>
+                                <div style="font-size: 13px; color: rgba(255,255,255,0.9); margin-top: 8px; line-height: 1.4;">
+                                    启用后将根据能力维度智能生成题目，重点考查学生的理论掌握、实践应用、创新思维等核心能力
+                                </div>
+                            </div>
+                            
+                            <div id="capability-settings" style="display: none;">
+                                <div style="background: #fff; border: 2px solid #e3f2fd; border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: #1976d2;">
+                                        <i class="fas fa-cogs" style="font-size: 16px;"></i>
+                                        <span style="font-weight: 600; font-size: 15px;">能力维度配置</span>
+                                        <div style="flex: 1; height: 1px; background: linear-gradient(to right, #1976d2, transparent); margin-left: 12px;"></div>
+                                    </div>
+                                    
+                                    <style>
+                                        .capability-grid {
+                                            display: flex;
+                                            flex-wrap: wrap;
+                                            gap: 16px;
+                                            justify-content: flex-start;
+                                        }
+                                        .capability-card {
+                                            flex: 1 1 calc(33.333% - 12px);
+                                            min-width: 300px;
+                                            max-width: 400px;
+                                            border-radius: 12px;
+                                            padding: 20px;
+                                            box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+                                            transition: all 0.3s ease;
+                                            display: flex;
+                                            flex-direction: column;
+                                            justify-content: space-between;
+                                            height: auto;
+                                        }
+                                        .capability-card:hover {
+                                            transform: translateY(-3px);
+                                            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+                                        }
+                                        .capability-header {
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: space-between;
+                                            margin-bottom: 12px;
+                                        }
+                                        .capability-info {
+                                            flex: 1;
+                                            min-width: 0;
+                                        }
+                                        .capability-title {
+                                            font-size: 16px;
+                                            font-weight: 600;
+                                            margin: 0;
+                                            line-height: 1.3;
+                                            color: #2c3e50;
+                                            display: flex;
+                                            align-items: center;
+                                            gap: 8px;
+                                        }
+                                        .capability-desc {
+                                            font-size: 12px;
+                                            line-height: 1.4;
+                                            color: #6c757d;
+                                            margin-top: 6px;
+                                        }
+                                        .capability-input-section {
+                                            display: flex;
+                                            align-items: center;
+                                            gap: 10px;
+                                            margin-left: 16px;
+                                            flex-shrink: 0;
+                                        }
+                                        .capability-input {
+                                            width: 80px;
+                                            height: 36px;
+                                            text-align: center;
+                                            border: 2px solid #e9ecef;
+                                            border-radius: 6px;
+                                            font-size: 14px;
+                                            font-weight: 600;
+                                            transition: all 0.3s ease;
+                                        }
+                                        .capability-input:focus {
+                                            outline: none;
+                                            border-color: #007bff;
+                                            box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+                                        }
+                                        .capability-unit {
+                                            font-size: 13px;
+                                            color: #6c757d;
+                                            font-weight: 500;
+                                        }
+                                        @media (max-width: 1200px) {
+                                            .capability-card { flex: 1 1 calc(50% - 8px); min-width: 280px; }
+                                        }
+                                        @media (max-width: 768px) {
+                                            .capability-card { flex: 1 1 100%; min-width: 250px; }
+                                        }
+                                    </style>
+                                    <div class="capability-grid">
+                                        <!-- 理论掌握 -->
+                                        <div class="capability-card" style="border: 1px solid #e1f5fe; background: linear-gradient(135deg, #e1f5fe 0%, #f3e5f5 100%);">
+                                            <div class="capability-header">
+                                                <div class="capability-info">
+                                                    <label style="cursor: pointer; display: block;">
+                                                        <input type="checkbox" id="cap-knowledge" value="knowledge" style="accent-color: #1976d2; margin-right: 10px; vertical-align: middle; position: relative; top: 7px;">
+                                                        <h4 class="capability-title" style="color: #0d47a1; display: inline;">
+                                                            📚 理论掌握
+                                                        </h4>
+                                                    </label>
+                                                    <div class="capability-desc">基础知识理解、概念掌握</div>
+                                                </div>
+                                                <div class="capability-input-section">
+                                                    <input type="number" id="cap-knowledge-count" class="capability-input" placeholder="0" min="0" max="50">
+                                                    <span class="capability-unit">题</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 实践应用 -->
+                                        <div class="capability-card" style="border: 1px solid #e8f5e8; background: linear-gradient(135deg, #e8f5e8 0%, #fff3e0 100%);">
+                                            <div class="capability-header">
+                                                <div class="capability-info">
+                                                    <label style="cursor: pointer; display: block;">
+                                                        <input type="checkbox" id="cap-application" value="application" style="accent-color: #2e7d32; margin-right: 10px; vertical-align: middle; position: relative; top: 7px;">
+                                                        <h4 class="capability-title" style="color: #1b5e20; display: inline;">
+                                                            🔧 实践应用
+                                                        </h4>
+                                                    </label>
+                                                    <div class="capability-desc">实际操作、问题解决</div>
+                                                </div>
+                                                <div class="capability-input-section">
+                                                    <input type="number" id="cap-application-count" class="capability-input" placeholder="0" min="0" max="50">
+                                                    <span class="capability-unit">题</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 创新思维 -->
+                                        <div class="capability-card" style="border: 1px solid #fff3e0; background: linear-gradient(135deg, #fff3e0 0%, #fce4ec 100%);">
+                                            <div class="capability-header">
+                                                <div class="capability-info">
+                                                    <label style="cursor: pointer; display: block;">
+                                                        <input type="checkbox" id="cap-innovation" value="innovation" style="accent-color: #f57c00; margin-right: 10px; vertical-align: middle; position: relative; top: 7px;">
+                                                        <h4 class="capability-title" style="color: #e65100; display: inline;">
+                                                            💡 创新思维
+                                                        </h4>
+                                                    </label>
+                                                    <div class="capability-desc">发散思维、创造性解决问题</div>
+                                                </div>
+                                                <div class="capability-input-section">
+                                                    <input type="number" id="cap-innovation-count" class="capability-input" placeholder="0" min="0" max="50">
+                                                    <span class="capability-unit">题</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 知识迁移 -->
+                                        <div class="capability-card" style="border: 1px solid #f3e5f5; background: linear-gradient(135deg, #f3e5f5 0%, #e8eaf6 100%);">
+                                            <div class="capability-header">
+                                                <div class="capability-info">
+                                                    <label style="cursor: pointer; display: block;">
+                                                        <input type="checkbox" id="cap-transfer" value="transfer" style="accent-color: #7b1fa2; margin-right: 10px; vertical-align: middle; position: relative; top: 7px;">
+                                                        <h4 class="capability-title" style="color: #4a148c; display: inline;">
+                                                            🔄 知识迁移
+                                                        </h4>
+                                                    </label>
+                                                    <div class="capability-desc">跨领域应用、举一反三</div>
+                                                </div>
+                                                <div class="capability-input-section">
+                                                    <input type="number" id="cap-transfer-count" class="capability-input" placeholder="0" min="0" max="50">
+                                                    <span class="capability-unit">题</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 学习能力 -->
+                                        <div class="capability-card" style="border: 1px solid #e0f2f1; background: linear-gradient(135deg, #e0f2f1 0%, #e8f5e8 100%);">
+                                            <div class="capability-header">
+                                                <div class="capability-info">
+                                                    <label style="cursor: pointer; display: block;">
+                                                        <input type="checkbox" id="cap-learning" value="learning" style="accent-color: #00695c; margin-right: 10px; vertical-align: middle; position: relative; top: 7px;">
+                                                        <h4 class="capability-title" style="color: #004d40; display: inline;">
+                                                            📈 学习能力
+                                                        </h4>
+                                                    </label>
+                                                    <div class="capability-desc">自主学习、学习策略</div>
+                                                </div>
+                                                <div class="capability-input-section">
+                                                    <input type="number" id="cap-learning-count" class="capability-input" placeholder="0" min="0" max="50">
+                                                    <span class="capability-unit">题</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 系统思维 -->
+                                        <div class="capability-card" style="border: 1px solid #e3f2fd; background: linear-gradient(135deg, #e3f2fd 0%, #e1f5fe 100%);">
+                                            <div class="capability-header">
+                                                <div class="capability-info">
+                                                    <label style="cursor: pointer; display: block;">
+                                                        <input type="checkbox" id="cap-systematic" value="systematic" style="accent-color: #1565c0; margin-right: 10px; vertical-align: middle; position: relative; top: 7px;">
+                                                        <h4 class="capability-title" style="color: #0d47a1; display: inline;">
+                                                            🌐 系统思维
+                                                        </h4>
+                                                    </label>
+                                                    <div class="capability-desc">整体把握、系统分析</div>
+                                                </div>
+                                                <div class="capability-input-section">
+                                                    <input type="number" id="cap-systematic-count" class="capability-input" placeholder="0" min="0" max="50">
+                                                    <span class="capability-unit">题</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 思政素养 -->
+                                        <div class="capability-card" style="border: 1px solid #ffebee; background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);">
+                                            <div class="capability-header">
+                                                <div class="capability-info">
+                                                    <label style="cursor: pointer; display: block;">
+                                                        <input type="checkbox" id="cap-ideology" value="ideology" style="accent-color: #c62828; margin-right: 10px; vertical-align: middle; position: relative; top: 7px;">
+                                                        <h4 class="capability-title" style="color: #b71c1c; display: inline;">
+                                                            🎯 思政素养
+                                                        </h4>
+                                                    </label>
+                                                    <div class="capability-desc">价值观念、社会责任感</div>
+                                                </div>
+                                                <div class="capability-input-section">
+                                                    <input type="number" id="cap-ideology-count" class="capability-input" placeholder="0" min="0" max="50">
+                                                    <span class="capability-unit">题</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 沟通协作 -->
+                                        <div class="capability-card" style="border: 1px solid #f9fbe7; background: linear-gradient(135deg, #f9fbe7 0%, #f0f4c3 100%);">
+                                            <div class="capability-header">
+                                                <div class="capability-info">
+                                                    <label style="cursor: pointer; display: block;">
+                                                        <input type="checkbox" id="cap-communication" value="communication" style="accent-color: #689f38; margin-right: 10px; vertical-align: middle; position: relative; top: 7px;">
+                                                        <h4 class="capability-title" style="color: #33691e; display: inline;">
+                                                            🤝 沟通协作
+                                                        </h4>
+                                                    </label>
+                                                    <div class="capability-desc">表达能力、团队合作</div>
+                                                </div>
+                                                <div class="capability-input-section">
+                                                    <input type="number" id="cap-communication-count" class="capability-input" placeholder="0" min="0" max="50">
+                                                    <span class="capability-unit">题</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="margin-top: 20px; padding: 14px; background: linear-gradient(135deg, #e8f5e8 0%, #e3f2fd 100%); border-radius: 8px; border-left: 4px solid #2196f3;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                            <i class="fas fa-robot" style="color: #1976d2; font-size: 16px;"></i>
+                                            <span style="font-weight: 600; color: #1976d2; font-size: 14px;">AI智能建议</span>
+                                        </div>
+                                        <div style="font-size: 13px; color: #37474f; line-height: 1.5;">
+                                            <strong>推荐权重分配：</strong>实践应用25% • 理论掌握20% • 创新思维15% • 知识迁移15% • 学习能力10% • 系统思维10% • 其他5%
+                                        </div>
+                                        <div style="margin-top: 8px;">
+                                            <button type="button" onclick="setRecommendedCapabilityValues()" 
+                                                    style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">
+                                                <i class="fas fa-magic"></i> 一键应用推荐配置
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1103,6 +1520,11 @@
                                 <div style="display: flex; align-items: center; gap: 8px;">
                             <input type="number" id="exam-total-score" class="form-input" value="100" min="50" max="200">
                                     <span style="white-space: nowrap; display: inline-block;">分</span>
+                                    <button type="button" onclick="autoCalculateTotalScore()" class="btn btn-sm" 
+                                            style="background: #17a2b8; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap;"
+                                            title="根据题型分数自动计算总分">
+                                        <i class="fas fa-calculator"></i> 自动计算
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1366,8 +1788,8 @@
                             </div>
                         </div>
                         
-            <!-- 第二行：成绩分布图表 -->
-            <div class="main-content">
+            <!-- 第二行：成绩分布图表和能力雷达图 -->
+            <div class="main-content" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                 <div class="content-card">
                     <div class="card-header">
                         <i class="fas fa-chart-pie"></i> 成绩分布统计
@@ -1379,7 +1801,27 @@
                     </div>
                 </div>
                 
-                <!-- 第三行：错误率分析 -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-star"></i> 能力维度雷达图
+                        <div class="card-actions">
+                            <select id="radar-student-select" class="form-select" style="margin-right: 10px;" onchange="updateStudentRadarChart()">
+                                <option value="">选择学生</option>
+                                <option value="all">全班平均</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <div id="capability-radar-chart" style="background: #f8f9fa; border-radius: 8px; height: 400px; display: flex; align-items: center; justify-content: center; color: #7f8c8d; position: relative;">
+                            <canvas id="radarCanvas" width="350" height="350" style="display: none;"></canvas>
+                            <div id="radar-empty-state">选择考试和学生后显示能力雷达图</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 第三行：错误率分析 -->
+            <div class="main-content">
                 <div class="content-card">
                     <div class="card-header">
                         <i class="fas fa-exclamation-triangle"></i> 错误率分析
@@ -1401,7 +1843,7 @@
                         </table>
                     </div>
                 </div>
-            </div>
+
         </section>
         
         <section id="improve-suggest" class="main-section hidden-section">
@@ -1958,6 +2400,22 @@
                                 课程描述
                             </label>
                             <textarea id="course-description" class="course-form-textarea" rows="3" placeholder="请简要描述课程内容与目标"></textarea>
+                        </div>
+                        
+                        <div class="course-form-group full-width">
+                            <label class="course-form-label">
+                                <i class="fas fa-target"></i>
+                                培养目标
+                            </label>
+                            <div class="training-objectives-container">
+                                <div id="training-objectives-list">
+                                    <!-- 培养目标项目将在这里动态添加 -->
+                                </div>
+                                <button type="button" class="add-objective-btn" onclick="addTrainingObjective()">
+                                    <i class="fas fa-plus"></i>
+                                    添加培养目标
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="course-form-group">

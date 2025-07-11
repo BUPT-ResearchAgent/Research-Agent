@@ -151,6 +151,9 @@ function setupEventListeners() {
     
     // 知识块编辑模态框事件
     setupEditChunkModal();
+    
+    // 题型分数设置事件监听
+    setupQuestionTypeScoreListeners();
 }
 
 // 设置知识块模态框事件监听器
@@ -273,7 +276,7 @@ function hideCreateCourseModal() {
     }, 300);
 }
 
-// 处理新建课程
+        // 处理新建课程
 async function handleCreateCourse(e) {
     e.preventDefault();
     
@@ -298,12 +301,16 @@ async function handleCreateCourse(e) {
             return;
         }
         
+        // 收集培养目标
+        const trainingObjectives = collectTrainingObjectives();
+        
         const courseData = {
             name: nameElement.value.trim(),
             description: descElement.value.trim(),
             credit: parseInt(creditElement.value),
             hours: parseInt(hoursElement.value),
-            semester: semesterElement.value
+            semester: semesterElement.value,
+            trainingObjectives: JSON.stringify(trainingObjectives)
         };
         
         if (!courseData.name) {
@@ -2789,8 +2796,16 @@ async function generateExam() {
         ['multiple-choice', 'fill-blank', 'true-false', 'answer'].forEach(type => {
             const checkbox = document.getElementById(`q-${type}`);
             const count = document.getElementById(`q-${type}-count`);
+            const score = document.getElementById(`q-${type}-score`);
             if (checkbox && checkbox.checked && count) {
-                questionTypes[type] = parseInt(count.value) || 0;
+                const questionCount = parseInt(count.value) || 0;
+                const questionScore = parseInt(score.value) || getDefaultScoreForType(type);
+                if (questionCount > 0) {
+                    questionTypes[type] = {
+                        count: questionCount,
+                        scorePerQuestion: questionScore
+                    };
+                }
             }
         });
         
@@ -2798,6 +2813,7 @@ async function generateExam() {
         const customCheckbox = document.getElementById('q-custom');
         const customRequirement = document.getElementById('q-custom-requirement');
         const customCount = document.getElementById('q-custom-count');
+        const customScore = document.getElementById('q-custom-score');
         
         if (customCheckbox && customCheckbox.checked) {
             if (!customRequirement || !customRequirement.value.trim()) {
@@ -2805,26 +2821,46 @@ async function generateExam() {
                 return;
             }
             if (customCount) {
-                questionTypes['custom'] = {
-                    count: parseInt(customCount.value) || 0,
-                    requirement: customRequirement.value.trim()
-                };
+                const questionCount = parseInt(customCount.value) || 0;
+                const questionScore = parseInt(customScore.value) || 20;
+                if (questionCount > 0) {
+                    questionTypes['custom'] = {
+                        count: questionCount,
+                        requirement: customRequirement.value.trim(),
+                        scorePerQuestion: questionScore
+                    };
+                }
             }
         }
         
-        // 计算总题目数量，考虑自定义题型的特殊结构
+        // 计算总题目数量和预期总分
         let totalQuestions = 0;
+        let expectedTotalScore = 0;
         Object.values(questionTypes).forEach(value => {
             if (typeof value === 'object' && value.count !== undefined) {
                 totalQuestions += value.count;
-            } else if (typeof value === 'number') {
-                totalQuestions += value;
+                expectedTotalScore += value.count * value.scorePerQuestion;
             }
         });
         
         if (totalQuestions === 0) {
             showNotification('请至少选择一种题型 *', 'warning');
             return;
+        }
+        
+        // 检查预期总分与设置总分的差异
+        const setTotalScore = parseInt(totalScore);
+        if (Math.abs(expectedTotalScore - setTotalScore) > 5) {
+            const confirmed = confirm(
+                `根据题型分数设置，预期总分为${expectedTotalScore}分，但您设置的总分为${setTotalScore}分。\n\n` +
+                `建议：\n` +
+                `• 修改总分设置为${expectedTotalScore}分\n` +
+                `• 或调整各题型的单题分数\n\n` +
+                `是否继续生成试卷？`
+            );
+            if (!confirmed) {
+                return;
+            }
         }
         
         // 4. 验证考试时长（必填）
@@ -2855,6 +2891,10 @@ async function generateExam() {
         // 获取特殊要求（可选）
         const specialRequirements = document.getElementById('exam-special-requirements').value.trim();
         
+        // 获取能力维度要求（如果启用）
+        const capabilityRequirements = collectCapabilityRequirements();
+        const enableCapabilityAnalysis = document.getElementById('enable-capability-analysis')?.checked || false;
+        
         const examData = {
             courseId: parseInt(courseId),
             materialIds: selectedMaterials,
@@ -2862,7 +2902,9 @@ async function generateExam() {
             totalScore: parseInt(totalScore),
             questionTypes,
             difficulty,
-            specialRequirements: specialRequirements || null
+            specialRequirements: specialRequirements || null,
+            enableCapabilityAnalysis: enableCapabilityAnalysis,
+            capabilityRequirements: capabilityRequirements
         };
         
         console.log('生成试卷数据:', examData);
@@ -4120,6 +4162,8 @@ async function loadSelectedExamAnalysis() {
     if (!selectedExamId) {
         console.log('没有选中考试，清空分析数据');
         clearAnalysisData();
+        // 更新雷达图
+        onExamSelectionChangeForRadar();
         return;
     }
     
@@ -4137,6 +4181,8 @@ async function loadSelectedExamAnalysis() {
         if (response.success) {
             console.log('分析数据加载成功，开始显示数据');
             displayAnalysisData(response.data);
+            // 更新雷达图
+            onExamSelectionChangeForRadar();
         } else {
             console.error('API返回失败:', response.message);
             showNotification('加载分析数据失败：' + response.message, 'error');
@@ -11466,6 +11512,8 @@ function renderExamQuestions(questions) {
                 ${renderQuestionAnswer(question)}
                 
                 ${renderQuestionExplanation(question)}
+                
+                ${renderQuestionCapabilityGoals(question)}
             </div>
         `;
     });
@@ -11559,6 +11607,444 @@ function renderQuestionExplanation(question) {
             <div style="color: #0c5460; line-height: 1.6; margin-top: 8px;">${formattedExplanation}</div>
         </div>
     `;
+}
+
+// 渲染题目能力培养目标
+function renderQuestionCapabilityGoals(question) {
+    return `
+        <div class="question-capability-goals" style="padding: 12px; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; margin-top: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span style="font-weight: 600; color: #1976d2;">🎯 能力培养目标：</span>
+                <button onclick="generateCapabilityGoals(${question.id}, this)" 
+                        class="btn-sm" 
+                        style="background: linear-gradient(135deg, #1976d2, #42a5f5); color: white; border: none; padding: 4px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.3s ease;">
+                    <i class="fas fa-magic" style="margin-right: 4px;"></i>AI生成
+                </button>
+            </div>
+            <div id="capability-goals-${question.id}" style="color: #37474f; line-height: 1.6; padding: 8px; background-color: #ffffff; border-left: 3px solid #1976d2; border-radius: 4px; font-size: 14px; min-height: 24px;">
+                <span style="color: #999; font-style: italic;">点击"AI生成"按钮自动生成该题目的能力培养目标</span>
+            </div>
+        </div>
+    `;
+}
+
+// 雷达图功能 - 绘制能力维度雷达图
+function drawRadarChart(canvasId, data, options = {}) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 60;
+    
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 能力维度标签
+    const labels = data.labels || ['理论掌握', '实践应用', '创新思维', '知识迁移', '学习能力', '系统思维'];
+    const values = data.values || [0, 0, 0, 0, 0, 0];
+    const maxValue = options.maxValue || 100;
+    
+    // 绘制网格
+    const levels = 5;
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 1;
+    
+    for (let level = 1; level <= levels; level++) {
+        const levelRadius = (radius * level) / levels;
+        ctx.beginPath();
+        
+        for (let i = 0; i < labels.length; i++) {
+            const angle = (Math.PI * 2 * i) / labels.length - Math.PI / 2;
+            const x = centerX + levelRadius * Math.cos(angle);
+            const y = centerY + levelRadius * Math.sin(angle);
+            
+            if (i === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.closePath();
+        ctx.stroke();
+    }
+    
+    // 绘制轴线
+    ctx.strokeStyle = '#bbb';
+    for (let i = 0; i < labels.length; i++) {
+        const angle = (Math.PI * 2 * i) / labels.length - Math.PI / 2;
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+        
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    }
+    
+    // 绘制数据区域
+    ctx.fillStyle = 'rgba(255, 99, 132, 0.2)';
+    ctx.strokeStyle = 'rgba(255, 99, 132, 1)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    for (let i = 0; i < values.length; i++) {
+        const angle = (Math.PI * 2 * i) / values.length - Math.PI / 2;
+        const value = Math.max(0, Math.min(maxValue, values[i]));
+        const distance = (radius * value) / maxValue;
+        const x = centerX + distance * Math.cos(angle);
+        const y = centerY + distance * Math.sin(angle);
+        
+        if (i === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    
+    // 绘制数据点
+    ctx.fillStyle = 'rgba(255, 99, 132, 1)';
+    for (let i = 0; i < values.length; i++) {
+        const angle = (Math.PI * 2 * i) / values.length - Math.PI / 2;
+        const value = Math.max(0, Math.min(maxValue, values[i]));
+        const distance = (radius * value) / maxValue;
+        const x = centerX + distance * Math.cos(angle);
+        const y = centerY + distance * Math.sin(angle);
+        
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    
+    // 绘制标签
+    ctx.fillStyle = '#333';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    
+    for (let i = 0; i < labels.length; i++) {
+        const angle = (Math.PI * 2 * i) / labels.length - Math.PI / 2;
+        const labelRadius = radius + 20;
+        const x = centerX + labelRadius * Math.cos(angle);
+        const y = centerY + labelRadius * Math.sin(angle);
+        
+        // 调整文本对齐
+        if (x < centerX - 5) {
+            ctx.textAlign = 'right';
+        } else if (x > centerX + 5) {
+            ctx.textAlign = 'left';
+        } else {
+            ctx.textAlign = 'center';
+        }
+        
+        ctx.fillText(labels[i], x, y + 4);
+        
+        // 绘制数值
+        ctx.font = '10px Arial';
+        ctx.fillStyle = '#666';
+        const valueText = values[i].toFixed(0);
+        ctx.fillText(valueText, x, y + 16);
+    }
+    
+    // 恢复字体设置
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#333';
+}
+
+// 更新学生雷达图
+async function updateStudentRadarChart() {
+    const examSelect = document.getElementById('analysis-exam-select');
+    const studentSelect = document.getElementById('radar-student-select');
+    const canvas = document.getElementById('radarCanvas');
+    const emptyState = document.getElementById('radar-empty-state');
+    
+    if (!examSelect.value) {
+        canvas.style.display = 'none';
+        emptyState.style.display = 'flex';
+        emptyState.textContent = '请先选择考试';
+        return;
+    }
+    
+    if (!studentSelect.value) {
+        canvas.style.display = 'none';
+        emptyState.style.display = 'flex';
+        emptyState.textContent = '请选择学生或全班平均';
+        return;
+    }
+    
+    try {
+        // 显示加载状态
+        emptyState.style.display = 'flex';
+        emptyState.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在生成雷达图...';
+        
+        // 获取能力分析数据
+        let capabilityData;
+        if (studentSelect.value === 'all') {
+            // 获取全班平均数据
+            capabilityData = await getClassAverageCapabilityData(examSelect.value);
+        } else {
+            // 获取单个学生数据
+            capabilityData = await getStudentCapabilityData(examSelect.value, studentSelect.value);
+        }
+        
+        if (capabilityData) {
+            // 隐藏空状态，显示画布
+            emptyState.style.display = 'none';
+            canvas.style.display = 'block';
+            
+            // 绘制雷达图
+            drawRadarChart('radarCanvas', capabilityData, { maxValue: 100 });
+            
+            // 添加数据信息显示
+            const infoContainer = document.getElementById('capability-radar-chart');
+            let existingInfo = infoContainer.querySelector('.radar-info');
+            if (existingInfo) {
+                existingInfo.remove();
+            }
+            
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'radar-info';
+            infoDiv.style.cssText = `
+                position: absolute;
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                background: rgba(255,255,255,0.9);
+                padding: 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                text-align: center;
+                color: #666;
+                border: 1px solid #e0e0e0;
+            `;
+            
+            if (studentSelect.value === 'all') {
+                infoDiv.innerHTML = `
+                    <strong>${capabilityData.examTitle || '当前考试'} - 全班平均表现</strong><br>
+                    参与人数: ${capabilityData.participantCount || 0}人
+                `;
+            } else {
+                const avgScore = capabilityData.values ? 
+                    (capabilityData.values.reduce((a, b) => a + b, 0) / capabilityData.values.length).toFixed(1) : '0.0';
+                infoDiv.innerHTML = `
+                    <strong>${capabilityData.examTitle || '当前考试'} - ${capabilityData.studentName || '学生'}表现</strong><br>
+                    能力平均分: ${avgScore}分
+                `;
+            }
+            
+            infoContainer.appendChild(infoDiv);
+        } else {
+            throw new Error('无法获取能力分析数据');
+        }
+        
+    } catch (error) {
+        console.error('更新雷达图失败:', error);
+        canvas.style.display = 'none';
+        emptyState.style.display = 'flex';
+        emptyState.innerHTML = '<i class="fas fa-exclamation-triangle"></i> 生成雷达图失败';
+    }
+}
+
+// 获取全班平均能力数据
+async function getClassAverageCapabilityData(examId) {
+    try {
+        const response = await fetch(`/api/exam/${examId}/capability-radar/class-average`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            return {
+                labels: result.data.labels,
+                values: result.data.values,
+                participantCount: result.data.participantCount,
+                examTitle: result.data.examTitle
+            };
+        } else {
+            throw new Error(result.message || '获取全班平均数据失败');
+        }
+    } catch (error) {
+        console.error('获取全班平均能力数据失败:', error);
+        return null;
+    }
+}
+
+// 获取单个学生能力数据
+async function getStudentCapabilityData(examId, studentId) {
+    try {
+        const response = await fetch(`/api/exam/${examId}/capability-radar/${studentId}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            return {
+                labels: result.data.labels,
+                values: result.data.values,
+                studentName: result.data.studentName,
+                examTitle: result.data.examTitle
+            };
+        } else {
+            throw new Error(result.message || '获取学生数据失败');
+        }
+    } catch (error) {
+        console.error('获取学生能力数据失败:', error);
+        return null;
+    }
+}
+
+// 在考试选择改变时更新学生列表和雷达图
+function onExamSelectionChangeForRadar() {
+    const examSelect = document.getElementById('analysis-exam-select');
+    const studentSelect = document.getElementById('radar-student-select');
+    
+    if (examSelect.value) {
+        // 加载学生列表
+        loadStudentsForRadar(examSelect.value);
+        // 重置雷达图
+        updateStudentRadarChart();
+    } else {
+        // 清空学生列表
+        studentSelect.innerHTML = '<option value="">选择学生</option><option value="all">全班平均</option>';
+        updateStudentRadarChart();
+    }
+}
+
+// 加载考试的学生列表
+async function loadStudentsForRadar(examId) {
+    try {
+        const studentSelect = document.getElementById('radar-student-select');
+        
+        // 显示加载状态
+        studentSelect.innerHTML = '<option value="">加载中...</option><option value="all">全班平均</option>';
+        
+        const response = await fetch(`/api/exam/${examId}/participants`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const students = result.data;
+            
+            // 清空并重新填充学生选项
+            studentSelect.innerHTML = '<option value="">选择学生</option><option value="all">全班平均</option>';
+            
+            students.forEach(student => {
+                const option = document.createElement('option');
+                option.value = student.id;
+                option.textContent = `${student.name} (${student.score || '--'}分)`;
+                studentSelect.appendChild(option);
+            });
+            
+            if (students.length === 0) {
+                const noStudentOption = document.createElement('option');
+                noStudentOption.value = '';
+                noStudentOption.textContent = '暂无学生参与';
+                noStudentOption.disabled = true;
+                studentSelect.appendChild(noStudentOption);
+            }
+        } else {
+            throw new Error(result.message || '获取学生列表失败');
+        }
+        
+    } catch (error) {
+        console.error('加载学生列表失败:', error);
+        const studentSelect = document.getElementById('radar-student-select');
+        studentSelect.innerHTML = '<option value="">加载失败</option><option value="all">全班平均</option>';
+    }
+}
+
+// 生成题目能力培养目标
+async function generateCapabilityGoals(questionId, buttonElement) {
+    const goalContainer = document.getElementById(`capability-goals-${questionId}`);
+    
+    if (!goalContainer) {
+        console.error('找不到能力培养目标容器');
+        return;
+    }
+    
+    // 显示加载状态
+    const originalContent = goalContainer.innerHTML;
+    goalContainer.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; color: #1976d2;">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>AI正在生成能力培养目标...</span>
+        </div>
+    `;
+    
+    // 禁用按钮
+    if (buttonElement) {
+        buttonElement.disabled = true;
+        buttonElement.style.opacity = '0.6';
+        buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 4px;"></i>生成中...';
+    }
+    
+    try {
+        const response = await fetch(`/api/exam/question/${questionId}/capability-goals`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            // 显示生成的能力培养目标
+            goalContainer.innerHTML = `
+                <div style="color: #37474f; line-height: 1.8;">
+                    ${result.data.split('；').map(goal => 
+                        `<div style="margin-bottom: 6px; padding: 4px 0;">
+                            <i class="fas fa-target" style="color: #1976d2; margin-right: 8px; font-size: 12px;"></i>
+                            <span>${goal.trim()}</span>
+                        </div>`
+                    ).join('')}
+                </div>
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #666;">
+                    <i class="fas fa-robot" style="margin-right: 4px;"></i>
+                    <span>AI生成的能力培养目标</span>
+                </div>
+            `;
+        } else {
+            throw new Error(result.message || '生成失败');
+        }
+        
+    } catch (error) {
+        console.error('生成能力培养目标失败:', error);
+        goalContainer.innerHTML = `
+            <div style="color: #d32f2f; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>生成失败: ${error.message}</span>
+                <button onclick="generateCapabilityGoals(${questionId}, this.parentElement.previousElementSibling.querySelector('button'))" 
+                        style="margin-left: 8px; background: #1976d2; color: white; border: none; padding: 2px 8px; border-radius: 3px; font-size: 11px; cursor: pointer;">
+                    重试
+                </button>
+            </div>
+        `;
+    } finally {
+        // 恢复按钮状态
+        if (buttonElement) {
+            buttonElement.disabled = false;
+            buttonElement.style.opacity = '1';
+            buttonElement.innerHTML = '<i class="fas fa-magic" style="margin-right: 4px;"></i>AI生成';
+        }
+    }
 }
 
 // 格式化教师端的Markdown内容（用于试卷答案和解析）
@@ -13524,4 +14010,270 @@ document.addEventListener('visibilitychange', () => {
         }
     }
 });
+
+// 题型分数设置相关函数
+function getDefaultScoreForType(type) {
+    const defaultScores = {
+        'multiple-choice': 5,
+        'fill-blank': 8,
+        'true-false': 3,
+        'answer': 15,
+        'custom': 20
+    };
+    return defaultScores[type] || 10;
+}
+
+function calculateTotalScore() {
+    let totalScore = 0;
+    const types = ['multiple-choice', 'fill-blank', 'true-false', 'answer'];
+    
+    types.forEach(type => {
+        const checkbox = document.getElementById(`q-${type}`);
+        const countInput = document.getElementById(`q-${type}-count`);
+        const scoreInput = document.getElementById(`q-${type}-score`);
+        
+        if (checkbox?.checked && countInput?.value && scoreInput?.value) {
+            const count = parseInt(countInput.value) || 0;
+            const score = parseInt(scoreInput.value) || 0;
+            totalScore += count * score;
+        }
+    });
+    
+    // 处理自定义题型
+    const customCheckbox = document.getElementById('q-custom');
+    const customCount = document.getElementById('q-custom-count');
+    const customScore = document.getElementById('q-custom-score');
+    
+    if (customCheckbox?.checked && customCount?.value && customScore?.value) {
+        const count = parseInt(customCount.value) || 0;
+        const score = parseInt(customScore.value) || 0;
+        totalScore += count * score;
+    }
+    
+    return totalScore;
+}
+
+function autoCalculateTotalScore() {
+    const calculatedScore = calculateTotalScore();
+    const totalScoreInput = document.getElementById('exam-total-score');
+    
+    if (calculatedScore > 0 && totalScoreInput) {
+        totalScoreInput.value = calculatedScore;
+        
+        // 显示自动计算提示
+        showTemporaryMessage(`已自动计算总分：${calculatedScore}分`, 'info');
+    }
+}
+
+function showTemporaryMessage(message, type = 'info') {
+    const existingMessage = document.querySelector('.temp-message');
+    if (existingMessage) {
+        existingMessage.remove();
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'temp-message';
+    messageDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'info' ? '#17a2b8' : '#28a745'};
+        color: white;
+        padding: 12px 16px;
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        z-index: 1000;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    `;
+    messageDiv.textContent = message;
+    
+    document.body.appendChild(messageDiv);
+    
+    setTimeout(() => {
+        messageDiv.style.opacity = '0';
+        messageDiv.style.transform = 'translateX(100%)';
+        setTimeout(() => messageDiv.remove(), 300);
+    }, 3000);
+}
+
+// 为题型输入框添加事件监听
+function setupQuestionTypeScoreListeners() {
+    const types = ['multiple-choice', 'fill-blank', 'true-false', 'answer'];
+    
+    types.forEach(type => {
+        const countInput = document.getElementById(`q-${type}-count`);
+        const scoreInput = document.getElementById(`q-${type}-score`);
+        
+        if (countInput) {
+            countInput.addEventListener('input', () => {
+                if (!scoreInput.value) {
+                    scoreInput.value = getDefaultScoreForType(type);
+                }
+            });
+        }
+    });
+    
+    // 自定义题型
+    const customCountInput = document.getElementById('q-custom-count');
+    const customScoreInput = document.getElementById('q-custom-score');
+    
+    if (customCountInput && customScoreInput) {
+        customCountInput.addEventListener('input', () => {
+            if (!customScoreInput.value) {
+                customScoreInput.value = getDefaultScoreForType('custom');
+            }
+        });
+    }
+}
+
+// 能力维度设置相关函数
+function toggleCapabilitySettings() {
+    const checkbox = document.getElementById('enable-capability-analysis');
+    const settingsDiv = document.getElementById('capability-settings');
+    
+    if (checkbox.checked) {
+        settingsDiv.style.display = 'block';
+        // 设置推荐值
+        setRecommendedCapabilityValues();
+    } else {
+        settingsDiv.style.display = 'none';
+        // 清空所有能力维度设置
+        clearCapabilitySettings();
+    }
+}
+
+function setRecommendedCapabilityValues() {
+    // 根据权重建议设置默认值
+    const recommendations = {
+        'knowledge': 2,    // 理论掌握 - 20%
+        'application': 3,  // 实践应用 - 25%
+        'innovation': 1,   // 创新思维 - 15%
+        'transfer': 1,     // 知识迁移 - 15%
+        'learning': 1,     // 学习能力 - 10%
+        'systematic': 1    // 系统思维 - 10%
+    };
+    
+    for (const [capability, count] of Object.entries(recommendations)) {
+        const checkbox = document.getElementById(`cap-${capability}`);
+        const countInput = document.getElementById(`cap-${capability}-count`);
+        
+        if (checkbox && countInput) {
+            checkbox.checked = true;
+            countInput.value = count;
+        }
+    }
+}
+
+function clearCapabilitySettings() {
+    const capabilities = ['knowledge', 'application', 'innovation', 'transfer', 'learning', 'systematic', 'ideology', 'communication'];
+    
+    capabilities.forEach(capability => {
+        const checkbox = document.getElementById(`cap-${capability}`);
+        const countInput = document.getElementById(`cap-${capability}-count`);
+        
+        if (checkbox) checkbox.checked = false;
+        if (countInput) countInput.value = '';
+    });
+}
+
+function collectCapabilityRequirements() {
+    const enableCapability = document.getElementById('enable-capability-analysis')?.checked;
+    if (!enableCapability) {
+        return null;
+    }
+    
+    const capabilities = ['knowledge', 'application', 'innovation', 'transfer', 'learning', 'systematic', 'ideology', 'communication'];
+    const requirements = {};
+    
+    capabilities.forEach(capability => {
+        const checkbox = document.getElementById(`cap-${capability}`);
+        const countInput = document.getElementById(`cap-${capability}-count`);
+        
+        if (checkbox?.checked && countInput?.value) {
+            const count = parseInt(countInput.value);
+            if (count > 0) {
+                requirements[capability] = count;
+            }
+        }
+    });
+    
+    return Object.keys(requirements).length > 0 ? requirements : null;
+}
+
+// 培养目标相关函数
+function addTrainingObjective() {
+    const container = document.getElementById('training-objectives-list');
+    const objectiveCount = container.children.length;
+    
+    const objectiveItem = document.createElement('div');
+    objectiveItem.className = 'objective-item';
+    objectiveItem.innerHTML = `
+        <span class="objective-number">${objectiveCount + 1}</span>
+        <input type="text" class="objective-input" placeholder="请输入培养目标描述" />
+        <button type="button" class="remove-objective-btn" onclick="removeTrainingObjective(this)">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    
+    container.appendChild(objectiveItem);
+    
+    // 更新序号
+    updateObjectiveNumbers();
+}
+
+function removeTrainingObjective(button) {
+    const objectiveItem = button.closest('.objective-item');
+    objectiveItem.remove();
+    
+    // 更新序号
+    updateObjectiveNumbers();
+}
+
+function updateObjectiveNumbers() {
+    const container = document.getElementById('training-objectives-list');
+    const items = container.querySelectorAll('.objective-item');
+    
+    items.forEach((item, index) => {
+        const numberSpan = item.querySelector('.objective-number');
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+    });
+}
+
+function collectTrainingObjectives() {
+    const container = document.getElementById('training-objectives-list');
+    const inputs = container.querySelectorAll('.objective-input');
+    const objectives = [];
+    
+    inputs.forEach(input => {
+        const value = input.value.trim();
+        if (value) {
+            objectives.push(value);
+        }
+    });
+    
+    return objectives;
+}
+
+function displayTrainingObjectives(objectives) {
+    const container = document.getElementById('training-objectives-list');
+    container.innerHTML = '';
+    
+    if (objectives && objectives.length > 0) {
+        objectives.forEach((objective, index) => {
+            const objectiveItem = document.createElement('div');
+            objectiveItem.className = 'objective-item';
+            objectiveItem.innerHTML = `
+                <span class="objective-number">${index + 1}</span>
+                <input type="text" class="objective-input" value="${objective}" />
+                <button type="button" class="remove-objective-btn" onclick="removeTrainingObjective(this)">
+                    <i class="fas fa-trash"></i>
+                </button>
+            `;
+            container.appendChild(objectiveItem);
+        });
+    }
+}
 

@@ -267,10 +267,19 @@ public class DeepSeekService {
                         totalQuestions += count;
                     }
                 } else {
-                    // 处理标准题型，安全地进行类型转换
+                    // 处理标准题型，支持新的Map格式和旧的数字格式
                     Integer count = null;
                     if (value instanceof Number) {
+                        // 旧格式：直接是数字
                         count = ((Number) value).intValue();
+                    } else if (value instanceof Map) {
+                        // 新格式：包含count和scorePerQuestion的Map对象
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> questionTypeData = (Map<String, Object>) value;
+                        Object countObj = questionTypeData.get("count");
+                        if (countObj instanceof Number) {
+                            count = ((Number) countObj).intValue();
+                        }
                     }
                     
                     if (count != null && count > 0) {
@@ -416,6 +425,363 @@ public class DeepSeekService {
         );
         
         return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 基于能力维度生成考试题目（人才培养导向）
+     */
+    public String generateCapabilityBasedExamQuestions(String courseName, String chapter,
+            Map<String, Object> questionTypes, Map<String, Object> difficulty,
+            Map<String, Object> capabilityRequirements, int totalScore, int duration,
+            String materialContent, String specialRequirements) {
+        
+        // 构建能力维度要求字符串
+        StringBuilder capabilityRequirement = new StringBuilder();
+        if (capabilityRequirements != null && !capabilityRequirements.isEmpty()) {
+            capabilityRequirement.append("## 能力培养导向要求（核心）：\n");
+            capabilityRequirement.append("本次考试采用人才培养导向出题模式，每道题目都必须明确考核学生的核心能力：\n\n");
+            
+            for (Map.Entry<String, Object> entry : capabilityRequirements.entrySet()) {
+                String capabilityCode = entry.getKey();
+                Object requirementObj = entry.getValue();
+                
+                // 转换能力代码为显示名称
+                String capabilityName = getCapabilityDisplayName(capabilityCode);
+                String description = getCapabilityDescription(capabilityCode);
+                
+                if (requirementObj instanceof Number) {
+                    int questionCount = ((Number) requirementObj).intValue();
+                    if (questionCount > 0) {
+                        capabilityRequirement.append(String.format("### %s（%d道题）\n", capabilityName, questionCount));
+                        capabilityRequirement.append(String.format("- **能力描述**：%s\n", description));
+                        capabilityRequirement.append(String.format("- **出题要求**：%s\n", getCapabilityQuestionGuideline(capabilityCode)));
+                        capabilityRequirement.append(String.format("- **评价标准**：%s\n\n", getCapabilityEvaluationCriteria(capabilityCode)));
+                    }
+                }
+            }
+            
+            capabilityRequirement.append("**重要提醒**：每道题目必须在知识点字段中明确标注主要考核的能力维度！\n\n");
+        }
+        
+        // 构建题型要求字符串（复用现有逻辑）
+        StringBuilder typesRequirement = new StringBuilder();
+        int totalQuestions = 0;
+        
+        if (questionTypes != null) {
+            for (Map.Entry<String, Object> entry : questionTypes.entrySet()) {
+                String type = entry.getKey();
+                Object value = entry.getValue();
+                
+                if ("custom".equals(type) && value instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> customType = (Map<String, Object>) value;
+                    
+                    Integer count = null;
+                    Object countObj = customType.get("count");
+                    if (countObj instanceof Number) {
+                        count = ((Number) countObj).intValue();
+                    }
+                    
+                    String requirement = (String) customType.get("requirement");
+                    
+                    if (count != null && count > 0 && requirement != null && !requirement.trim().isEmpty()) {
+                        typesRequirement.append(String.format("- %s：%d题\n", requirement, count));
+                        totalQuestions += count;
+                    }
+                                 } else {
+                     // 处理标准题型，支持新的Map格式和旧的数字格式
+                     Integer count = null;
+                     if (value instanceof Number) {
+                         // 旧格式：直接是数字
+                         count = ((Number) value).intValue();
+                     } else if (value instanceof Map) {
+                         // 新格式：包含count和scorePerQuestion的Map对象
+                         @SuppressWarnings("unchecked")
+                         Map<String, Object> questionTypeData = (Map<String, Object>) value;
+                         Object countObj = questionTypeData.get("count");
+                         if (countObj instanceof Number) {
+                             count = ((Number) countObj).intValue();
+                         }
+                     }
+                     
+                     if (count != null && count > 0) {
+                         String typeNameCn = getQuestionTypeName(type);
+                         typesRequirement.append(String.format("- %s：%d题\n", typeNameCn, count));
+                         totalQuestions += count;
+                     }
+                 }
+            }
+        }
+        
+        // 构建难度要求字符串（复用现有逻辑）
+        StringBuilder difficultyRequirement = new StringBuilder();
+        if (difficulty != null) {
+            Integer easy = null, medium = null, hard = null;
+            Object easyObj = difficulty.get("easy");
+            if (easyObj instanceof Number) easy = ((Number) easyObj).intValue();
+            Object mediumObj = difficulty.get("medium");
+            if (mediumObj instanceof Number) medium = ((Number) mediumObj).intValue();
+            Object hardObj = difficulty.get("hard");
+            if (hardObj instanceof Number) hard = ((Number) hardObj).intValue();
+            
+            if (easy != null) difficultyRequirement.append(String.format("- 简单题：%d%%\n", easy));
+            if (medium != null) difficultyRequirement.append(String.format("- 中等题：%d%%\n", medium));
+            if (hard != null) difficultyRequirement.append(String.format("- 困难题：%d%%\n", hard));
+        }
+        
+        int averageScore = totalQuestions > 0 ? totalScore / totalQuestions : 10;
+        
+        String prompt = String.format(
+            "请根据以下课程资料为《%s》课程的《%s》章节生成**人才培养导向**的考试题目。\n\n" +
+            "%s" +
+            "## 题目数量和类型要求：\n" +
+            "%s" +
+            "总题目数：%d题\n\n" +
+            "## 难度分布要求：\n" +
+            "%s\n" +
+            "%s" +
+            "## 分值设置：\n" +
+            "- 试卷总分：%d分\n" +
+            "- 建议每题分值：%d分左右\n" +
+            "- 考试时长：%d分钟\n\n" +
+            "## 输出格式要求（重要）：\n" +
+            "请严格按照以下格式输出每道题目：\n\n" +
+            "### 题目X（题型类型）\n" +
+            "**题目内容**：[具体题目内容]\n" +
+            "**选项**：（如果是选择题）\n" +
+            "A. [选项A内容]\n" +
+            "B. [选项B内容]\n" +
+            "C. [选项C内容]\n" +
+            "D. [选项D内容]\n" +
+            "**正确答案**：[答案]\n" +
+            "**解析**：[详细解析]\n" +
+            "**知识点**：[能力维度代码]（如：knowledge、application、innovation等）\n" +
+            "**分值建议**：[具体分值]分\n\n" +
+            "---\n\n" +
+            "## 课程资料内容：\n" +
+            "%s\n\n" +
+            "**关键要求**：\n" +
+            "1. 每道题目都必须明确考核特定的能力维度\n" +
+            "2. 题目设计要体现人才培养目标，不仅仅是知识记忆\n" +
+            "3. 在知识点字段中必须标注对应的能力维度代码\n" +
+            "4. 题目要有实践性、应用性和思辨性\n" +
+            "5. 所有题目分值之和必须等于%d分\n",
+            courseName, chapter,
+            capabilityRequirement.toString(),
+            typesRequirement.toString(),
+            totalQuestions,
+            difficultyRequirement.toString(),
+            (specialRequirements != null && !specialRequirements.trim().isEmpty()) ? 
+                ("## 特殊要求：\n" + specialRequirements + "\n\n") : "",
+            totalScore,
+            averageScore,
+            duration,
+            materialContent,
+            totalScore
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 获取能力维度显示名称
+     */
+    private String getCapabilityDisplayName(String code) {
+        switch (code) {
+            case "knowledge": return "理论掌握";
+            case "application": return "实践应用";
+            case "innovation": return "创新思维";
+            case "transfer": return "知识迁移";
+            case "learning": return "学习能力";
+            case "systematic": return "系统思维";
+            case "ideology": return "思政素养";
+            case "communication": return "沟通协作";
+            case "analysis": return "分析综合";
+            case "research": return "实验研究";
+            default: return code;
+        }
+    }
+    
+    /**
+     * 获取能力维度描述
+     */
+    private String getCapabilityDescription(String code) {
+        switch (code) {
+            case "knowledge": return "基础知识理解、概念掌握、理论框架认知";
+            case "application": return "实际操作、问题解决、方案实施";
+            case "innovation": return "发散思维、创造性解决问题、批判性思维";
+            case "transfer": return "跨领域应用、举一反三、综合运用";
+            case "learning": return "自主学习、学习策略、持续改进";
+            case "systematic": return "整体把握、系统分析、大局观念";
+            case "ideology": return "价值观念、道德判断、社会责任感";
+            case "communication": return "表达能力、团队合作、组织协调";
+            case "analysis": return "逻辑分析、信息整合、判断推理";
+            case "research": return "实验设计、数据分析、研究方法";
+            default: return "能力维度描述";
+        }
+    }
+    
+    /**
+     * 获取能力维度出题指导原则
+     */
+    private String getCapabilityQuestionGuideline(String code) {
+        switch (code) {
+            case "knowledge": return "重点考查基本概念、原理理解和理论应用，避免死记硬背";
+            case "application": return "设计实际情境，考查学生解决具体问题的能力";
+            case "innovation": return "开放性题目，鼓励多样化解答，考查创新思维和批判精神";
+            case "transfer": return "跨情境应用题，考查知识迁移和举一反三能力";
+            case "learning": return "考查学习方法、自主学习策略和持续改进能力";
+            case "systematic": return "综合性题目，考查整体思维和系统分析能力";
+            case "ideology": return "结合专业内容考查价值观和社会责任感";
+            case "communication": return "考查表达能力、团队协作和沟通技巧";
+            case "analysis": return "分析型题目，考查逻辑推理和综合判断能力";
+            case "research": return "考查研究方法、实验设计和数据分析能力";
+            default: return "根据能力特点设计相应题目";
+        }
+    }
+    
+    /**
+     * 获取能力维度评价标准
+     */
+    private String getCapabilityEvaluationCriteria(String code) {
+        switch (code) {
+            case "knowledge": return "准确性、完整性、深度理解";
+            case "application": return "方案可行性、操作规范性、效果评估";
+            case "innovation": return "创新性、合理性、可实施性";
+            case "transfer": return "迁移准确性、应用灵活性、举一反三";
+            case "learning": return "方法有效性、策略合理性、改进意识";
+            case "systematic": return "系统性、逻辑性、整体性";
+            case "ideology": return "价值正确性、责任意识、道德判断";
+            case "communication": return "表达清晰性、协作有效性、沟通技巧";
+            case "analysis": return "逻辑严密性、分析深度、判断准确性";
+            case "research": return "方法科学性、数据可靠性、结论合理性";
+            default: return "根据能力特点制定评价标准";
+        }
+    }
+    
+    /**
+     * 为题目生成AI能力培养目标
+     */
+    public String generateCapabilityGoalsForQuestion(String questionContent, String questionType, 
+                                                   String primaryCapability, String knowledgePoint) {
+        try {
+            // 获取能力维度信息
+            String capabilityName = getCapabilityDisplayName(primaryCapability);
+            String capabilityDescription = getCapabilityDescription(primaryCapability);
+            
+            String prompt = String.format(
+                "请为以下题目生成具体的能力培养目标，要求专业、实用、具有指导性。\n\n" +
+                "## 题目信息\n" +
+                "**题目类型**：%s\n" +
+                "**主要能力维度**：%s（%s）\n" +
+                "**知识点**：%s\n" +
+                "**题目内容**：%s\n\n" +
+                "## 输出要求\n" +
+                "请生成2-4个具体的能力培养目标，每个目标要：\n" +
+                "1. 针对该题目的具体内容和考核重点\n" +
+                "2. 体现人才培养的教育价值\n" +
+                "3. 语言简洁明了，每个目标控制在20-30字\n" +
+                "4. 从不同角度体现能力培养的层次性\n\n" +
+                "## 输出格式\n" +
+                "请按以下格式输出（不要包含序号）：\n" +
+                "培养学生XXX的能力\n" +
+                "提升学生XXX的水平\n" +
+                "锻炼学生XXX的思维\n" +
+                "增强学生XXX的意识\n\n" +
+                "## 参考示例\n" +
+                "- 培养学生理论联系实际的应用能力\n" +
+                "- 提升学生分析问题和解决问题的水平\n" +
+                "- 锻炼学生的逻辑推理和批判性思维\n" +
+                "- 增强学生的创新意识和实践能力\n\n" +
+                "**注意**：请只输出能力培养目标，不要包含其他内容。",
+                getQuestionTypeDisplayName(questionType),
+                capabilityName,
+                capabilityDescription,
+                knowledgePoint != null ? knowledgePoint : "通用知识点",
+                questionContent
+            );
+            
+            String response = callDeepSeekAPI(prompt);
+            
+            // 清理和格式化响应
+            if (response != null && !response.trim().isEmpty()) {
+                return formatCapabilityGoals(response.trim());
+            }
+            
+            // 如果AI生成失败，返回默认目标
+            return generateDefaultCapabilityGoals(primaryCapability);
+            
+        } catch (Exception e) {
+            System.err.println("生成能力培养目标失败: " + e.getMessage());
+            return generateDefaultCapabilityGoals(primaryCapability);
+        }
+    }
+    
+    /**
+     * 格式化AI生成的能力培养目标
+     */
+    private String formatCapabilityGoals(String rawGoals) {
+        String[] lines = rawGoals.split("\n");
+        StringBuilder formattedGoals = new StringBuilder();
+        
+        for (String line : lines) {
+            String trimmedLine = line.trim();
+            if (!trimmedLine.isEmpty() && 
+                !trimmedLine.startsWith("#") && 
+                !trimmedLine.startsWith("##") &&
+                !trimmedLine.contains("输出格式") &&
+                !trimmedLine.contains("参考示例") &&
+                !trimmedLine.contains("注意")) {
+                
+                // 移除可能的序号和特殊字符
+                trimmedLine = trimmedLine.replaceAll("^[0-9]+[.、]\\s*", "");
+                trimmedLine = trimmedLine.replaceAll("^[-*•]\\s*", "");
+                
+                if (trimmedLine.length() > 8 && trimmedLine.length() < 50) {
+                    if (formattedGoals.length() > 0) {
+                        formattedGoals.append("；");
+                    }
+                    formattedGoals.append(trimmedLine);
+                }
+            }
+        }
+        
+        String result = formattedGoals.toString();
+        if (result.endsWith("；")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        
+        return result.length() > 10 ? result : generateDefaultCapabilityGoals("application");
+    }
+    
+    /**
+     * 生成默认的能力培养目标
+     */
+    private String generateDefaultCapabilityGoals(String primaryCapability) {
+        switch (primaryCapability) {
+            case "knowledge":
+                return "培养学生扎实的理论基础；提升学生知识理解和记忆能力；增强学生概念辨析的准确性";
+            case "application":
+                return "培养学生理论联系实际的能力；提升学生解决实际问题的水平；锻炼学生的实践操作技能";
+            case "innovation":
+                return "培养学生的创新思维和发散思维；提升学生创造性解决问题的能力；增强学生的批判性思维意识";
+            case "transfer":
+                return "培养学生举一反三的能力；提升学生跨领域知识迁移的水平；锻炼学生综合运用知识的思维";
+            case "learning":
+                return "培养学生自主学习的能力；提升学生学习策略运用的水平；增强学生持续学习的意识";
+            case "systematic":
+                return "培养学生系统性思维；提升学生整体把握问题的能力；锻炼学生统筹规划的思维方式";
+            case "ideology":
+                return "培养学生正确的价值观念；提升学生道德判断的水平；增强学生的社会责任感";
+            case "communication":
+                return "培养学生的表达和沟通能力；提升学生团队协作的水平；锻炼学生的人际交往技能";
+            case "analysis":
+                return "培养学生的逻辑分析能力；提升学生信息整合的水平；锻炼学生的判断推理思维";
+            case "research":
+                return "培养学生的科学研究能力；提升学生实验设计的水平；增强学生的数据分析意识";
+            default:
+                return "培养学生的综合能力；提升学生的专业素养；增强学生的实践意识";
+        }
     }
     
     /**

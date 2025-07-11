@@ -1683,6 +1683,9 @@ function showCourseDetail(course) {
     // 显示课程信息
     displayCourseInfo(course);
     
+    // 加载并显示培养目标
+    loadCourseTrainingObjectives(course.id);
+    
     // 默认显示课程资料选项卡
     switchCourseTab('materials');
     
@@ -1789,6 +1792,114 @@ function switchCourseTab(tabName) {
 async function loadCourseContent(courseId) {
     // 默认加载课程资料
     await loadCourseMaterials(courseId);
+}
+
+// 加载课程培养目标
+async function loadCourseTrainingObjectives(courseId) {
+    try {
+        const container = document.getElementById('course-training-objectives');
+        if (!container) return;
+        
+        // 显示加载状态
+        const loadingElement = document.getElementById('training-objectives-loading');
+        if (loadingElement) {
+            loadingElement.style.display = 'block';
+        }
+        
+        const response = await fetch(`/api/student/courses/${courseId}/training-objectives`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayCourseTrainingObjectives(result.data);
+        } else {
+            console.error('获取课程培养目标失败:', result.message);
+            displayCourseTrainingObjectives(null);
+        }
+        
+    } catch (error) {
+        console.error('加载课程培养目标失败:', error);
+        displayCourseTrainingObjectives(null);
+    }
+}
+
+// 显示课程培养目标
+function displayCourseTrainingObjectives(data) {
+    const container = document.getElementById('course-training-objectives');
+    if (!container) return;
+    
+    // 隐藏加载状态
+    const loadingElement = document.getElementById('training-objectives-loading');
+    if (loadingElement) {
+        loadingElement.style.display = 'none';
+    }
+    
+    if (!data || !data.trainingObjectives) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #7f8c8d;">
+                <i class="fas fa-target" style="font-size: 32px; margin-bottom: 12px; color: #bdc3c7;"></i>
+                <p>教师暂未设置培养目标</p>
+                <p style="font-size: 14px;">课程培养目标将在教师设置后显示</p>
+            </div>
+        `;
+        return;
+    }
+    
+    try {
+        const objectives = JSON.parse(data.trainingObjectives);
+        
+        if (!objectives || objectives.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #7f8c8d;">
+                    <i class="fas fa-target" style="font-size: 32px; margin-bottom: 12px; color: #bdc3c7;"></i>
+                    <p>教师暂未设置培养目标</p>
+                    <p style="font-size: 14px;">课程培养目标将在教师设置后显示</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const objectivesHtml = objectives.map((objective, index) => `
+            <div class="objective-display-item" style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; padding: 16px; background: white; border-radius: 8px; border-left: 4px solid #3498db; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div class="objective-number" style="background: #3498db; color: white; padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: 600; min-width: 24px; text-align: center; flex-shrink: 0;">
+                    ${index + 1}
+                </div>
+                <div class="objective-text" style="flex: 1; font-size: 15px; color: #2c3e50; line-height: 1.6;">
+                    ${objective}
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = `
+            <div class="training-objectives-display" style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 16px;">
+                <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                    <i class="fas fa-bullseye" style="color: #3498db; margin-right: 8px;"></i>
+                    <h4 style="margin: 0; color: #2c3e50; font-size: 16px;">课程培养目标</h4>
+                    <span style="margin-left: auto; background: #3498db; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px;">${objectives.length} 项</span>
+                </div>
+                ${objectivesHtml}
+                <div style="margin-top: 16px; padding: 12px; background: #e8f4fd; border-radius: 6px; border-left: 3px solid #3498db;">
+                    <p style="margin: 0; font-size: 13px; color: #2c3e50;">
+                        <i class="fas fa-lightbulb" style="color: #f39c12; margin-right: 6px;"></i>
+                        <strong>提示：</strong>这些培养目标是课程的核心学习成果，建议在学习过程中重点关注这些方面的能力提升。
+                    </p>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('解析培养目标数据失败:', error);
+        container.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: #e74c3c;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 32px; margin-bottom: 12px;"></i>
+                <p>培养目标数据格式错误</p>
+                <p style="font-size: 14px;">请联系教师检查培养目标设置</p>
+            </div>
+        `;
+    }
 }
 
 // 加载课程资料
@@ -2030,6 +2141,8 @@ function backToMyCourses() {
 async function refreshCourseDetail() {
     if (currentCourseDetail) {
         await enterCourse(currentCourseDetail.id);
+        // 重新加载培养目标
+        await loadCourseTrainingObjectives(currentCourseDetail.id);
         showNotification('课程详情已刷新', 'success');
     }
 }

@@ -59,6 +59,9 @@ public class Course {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
+    @Column(name = "training_objectives", columnDefinition = "TEXT")
+    private String trainingObjectives; // 培养目标，JSON格式存储
+    
     @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<CourseMaterial> materials;
@@ -255,6 +258,14 @@ public class Course {
     
     public void setTeachingOutlines(List<TeachingOutline> teachingOutlines) {
         this.teachingOutlines = teachingOutlines;
+    }
+    
+    public String getTrainingObjectives() {
+        return trainingObjectives;
+    }
+    
+    public void setTrainingObjectives(String trainingObjectives) {
+        this.trainingObjectives = trainingObjectives;
     }
     
     // 便捷方法：获取教师姓名
