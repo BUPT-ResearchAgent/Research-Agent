@@ -3312,6 +3312,9 @@ function setupExamEventListeners() {
     // 提交考试按钮
     document.getElementById('submit-exam').onclick = () => confirmSubmitExam();
     
+    // 退出考试按钮
+    document.getElementById('exit-exam').onclick = () => confirmExitExam();
+    
     // 防止意外关闭
     window.addEventListener('beforeunload', (e) => {
         if (currentExam) {
@@ -3321,17 +3324,64 @@ function setupExamEventListeners() {
     });
 }
 
-// 暂存答案
-async function saveExamAnswers() {
+// 确认退出考试
+async function confirmExitExam() {
+    const confirmed = await showConfirmModal(
+        '退出考试',
+        '确定要退出考试吗？\n\n注意：\n• 已答题目将被暂存\n• 可以稍后重新进入继续作答\n• 考试时间继续计时',
+        'fas fa-sign-out-alt',
+        'warning'
+    );
+    
+    if (confirmed) {
+        exitExam();
+    }
+}
+
+// 退出考试
+async function exitExam() {
+    try {
+        // 先暂存当前答案
+        await saveExamAnswers(true); // 静默保存
+        
+        // 清除计时器
+        if (examTimer) {
+            clearInterval(examTimer);
+            examTimer = null;
+        }
+        
+        // 关闭考试模态框
+        document.getElementById('exam-modal').style.display = 'none';
+        
+        // 重置考试状态
+        currentExam = null;
+        studentAnswers = {};
+        
+        // 显示退出成功消息
+        showNotification('已退出考试，答案已暂存', 'info');
+        
+        // 刷新考试列表，显示可以继续的考试
+        if (currentCourseDetail) {
+            loadCourseExams(currentCourseDetail.id);
+        }
+        
+    } catch (error) {
+        console.error('退出考试失败:', error);
+        showNotification('退出考试失败，请重试', 'error');
+    }
+}
+
+// 暂存考试答案
+async function saveExamAnswers(silent = false) {
     try {
         // 获取当前用户ID
         const userId = await getCurrentUserId();
         if (!userId) {
-            showNotification('未获取到用户信息，请重新登录', 'error');
+            if (!silent) showNotification('未获取到用户信息，请重新登录', 'error');
             return;
         }
         
-        showLoading('正在保存答案...');
+        if (!silent) showLoading('正在暂存答案...');
         
         const answers = Object.keys(studentAnswers).map(questionId => ({
             questionId: parseInt(questionId),
@@ -3349,18 +3399,18 @@ async function saveExamAnswers() {
         });
         
         const result = await response.json();
-        hideLoading();
+        if (!silent) hideLoading();
         
         if (result.success) {
-            showNotification('答案已暂存', 'success');
+            if (!silent) showNotification('答案暂存成功', 'success');
         } else {
-            showNotification(result.message || '保存失败', 'error');
+            if (!silent) showNotification(result.message || '暂存答案失败', 'error');
         }
         
     } catch (error) {
-        hideLoading();
-        console.error('保存答案失败:', error);
-        showNotification('保存答案失败', 'error');
+        if (!silent) hideLoading();
+        console.error('暂存答案失败:', error);
+        if (!silent) showNotification('暂存答案失败，请重试', 'error');
     }
 }
 

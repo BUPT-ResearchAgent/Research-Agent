@@ -3434,4 +3434,109 @@ public class TeacherController {
         }
     }
 
+    /**
+     * 教师下载学生大作业文档
+     */
+    @GetMapping("/assignment/{studentAnswerId}/download")
+    public ResponseEntity<byte[]> downloadAssignmentFile(
+            @PathVariable Long studentAnswerId,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 权限检查
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ResponseEntity.status(401).build();
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ResponseEntity.status(403).build();
+            }
+            
+            // 获取学生答案
+            Optional<StudentAnswer> studentAnswerOpt = studentAnswerRepository.findById(studentAnswerId);
+            if (!studentAnswerOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            StudentAnswer studentAnswer = studentAnswerOpt.get();
+            
+            // 验证权限 - 检查是否是该教师的考试
+            Exam exam = studentAnswer.getExamResult().getExam();
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent() || !exam.getCourse().getTeacher().getId().equals(teacherOpt.get().getId())) {
+                return ResponseEntity.status(403).build();
+            }
+            
+            // 检查是否为大作业类型
+            Question question = studentAnswer.getQuestion();
+            if (!"assignment".equals(question.getType()) && !question.getType().contains("大作业")) {
+                return ResponseEntity.status(400).build();
+            }
+            
+            // 检查是否上传了文档
+            if (studentAnswer.getFileContent() == null || studentAnswer.getFileContent().trim().isEmpty()) {
+                return ResponseEntity.status(404).build();
+            }
+            
+            // 解码Base64文件内容
+            byte[] fileBytes;
+            try {
+                fileBytes = Base64.getDecoder().decode(studentAnswer.getFileContent());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.status(500).build();
+            }
+            
+            // 获取文件名，如果没有文件名则使用默认名称
+            String fileName = studentAnswer.getFileName();
+            if (fileName == null || fileName.trim().isEmpty()) {
+                fileName = "assignment_" + studentAnswerId + ".pdf";
+            }
+            
+            // 对文件名进行URL编码，支持中文文件名
+            String encodedFileName;
+            try {
+                encodedFileName = URLEncoder.encode(fileName, "UTF-8").replaceAll("\\+", "%20");
+            } catch (UnsupportedEncodingException e) {
+                encodedFileName = "assignment_" + studentAnswerId + ".pdf";
+            }
+            
+            // 根据文件扩展名确定MIME类型
+            String contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+            String fileExtension = getFileExtension(fileName);
+            switch (fileExtension.toLowerCase()) {
+                case "pdf":
+                    contentType = "application/pdf";
+                    break;
+                case "doc":
+                    contentType = "application/msword";
+                    break;
+                case "docx":
+                    contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                    break;
+                case "txt":
+                    contentType = "text/plain";
+                    break;
+                case "rtf":
+                    contentType = "application/rtf";
+                    break;
+            }
+            
+            // 设置响应头并返回文件
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            headers.set("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFileName);
+            headers.set("Cache-Control", "no-cache");
+            headers.setContentLength(fileBytes.length);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(fileBytes);
+                    
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
 } 

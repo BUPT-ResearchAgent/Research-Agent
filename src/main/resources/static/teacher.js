@@ -3023,8 +3023,8 @@ function displayExamPreview(examData) {
             
                             // 检查是否为大作业题型
                 const isAssignmentType = question.type === 'assignment' || question.type.includes('大作业');
-                
-                questionsHtml += `
+            
+            questionsHtml += `
                 <div class="question-item">
                     <h4>第${index + 1}题 (${question.score || 2}分)
                         ${question.knowledgePoint ? `<span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px;">知识点：${question.knowledgePoint}</span>` : ''}
@@ -3060,10 +3060,10 @@ function displayExamPreview(examData) {
                             </div>
                         </div>
                     ` : `
-                        <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
-                            <span style="font-weight: 600; color: #155724;">参考答案：</span>
-                            <div style="color: #155724; margin-top: 8px;">${formatTeacherMarkdown(question.answer || 'N/A')}</div>
-                        </div>
+                    <div class="question-answer" style="margin-bottom: 15px; padding: 12px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px;">
+                        <span style="font-weight: 600; color: #155724;">参考答案：</span>
+                        <div style="color: #155724; margin-top: 8px;">${formatTeacherMarkdown(question.answer || 'N/A')}</div>
+                    </div>
                     `}
                     
                     ${question.explanation ? `

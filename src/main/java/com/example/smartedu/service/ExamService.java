@@ -131,31 +131,31 @@ public class ExamService {
                 examJson = createAssignmentFramework(course.getName(), questionTypesMap);
             } else {
                 // 普通模式：调用DeepSeek API生成试卷内容
-                if (request.getEnableCapabilityAnalysis() != null && request.getEnableCapabilityAnalysis()) {
-                    // 使用能力导向的出题方法
-                    examJson = deepSeekService.generateCapabilityBasedExamQuestions(
-                        course.getName(),
-                        "基于知识库内容",
-                        questionTypesMap,
-                        (Map<String, Object>) request.getDifficulty(),
-                        (Map<String, Object>) request.getCapabilityRequirements(),
-                        request.getTotalScore(),
-                        request.getDuration(),
-                        ragContent,
-                        request.getSpecialRequirements()
-                    );
-                } else {
-                    // 使用传统的出题方法
-                    examJson = deepSeekService.generateExamQuestionsWithSettings(
-                        course.getName(),
-                        "基于知识库内容",
-                        questionTypesMap,
-                        (Map<String, Object>) request.getDifficulty(),
-                        request.getTotalScore(),
-                        request.getDuration(),
-                        ragContent,
-                        request.getSpecialRequirements()
-                    );
+            if (request.getEnableCapabilityAnalysis() != null && request.getEnableCapabilityAnalysis()) {
+                // 使用能力导向的出题方法
+                examJson = deepSeekService.generateCapabilityBasedExamQuestions(
+                    course.getName(),
+                    "基于知识库内容",
+                    questionTypesMap,
+                    (Map<String, Object>) request.getDifficulty(),
+                    (Map<String, Object>) request.getCapabilityRequirements(),
+                    request.getTotalScore(),
+                    request.getDuration(),
+                    ragContent,
+                    request.getSpecialRequirements()
+                );
+            } else {
+                // 使用传统的出题方法
+                examJson = deepSeekService.generateExamQuestionsWithSettings(
+                    course.getName(),
+                    "基于知识库内容",
+                    questionTypesMap,
+                    (Map<String, Object>) request.getDifficulty(),
+                    request.getTotalScore(),
+                    request.getDuration(),
+                    ragContent,
+                    request.getSpecialRequirements()
+                );
                 }
             }
             
@@ -166,7 +166,7 @@ public class ExamService {
             System.out.println("🔍 后端接收到的title: " + examTitle);
             if (examTitle == null || examTitle.trim().isEmpty()) {
                 // 如果没有输入测评名称，使用默认格式：课程名称+时间戳
-                String timeStamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
+            String timeStamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
                 examTitle = course.getName() + "+" + timeStamp;
                 System.out.println("🔄 使用默认格式生成title: " + examTitle);
             } else {
@@ -247,7 +247,7 @@ public class ExamService {
                    "**知识点**：" + courseName + "综合应用\n\n";
         }
     }
-
+    
     /**
      * 使用RAG检索相关知识内容
      */
