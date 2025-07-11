@@ -110,4 +110,10 @@ public interface ExamResultRepository extends JpaRepository<ExamResult, Long> {
      */
     @Query("SELECT er FROM ExamResult er JOIN er.exam e WHERE er.studentId = :studentId AND e.course.id = :courseId ORDER BY er.submitTime ASC")
     List<ExamResult> findByStudentIdAndCourseIdOrderBySubmitTime(@Param("studentId") Long studentId, @Param("courseId") Long courseId);
+    
+    /**
+     * 根据学生ID和课程ID查找所有考试结果
+     */
+    @Query("SELECT er FROM ExamResult er JOIN er.exam e WHERE er.studentId = :studentId AND e.course.id = :courseId")
+    List<ExamResult> findByStudentIdAndCourseId(@Param("studentId") Long studentId, @Param("courseId") Long courseId);
 } 

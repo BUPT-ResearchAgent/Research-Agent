@@ -52,6 +52,9 @@ public class ExamService {
     @Autowired
     private StudentAnswerRepository studentAnswerRepository;
     
+    @Autowired
+    private CourseTypeDetectionService courseTypeDetectionService;
+    
     /**
      * 生成考试
      */
@@ -2645,5 +2648,260 @@ public class ExamService {
         }
         
         return finalCapabilityScores;
+    }
+    
+    /**
+     * 基于课程类型生成智能考核内容
+     * 
+     * @param request 考试生成请求
+     * @return 生成的考试
+     */
+    public Exam generateCourseTypeBasedExam(ExamGenerationRequest request) {
+        try {
+            // 1. 验证课程存在
+            Course course = courseRepository.findById(request.getCourseId())
+                    .orElseThrow(() -> new RuntimeException("课程不存在"));
+            
+            System.out.println("开始生成基于课程类型的智能考核 - 课程: " + course.getName());
+            
+            // 2. 检测课程类型
+            CourseTypeDetectionService.CourseTypeResult courseTypeResult = 
+                courseTypeDetectionService.detectCourseType(request.getCourseId());
+            
+            System.out.println("课程类型检测结果: " + courseTypeResult.getFinalType());
+            
+            // 3. 根据课程类型调整考核策略
+            ExamGenerationRequest adjustedRequest = adjustExamRequestByCourseType(request, courseTypeResult);
+            
+            // 4. 获取课程内容
+            String ragContent = retrieveRelevantKnowledge(request.getCourseId(), adjustedRequest);
+            
+            if (ragContent == null || ragContent.trim().isEmpty()) {
+                throw new RuntimeException("无法获取课程相关内容，请确保课程有相关资料或知识库数据");
+            }
+            
+            // 5. 调用AI生成针对课程类型的考核内容
+            String examJson = deepSeekService.generateCourseTypeBasedExam(
+                course.getName(),
+                courseTypeResult,
+                adjustedRequest.getQuestionTypes(),
+                adjustedRequest.getDifficulty(),
+                request.getTotalScore(),
+                request.getDuration(),
+                ragContent,
+                request.getSpecialRequirements()
+            );
+            
+            // 6. 创建考试记录
+            Exam exam = new Exam();
+            String timeStamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
+            exam.setTitle(course.getName() + "+" + timeStamp + "+" + courseTypeResult.getFinalType());
+            exam.setCourse(course);
+            exam.setChapter("基于" + courseTypeResult.getFinalType() + "特点");
+            exam.setExamType(courseTypeResult.getFinalType() + "智能考核");
+            exam.setDuration(request.getDuration());
+            exam.setTotalScore(request.getTotalScore());
+            exam.setIsPublished(false);
+            exam.setIsAnswerPublished(false);
+            
+            // 7. 保存考试
+            exam = examRepository.save(exam);
+            
+            // 8. 解析并保存题目
+            parseAndSaveQuestions(examJson, exam, adjustedRequest);
+            
+            // 9. 重新加载带有题目的考试对象
+            exam = examRepository.findById(exam.getId()).orElse(exam);
+            
+            System.out.println("基于课程类型的智能考核生成成功，考试ID: " + exam.getId());
+            return exam;
+            
+        } catch (Exception e) {
+            System.err.println("生成基于课程类型的考核失败: " + e.getMessage());
+            throw new RuntimeException("生成智能考核失败：" + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * 根据课程类型调整考试请求参数
+     */
+    private ExamGenerationRequest adjustExamRequestByCourseType(ExamGenerationRequest originalRequest, 
+                                                               CourseTypeDetectionService.CourseTypeResult courseTypeResult) {
+        
+        ExamGenerationRequest adjustedRequest = new ExamGenerationRequest();
+        
+        // 复制基础参数
+        adjustedRequest.setCourseId(originalRequest.getCourseId());
+        adjustedRequest.setTitle(originalRequest.getTitle());
+        adjustedRequest.setChapter(originalRequest.getChapter());
+        adjustedRequest.setDuration(originalRequest.getDuration());
+        adjustedRequest.setTotalScore(originalRequest.getTotalScore());
+        adjustedRequest.setSpecialRequirements(originalRequest.getSpecialRequirements());
+        adjustedRequest.setDifficulty(originalRequest.getDifficulty());
+        adjustedRequest.setStartTime(originalRequest.getStartTime());
+        adjustedRequest.setClassId(originalRequest.getClassId());
+        
+        // 根据课程类型调整题型分布
+        Map<String, Object> adjustedQuestionTypes = adjustQuestionTypesByCourseType(
+            originalRequest.getQuestionTypes(), courseTypeResult.getFinalType());
+        
+        adjustedRequest.setQuestionTypes(adjustedQuestionTypes);
+        
+        return adjustedRequest;
+    }
+    
+    /**
+     * 根据课程类型调整题型分布
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> adjustQuestionTypesByCourseType(Object originalQuestionTypes, String courseType) {
+        Map<String, Object> adjustedTypes = new HashMap<>();
+        
+        // 如果有原始题型设置，先复制
+        if (originalQuestionTypes instanceof Map) {
+            adjustedTypes.putAll((Map<String, Object>) originalQuestionTypes);
+        }
+        
+        // 根据课程类型进行调整和优化
+        switch (courseType) {
+            case "理论课":
+                return adjustForTheoreticalCourse(adjustedTypes);
+                
+            case "实践课":
+                return adjustForPracticalCourse(adjustedTypes);
+                
+            case "混合课":
+                return adjustForMixedCourse(adjustedTypes);
+                
+            default:
+                return adjustedTypes.isEmpty() ? getDefaultQuestionTypes() : adjustedTypes;
+        }
+    }
+    
+    /**
+     * 理论课题型调整
+     */
+    private Map<String, Object> adjustForTheoreticalCourse(Map<String, Object> originalTypes) {
+        Map<String, Object> adjustedTypes = new HashMap<>(originalTypes);
+        
+        // 如果没有设置题型，使用理论课默认配置
+        if (adjustedTypes.isEmpty()) {
+            adjustedTypes.put("multiple-choice", Map.of("count", 8, "scorePerQuestion", 5));
+            adjustedTypes.put("fill-blank", Map.of("count", 6, "scorePerQuestion", 3));
+            adjustedTypes.put("true-false", Map.of("count", 5, "scorePerQuestion", 2));
+            adjustedTypes.put("answer", Map.of("count", 3, "scorePerQuestion", 15));
+        } else {
+            // 调整现有设置，增强理论性题型
+            enhanceQuestionType(adjustedTypes, "multiple-choice", 1.2);
+            enhanceQuestionType(adjustedTypes, "fill-blank", 1.1);
+            enhanceQuestionType(adjustedTypes, "true-false", 1.1);
+            reduceQuestionType(adjustedTypes, "programming", 0.5);
+        }
+        
+        // 添加理论课特有的题型
+        if (!adjustedTypes.containsKey("short-answer")) {
+            adjustedTypes.put("short-answer", Map.of("count", 2, "scorePerQuestion", 8));
+        }
+        
+        return adjustedTypes;
+    }
+    
+    /**
+     * 实践课题型调整
+     */
+    private Map<String, Object> adjustForPracticalCourse(Map<String, Object> adjustedTypes) {
+        if (adjustedTypes.isEmpty()) {
+            adjustedTypes.put("programming", Map.of("count", 3, "scorePerQuestion", 20));
+            adjustedTypes.put("case-analysis", Map.of("count", 2, "scorePerQuestion", 15));
+            adjustedTypes.put("multiple-choice", Map.of("count", 5, "scorePerQuestion", 4));
+            adjustedTypes.put("answer", Map.of("count", 2, "scorePerQuestion", 15));
+        } else {
+            // 增强实践性题型
+            enhanceQuestionType(adjustedTypes, "programming", 1.5);
+            enhanceQuestionType(adjustedTypes, "case-analysis", 1.3);
+            enhanceQuestionType(adjustedTypes, "answer", 1.2);
+            reduceQuestionType(adjustedTypes, "fill-blank", 0.7);
+            reduceQuestionType(adjustedTypes, "true-false", 0.6);
+        }
+        
+        // 添加实践课特有的题型
+        if (!adjustedTypes.containsKey("design")) {
+            adjustedTypes.put("design", Map.of("count", 1, "scorePerQuestion", 25));
+        }
+        
+        return adjustedTypes;
+    }
+    
+    /**
+     * 混合课题型调整
+     */
+    private Map<String, Object> adjustForMixedCourse(Map<String, Object> adjustedTypes) {
+        if (adjustedTypes.isEmpty()) {
+            adjustedTypes.put("multiple-choice", Map.of("count", 6, "scorePerQuestion", 5));
+            adjustedTypes.put("programming", Map.of("count", 2, "scorePerQuestion", 15));
+            adjustedTypes.put("fill-blank", Map.of("count", 4, "scorePerQuestion", 3));
+            adjustedTypes.put("answer", Map.of("count", 3, "scorePerQuestion", 12));
+            adjustedTypes.put("case-analysis", Map.of("count", 1, "scorePerQuestion", 15));
+        } else {
+            // 平衡理论和实践题型
+            for (String key : adjustedTypes.keySet()) {
+                enhanceQuestionType(adjustedTypes, key, 1.0); // 保持原有比例
+            }
+        }
+        
+        return adjustedTypes;
+    }
+    
+    /**
+     * 增强题型数量
+     */
+    @SuppressWarnings("unchecked")
+    private void enhanceQuestionType(Map<String, Object> questionTypes, String type, double factor) {
+        if (questionTypes.containsKey(type)) {
+            Object typeData = questionTypes.get(type);
+            if (typeData instanceof Map) {
+                Map<String, Object> typeMap = (Map<String, Object>) typeData;
+                Object countObj = typeMap.get("count");
+                if (countObj instanceof Number) {
+                    int newCount = (int) Math.ceil(((Number) countObj).intValue() * factor);
+                    typeMap.put("count", Math.max(1, newCount));
+                }
+            } else if (typeData instanceof Number) {
+                int newCount = (int) Math.ceil(((Number) typeData).intValue() * factor);
+                questionTypes.put(type, Math.max(1, newCount));
+            }
+        }
+    }
+    
+    /**
+     * 减少题型数量
+     */
+    @SuppressWarnings("unchecked")
+    private void reduceQuestionType(Map<String, Object> questionTypes, String type, double factor) {
+        if (questionTypes.containsKey(type)) {
+            Object typeData = questionTypes.get(type);
+            if (typeData instanceof Map) {
+                Map<String, Object> typeMap = (Map<String, Object>) typeData;
+                Object countObj = typeMap.get("count");
+                if (countObj instanceof Number) {
+                    int newCount = Math.max(1, (int) (((Number) countObj).intValue() * factor));
+                    typeMap.put("count", newCount);
+                }
+            } else if (typeData instanceof Number) {
+                int newCount = Math.max(1, (int) (((Number) typeData).intValue() * factor));
+                questionTypes.put(type, newCount);
+            }
+        }
+    }
+    
+    /**
+     * 获取默认题型配置
+     */
+    private Map<String, Object> getDefaultQuestionTypes() {
+        Map<String, Object> defaultTypes = new HashMap<>();
+        defaultTypes.put("multiple-choice", Map.of("count", 5, "scorePerQuestion", 4));
+        defaultTypes.put("fill-blank", Map.of("count", 3, "scorePerQuestion", 3));
+        defaultTypes.put("answer", Map.of("count", 2, "scorePerQuestion", 15));
+        return defaultTypes;
     }
 }

@@ -1800,4 +1800,418 @@ public class DeepSeekService {
         
         return callDeepSeekAPI(prompt);
     }
+    
+    /**
+     * 生成基于学生分类和课程类型的个性化教学大纲
+     */
+    public String generatePersonalizedOutline(String courseName,
+                                            CourseTypeDetectionService.CourseTypeResult courseTypeResult,
+                                            StudentAnalysisService.StudentClassificationResult studentAnalysis,
+                                            String ragContent,
+                                            String hotTopicsContent,
+                                            String requirements,
+                                            Integer hours) {
+        
+        int totalMinutes = hours * 45;
+        
+        // 构建学生分析信息
+        StringBuilder studentInfo = new StringBuilder();
+        studentInfo.append("## 班级学生分析结果\n\n");
+        studentInfo.append("**总学生数**: ").append(studentAnalysis.getTotalStudentCount()).append("人\n\n");
+        
+        studentInfo.append("**基础水平分布**:\n");
+        studentAnalysis.getFamiliarityGroups().forEach((level, students) -> {
+            studentInfo.append("- ").append(level).append(": ").append(students.size()).append("人\n");
+        });
+        
+        studentInfo.append("\n**学习模式分布**:\n");
+        studentAnalysis.getLearningPatternGroups().forEach((pattern, students) -> {
+            studentInfo.append("- ").append(pattern).append(": ").append(students.size()).append("人\n");
+        });
+        
+        // 添加统计信息
+        Map<String, Object> stats = studentAnalysis.getStatistics();
+        if (stats != null && !stats.isEmpty()) {
+            studentInfo.append("\n**班级整体表现**:\n");
+            studentInfo.append("- 平均分: ").append(stats.get("classAverageScore")).append("分\n");
+            studentInfo.append("- 平均正确率: ").append(stats.get("classCorrectRate")).append("%\n");
+            studentInfo.append("- 平均考试参与度: ").append(stats.get("averageExamParticipation")).append("次\n");
+        }
+        
+        // 添加教学建议
+        studentInfo.append("\n").append(studentAnalysis.getTeachingRecommendation());
+        
+        // 构建课程类型信息
+        StringBuilder courseTypeInfo = new StringBuilder();
+        courseTypeInfo.append("## 课程类型分析结果\n\n");
+        courseTypeInfo.append("**课程类型**: ").append(courseTypeResult.getFinalType()).append("\n");
+        courseTypeInfo.append("**基于名称判断**: ").append(courseTypeResult.getNameBasedType()).append("\n");
+        courseTypeInfo.append("**基于描述判断**: ").append(courseTypeResult.getDescriptionBasedType()).append("\n");
+        courseTypeInfo.append("**基于内容判断**: ").append(courseTypeResult.getMaterialBasedType()).append("\n\n");
+        
+        // 添加考核建议
+        Map<String, Object> examRec = courseTypeResult.getExamRecommendations();
+        if (examRec != null) {
+            courseTypeInfo.append("**适合的考核方式**:\n");
+            courseTypeInfo.append("- 主要题型: ").append(examRec.get("主要题型")).append("\n");
+            courseTypeInfo.append("- 考试形式: ").append(examRec.get("考试形式")).append("\n");
+            courseTypeInfo.append("- 重点考核: ").append(examRec.get("重点考核")).append("\n");
+        }
+        
+        // 添加教学方法建议
+        courseTypeInfo.append("\n").append(courseTypeResult.getTeachingMethodRecommendation());
+        
+        // 构建热点信息
+        String hotTopicsSection = "";
+        if (hotTopicsContent != null && !hotTopicsContent.trim().isEmpty()) {
+            hotTopicsSection = "\n## 实时热点内容融入\n\n" + hotTopicsContent + "\n";
+        }
+        
+        String prompt = String.format(
+            "**智能个性化教学大纲生成任务**\n\n" +
+            "请基于以下全面分析为《%s》课程生成个性化教学大纲（%d学时，共%d分钟）。\n\n" +
+            "%s\n" +
+            "%s\n" +
+            "%s" +
+            "## 知识库内容\n\n%s\n\n" +
+            "## 特殊教学要求\n\n%s\n\n" +
+            "**个性化教学大纲生成要求**:\n\n" +
+            "1. **标题设计**: 《%s》个性化教学大纲（基于%s特点）\n\n" +
+            "2. **个性化分层教学设计**: 必须根据学生基础水平分布制定分层教学策略\n" +
+            "   - 针对不同水平学生群体的具体教学安排\n" +
+            "   - 差异化的学习目标和评价标准\n" +
+            "   - 个性化的辅导和支持措施\n\n" +
+            "3. **课程类型适应性**: 根据课程类型特点优化教学方法\n" +
+            "   - 充分体现%s的教学特色\n" +
+            "   - 采用适合该类型课程的教学策略\n" +
+            "   - 设计相应的实践或理论活动\n\n" +
+            "4. **教学大纲结构** (必须包含以下所有部分):\n" +
+            "   - **课程基本信息**: 课程名称、学时、学分等\n" +
+            "   - **学生情况分析**: 基于实际数据的学生特点分析\n" +
+            "   - **个性化教学目标**: 分层次的教学目标\n" +
+            "   - **教学重点与难点**: 根据学生情况调整的重难点\n" +
+            "   - **分层教学策略**: 针对不同水平学生的教学方法\n" +
+            "   - **教学内容安排**: 详细的教学计划和时间分配\n" +
+            "   - **实践活动设计**: 符合课程类型的实践安排\n" +
+            "   - **评价与考核**: 多元化的评价方式\n" +
+            "   - **课程特色**: 融入热点内容和创新元素\n\n" +
+            "5. **时间分配要求**:\n" +
+            "   - 总教学时间必须精确等于%d分钟\n" +
+            "   - 需要合理分配理论学习、实践操作、讨论交流等环节\n" +
+            "   - 为不同水平学生预留差异化的学习时间\n\n" +
+            "6. **个性化特色要求**:\n" +
+            "   - 体现因材施教的教育理念\n" +
+            "   - 关注每个学生的学习需求\n" +
+            "   - 融入现代教育技术和方法\n" +
+            "   - 结合实时热点，增强课程时效性和实用性\n\n" +
+            "请生成一份完整、详细、具有针对性的个性化教学大纲。",
+            courseName, hours, totalMinutes,
+            studentInfo.toString(),
+            courseTypeInfo.toString(),
+            hotTopicsSection,
+            ragContent,
+            requirements != null ? requirements : "无特殊要求",
+            courseName,
+            courseTypeResult.getFinalType(),
+            courseTypeResult.getFinalType(),
+            totalMinutes
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 生成实时热点内容
+     */
+    public String generateHotTopicsContent(String courseName, String courseType, String hotTopicsQuery) {
+        String prompt = String.format(
+            "**实时热点内容生成任务**\n\n" +
+            "请为《%s》课程（%s）生成相关的实时热点内容，用于融入教学大纲。\n\n" +
+            "**热点查询关键词**: %s\n\n" +
+            "**生成要求**:\n" +
+            "1. 内容要与课程高度相关\n" +
+            "2. 体现2024年的最新发展和趋势\n" +
+            "3. 包含具体的案例和应用\n" +
+            "4. 适合在教学中融入和讲解\n" +
+            "5. 长度控制在200-400字\n\n" +
+            "**输出格式**:\n" +
+            "### 相关热点趋势\n" +
+            "- [热点1]: [具体描述]\n" +
+            "- [热点2]: [具体描述]\n" +
+            "- [热点3]: [具体描述]\n\n" +
+            "### 教学融入建议\n" +
+            "[如何将这些热点内容融入到课程教学中的具体建议]\n\n" +
+            "请基于当前的技术发展、行业动态和学术前沿生成内容。",
+            courseName, courseType, hotTopicsQuery
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 基于课程类型生成考核内容
+     */
+    public String generateCourseTypeBasedExam(String courseName,
+                                             CourseTypeDetectionService.CourseTypeResult courseTypeResult,
+                                             Object questionTypes,
+                                             Object difficulty,
+                                             Integer totalScore,
+                                             Integer duration,
+                                             String materialContent,
+                                             String specialRequirements) {
+        
+        String courseType = courseTypeResult.getFinalType();
+        
+        // 构建课程类型分析说明
+        StringBuilder courseAnalysis = new StringBuilder();
+        courseAnalysis.append("**课程类型分析结果：**\n");
+        courseAnalysis.append(String.format("- 课程类型：%s\n", courseType));
+        courseAnalysis.append(String.format("- 基于名称判断：%s\n", courseTypeResult.getNameBasedType()));
+        courseAnalysis.append(String.format("- 基于描述判断：%s\n", courseTypeResult.getDescriptionBasedType()));
+        courseAnalysis.append(String.format("- 基于内容判断：%s\n", courseTypeResult.getMaterialBasedType()));
+        
+        // 根据课程类型调整题型分布
+        Map<String, Object> adjustedQuestionTypes = adjustQuestionTypesForCourseType(
+            questionTypes, courseType);
+        
+        String prompt = String.format(
+            "**基于课程类型的智能考核内容生成**\n\n" +
+            "课程名称：《%s》\n" +
+            "考试时长：%d分钟\n" +
+            "总分：%d分\n\n" +
+            "%s" +
+            "**课程类型专用出题指导：**\n" +
+            "%s\n" +
+            "**调整后的题型要求：**\n" +
+            "%s\n\n" +
+            "**难度分布要求：**\n" +
+            "%s\n\n" +
+            "%s" +
+            "**课程材料内容：**\n" +
+            "%s\n\n" +
+            "**重要说明：**\n" +
+            "1. 请严格按照课程类型特点设计考核内容\n" +
+            "2. %s课程应注重%s\n" +
+            "3. 题目设计要体现培养目标的实现\n" +
+            "4. 每道题目都要明确对应的能力培养要求\n" +
+            "5. 考核方式要符合课程特点和教学目标",
+            courseName,
+            duration != null ? duration : 120,
+            totalScore != null ? totalScore : 100,
+            courseAnalysis.toString(),
+            getCourseTypeExamGuidelines(courseType),
+            formatQuestionTypes(adjustedQuestionTypes),
+            formatDifficulty(difficulty),
+            (specialRequirements != null && !specialRequirements.trim().isEmpty()) ? 
+                ("**特殊要求：**\n" + specialRequirements + "\n\n") : "",
+            materialContent,
+            courseType,
+            getExamFocusDescription(courseType)
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 根据课程类型调整题型分布
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> adjustQuestionTypesForCourseType(Object questionTypes, 
+                                                               String courseType) {
+        Map<String, Object> original = (Map<String, Object>) questionTypes;
+        Map<String, Object> adjusted = new HashMap<>(original);
+        
+        if ("实践课".equals(courseType)) {
+            // 实践课增加编程题和综合应用题的比重
+            adjustQuestionType(adjusted, "programming", 1.5);
+            adjustQuestionType(adjusted, "comprehensive", 1.3);
+            adjustQuestionType(adjusted, "choice", 0.7);
+            adjustQuestionType(adjusted, "fillblank", 0.8);
+        } else if ("理论课".equals(courseType)) {
+            // 理论课增加选择题和填空题的比重
+            adjustQuestionType(adjusted, "choice", 1.4);
+            adjustQuestionType(adjusted, "fillblank", 1.3);
+            adjustQuestionType(adjusted, "shortanswer", 1.2);
+            adjustQuestionType(adjusted, "programming", 0.6);
+        }
+        // 混合课保持原有分布
+        
+        return adjusted;
+    }
+    
+    /**
+     * 调整单个题型的分数
+     */
+    private void adjustQuestionType(Map<String, Object> questionTypes, String type, double factor) {
+        if (questionTypes.containsKey(type)) {
+            Object value = questionTypes.get(type);
+            if (value instanceof Integer) {
+                questionTypes.put(type, (int) Math.round((Integer) value * factor));
+            }
+        }
+    }
+    
+    /**
+     * 获取课程类型考试指导原则
+     */
+    private String getCourseTypeExamGuidelines(String courseType) {
+        switch (courseType) {
+            case "理论课":
+                return "- 重点考查概念理解、理论掌握和知识应用能力\n" +
+                       "- 适合使用选择题、填空题、简答题、论述题\n" +
+                       "- 注重逻辑思维和理论分析能力的考核\n" +
+                       "- 可设置案例分析题验证理论应用能力";
+                       
+            case "实践课":
+                return "- 重点考查动手能力、实际操作和问题解决能力\n" +
+                       "- 适合使用编程题、设计题、综合应用题\n" +
+                       "- 注重实际技能和创新思维的考核\n" +
+                       "- 可设置项目式考核和作品展示";
+                       
+            case "混合课":
+                return "- 理论与实践并重，综合考查多种能力\n" +
+                       "- 题型搭配要均衡，涵盖理论和实践两个层面\n" +
+                       "- 注重理论指导实践、实践验证理论的能力\n" +
+                       "- 可设置理论+实操的综合性题目";
+                       
+            default:
+                return "- 根据课程特点灵活设计考核内容\n" +
+                       "- 注重培养目标的实现和能力的考查\n" +
+                       "- 题型选择要符合课程性质和教学要求";
+        }
+    }
+    
+    /**
+     * 获取考试重点描述
+     */
+    private String getExamFocusDescription(String courseType) {
+        switch (courseType) {
+            case "理论课":
+                return "概念掌握、理论理解和知识应用";
+            case "实践课":
+                return "动手操作、技能应用和问题解决";
+            case "混合课":
+                return "理论与实践的有机结合";
+            default:
+                return "综合能力培养";
+        }
+    }
+    
+    /**
+     * 格式化题型要求
+     */
+    @SuppressWarnings("unchecked")
+    private String formatQuestionTypes(Map<String, Object> questionTypes) {
+        StringBuilder formatted = new StringBuilder();
+        
+        for (Map.Entry<String, Object> entry : questionTypes.entrySet()) {
+            String type = entry.getKey();
+            Object value = entry.getValue();
+            
+            if ("custom".equals(type) && value instanceof Map) {
+                Map<String, Object> customType = (Map<String, Object>) value;
+                Integer count = null;
+                Object countObj = customType.get("count");
+                if (countObj instanceof Number) {
+                    count = ((Number) countObj).intValue();
+                }
+                String requirement = (String) customType.get("requirement");
+                
+                if (count != null && count > 0 && requirement != null && !requirement.trim().isEmpty()) {
+                    formatted.append(String.format("- %s：%d题\n", requirement, count));
+                }
+            } else {
+                Integer count = null;
+                if (value instanceof Number) {
+                    count = ((Number) value).intValue();
+                } else if (value instanceof Map) {
+                    Map<String, Object> questionTypeData = (Map<String, Object>) value;
+                    Object countObj = questionTypeData.get("count");
+                    if (countObj instanceof Number) {
+                        count = ((Number) countObj).intValue();
+                    }
+                }
+                
+                if (count != null && count > 0) {
+                    String typeNameCn = getQuestionTypeName(type);
+                    formatted.append(String.format("- %s：%d题\n", typeNameCn, count));
+                }
+            }
+        }
+        
+        return formatted.toString();
+    }
+    
+    /**
+     * 格式化难度要求
+     */
+    @SuppressWarnings("unchecked")
+    private String formatDifficulty(Object difficulty) {
+        StringBuilder formatted = new StringBuilder();
+        
+        if (difficulty != null && difficulty instanceof Map) {
+            Map<String, Object> difficultyMap = (Map<String, Object>) difficulty;
+            
+            Integer easy = null, medium = null, hard = null;
+            Object easyObj = difficultyMap.get("easy");
+            if (easyObj instanceof Number) easy = ((Number) easyObj).intValue();
+            Object mediumObj = difficultyMap.get("medium");
+            if (mediumObj instanceof Number) medium = ((Number) mediumObj).intValue();
+            Object hardObj = difficultyMap.get("hard");
+            if (hardObj instanceof Number) hard = ((Number) hardObj).intValue();
+            
+            if (easy != null) formatted.append(String.format("- 简单题：%d%%\n", easy));
+            if (medium != null) formatted.append(String.format("- 中等题：%d%%\n", medium));
+            if (hard != null) formatted.append(String.format("- 困难题：%d%%\n", hard));
+        }
+        
+        return formatted.toString();
+    }
+
+    /**
+     * AI检测分析
+     */
+    public String performAIDetectionAnalysis(String content, String context) {
+        String prompt = String.format(
+            "**AI内容检测与分析**\n\n" +
+            "请对以下学生作业内容进行深度AI检测分析，从多个维度评估其是否为AI生成：\n\n" +
+            "**分析内容：**\n%s\n\n" +
+            "**内容背景：**\n%s\n\n" +
+            "**请从以下维度进行分析：**\n\n" +
+            "1. **语言风格分析**\n" +
+            "   - 语言表达是否过于完美、规范\n" +
+            "   - 是否缺乏个人化的表达习惯\n" +
+            "   - 句式结构是否过于统一\n\n" +
+            "2. **内容逻辑分析**\n" +
+            "   - 论述逻辑是否过于完整、缺乏跳跃性\n" +
+            "   - 观点表达是否过于中庸、缺乏个人见解\n" +
+            "   - 内容组织是否呈现明显的模板化特征\n\n" +
+            "3. **知识深度分析**\n" +
+            "   - 专业概念使用是否准确但缺乏深度理解\n" +
+            "   - 是否存在表面化的知识堆砌\n" +
+            "   - 对复杂问题的分析是否流于表面\n\n" +
+            "4. **创新性分析**\n" +
+            "   - 是否包含独特的见解或创新观点\n" +
+            "   - 论证过程是否体现个人思考\n" +
+            "   - 是否存在批判性思维\n\n" +
+            "5. **AI特征识别**\n" +
+            "   - 是否包含AI常用的过渡词汇\n" +
+            "   - 文本结构是否过于规整\n" +
+            "   - 是否存在机械化的表达模式\n\n" +
+            "**请提供：**\n" +
+            "1. AI生成概率评估（高/中/低）\n" +
+            "2. 主要依据和具体证据\n" +
+            "3. 值得肯定的部分\n" +
+            "4. 存在问题的具体描述\n" +
+            "5. 改进建议\n\n" +
+            "**注意：**\n" +
+            "- 请基于客观分析，避免主观臆断\n" +
+            "- 重点关注内容的原创性和深度\n" +
+            "- 考虑学生的认知水平和表达能力",
+            content,
+            context != null ? context : "学生作业"
+        );
+        
+        return callDeepSeekAPI(prompt);
+    }
 } 

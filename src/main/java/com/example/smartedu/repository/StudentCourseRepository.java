@@ -88,4 +88,11 @@ public interface StudentCourseRepository extends JpaRepository<StudentCourse, Lo
      */
     @Query("SELECT sc FROM StudentCourse sc WHERE sc.courseId = :courseId")
     List<StudentCourse> findAllByCourseId(@Param("courseId") Long courseId);
+    
+    /**
+     * 根据课程ID查找所有学生选课记录（简化方法名）
+     */
+    default List<StudentCourse> findByCourseId(Long courseId) {
+        return findAllByCourseId(courseId);
+    }
 } 

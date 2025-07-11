@@ -72,6 +72,12 @@ public class TeacherService {
     @Autowired
     private StudentAnswerRepository studentAnswerRepository;
     
+    @Autowired
+    private StudentAnalysisService studentAnalysisService;
+    
+    @Autowired
+    private CourseTypeDetectionService courseTypeDetectionService;
+
     private static final String SALT = "SmartEdu2024"; // 与UserService保持一致的盐值
     
     /**
@@ -1012,6 +1018,152 @@ public class TeacherService {
         } catch (Exception e) {
             System.err.println("收集考试分析数据失败: " + e.getMessage());
             return null;
+        }
+    }
+    
+    /**
+     * 智能生成个性化教学大纲（基于学生分类、课程类型和实时热点）
+     * 
+     * @param courseId 课程ID
+     * @param requirements 教学要求
+     * @param hours 教学学时
+     * @param className 班级名称（可选，用于学生分析）
+     * @param enableHotTopics 是否考虑实时热点
+     * @return 个性化教学大纲
+     */
+    public TeachingOutline generatePersonalizedOutline(Long courseId, String requirements, Integer hours, 
+                                                     String className, Boolean enableHotTopics) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        
+        System.out.println("开始生成个性化教学大纲 - 课程: " + course.getName() + 
+                          ", 班级: " + (className != null ? className : "全部") + 
+                          ", 学时: " + hours + 
+                          ", 启用热点: " + enableHotTopics);
+        
+        // 1. 学生分析和分类
+        StudentAnalysisService.StudentClassificationResult studentAnalysis = 
+            studentAnalysisService.analyzeStudentsForCourse(courseId, className);
+        
+        // 2. 课程类型检测
+        CourseTypeDetectionService.CourseTypeResult courseTypeResult = 
+            courseTypeDetectionService.detectCourseType(courseId);
+        
+        // 3. 获取实时热点（如果启用）
+        String hotTopicsContent = "";
+        if (enableHotTopics != null && enableHotTopics) {
+            hotTopicsContent = generateHotTopicsContent(course.getName(), courseTypeResult.getFinalType());
+        }
+        
+        // 4. 基于知识库获取课程内容
+        String ragContent = getKnowledgeBaseContent(courseId, requirements, hours);
+        
+        // 5. 调用AI生成个性化教学大纲
+        String outlineContent = deepSeekService.generatePersonalizedOutline(
+            course.getName(), 
+            courseTypeResult,
+            studentAnalysis,
+            ragContent,
+            hotTopicsContent,
+            requirements,
+            hours
+        );
+        
+        // 6. 保存教学大纲
+        TeachingOutline outline = new TeachingOutline();
+        outline.setCourse(course);
+        outline.setTeachingDesign(outlineContent);
+        outline.setHours(hours);
+        
+        TeachingOutline saved = outlineRepository.save(outline);
+        System.out.println("个性化教学大纲生成成功，ID: " + saved.getId());
+        
+        // 确保Course被正确加载
+        saved.getCourse().getName();
+        return saved;
+    }
+    
+    /**
+     * 获取实时热点内容
+     */
+    private String generateHotTopicsContent(String courseName, String courseType) {
+        try {
+            System.out.println("正在获取 " + courseName + " 相关的实时热点...");
+            
+            // 构建热点查询
+            String hotTopicsQuery = buildHotTopicsQuery(courseName, courseType);
+            
+            // 调用AI获取热点内容
+            String hotTopics = deepSeekService.generateHotTopicsContent(courseName, courseType, hotTopicsQuery);
+            
+            return hotTopics;
+        } catch (Exception e) {
+            System.err.println("获取实时热点失败: " + e.getMessage());
+            return ""; // 热点获取失败不影响主流程
+        }
+    }
+    
+    /**
+     * 构建热点查询内容
+     */
+    private String buildHotTopicsQuery(String courseName, String courseType) {
+        StringBuilder query = new StringBuilder();
+        
+        // 根据课程类型构建不同的热点查询
+        switch (courseType) {
+            case "实践课":
+                query.append("最新技术趋势 前沿应用 行业发展 实践案例 ");
+                break;
+            case "理论课":
+                query.append("学术前沿 理论发展 研究热点 新观点 ");
+                break;
+            default:
+                query.append("行业动态 技术发展 学术研究 应用案例 ");
+        }
+        
+        // 添加课程相关关键词
+        query.append(courseName).append(" ");
+        
+        // 添加时效性关键词
+        query.append("2024 最新 当前 热点 趋势");
+        
+        return query.toString();
+    }
+    
+    /**
+     * 获取基于知识库的课程内容
+     */
+    private String getKnowledgeBaseContent(Long courseId, String requirements, Integer hours) {
+        try {
+            // 检查知识库状态
+            KnowledgeBaseService.KnowledgeStats stats = knowledgeBaseService.getKnowledgeStats(courseId);
+            if (stats.getTotalChunks() == 0) {
+                return "该课程暂无知识库内容";
+            }
+            
+            // 构建查询
+            String queryText = buildOutlineQuery(courseRepository.findById(courseId).get().getName(), requirements, hours);
+            
+            // 使用RAG搜索
+            List<VectorDatabaseService.SearchResult> searchResults = 
+                knowledgeBaseService.searchKnowledge(courseId, queryText, 8);
+            
+            if (searchResults.isEmpty()) {
+                searchResults = getFallbackKnowledgeChunks(courseId, 5);
+            }
+            
+            // 整理内容
+            StringBuilder content = new StringBuilder();
+            for (int i = 0; i < searchResults.size(); i++) {
+                VectorDatabaseService.SearchResult result = searchResults.get(i);
+                content.append("【知识块").append(i + 1).append("】\n");
+                content.append(result.getContent()).append("\n\n");
+            }
+            
+            return content.toString();
+        } catch (Exception e) {
+            System.err.println("获取知识库内容失败: " + e.getMessage());
+            return "知识库内容获取失败";
         }
     }
 } 
