@@ -890,7 +890,15 @@ public class TeacherService {
                     
                     // 统计本次考试成绩
                     List<Double> examScores = results.stream()
-                        .map(r -> r.getFinalScore() != null ? r.getFinalScore() : r.getScore().doubleValue())
+                        .map(r -> {
+                            if (r.getFinalScore() != null) {
+                                return r.getFinalScore();
+                            } else if (r.getScore() != null) {
+                                return r.getScore().doubleValue();
+                            } else {
+                                return 0.0;
+                            }
+                        })
                         .collect(Collectors.toList());
                     allScores.addAll(examScores);
                     
@@ -917,7 +925,7 @@ public class TeacherService {
                         if (!answers.isEmpty()) {
                             double correctRate = answers.stream()
                                 .mapToDouble(ans -> {
-                                    if (ans.getScore() == null) return 0.0;
+                                    if (ans.getScore() == null || question.getScore() == null || question.getScore() == 0) return 0.0;
                                     return ans.getScore().doubleValue() / question.getScore();
                                 })
                                 .average().orElse(0.0);
@@ -975,7 +983,7 @@ public class TeacherService {
                 Map<String, Object> questionData = new HashMap<>();
                 questionData.put("questionContent", question.getContent());
                 questionData.put("questionType", question.getType());
-                questionData.put("maxScore", question.getScore());
+                questionData.put("maxScore", question.getScore() != null ? question.getScore() : 0);
                 questionData.put("standardAnswer", question.getAnswer());
                 questionData.put("explanation", question.getExplanation());
                 
@@ -1001,14 +1009,15 @@ public class TeacherService {
                          }
                          
                          // 判断是否正确（得分率>=80%视为正确）
-                         if (score >= question.getScore() * 0.8) {
+                         Integer questionScore = question.getScore();
+                         if (questionScore != null && questionScore > 0 && score >= questionScore * 0.8) {
                              correctCount++;
                          } else {
                              // 收集错误答案
                              Map<String, Object> wrongAnswer = new HashMap<>();
                              wrongAnswer.put("studentAnswer", studentAnswerText);
                             wrongAnswer.put("score", score);
-                            wrongAnswer.put("maxScore", question.getScore());
+                            wrongAnswer.put("maxScore", questionScore != null ? questionScore : 0);
                             wrongAnswers.add(wrongAnswer);
                         }
                     }
