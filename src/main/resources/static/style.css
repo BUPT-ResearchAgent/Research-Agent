@@ -4924,12 +4924,13 @@ section#gen-test .main-content {
 
 .course-code {
     font-size: 13px;
-    color: #6c757d;
-    background: #f8f9fa;
+    color: #2c3e50;
+    background: #e8f4fd;
     padding: 4px 8px;
     border-radius: 4px;
     display: inline-block;
     font-family: monospace;
+    border: 1px solid #3498db;
 }
 
 .course-status {
@@ -7612,14 +7613,14 @@ section#gen-test .main-content {
 }
 
 .course-code {
-    background: #f8f9fa;
-    color: #6c757d;
+    background: #7f7fff;
+    color: #ffffff;
     padding: 4px 8px;
     border-radius: 8px;
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
     font-family: 'Courier New', monospace;
-    border: 1px solid #e9ecef;
+    border: 1px solid #7f7fff;
 }
 
 .exam-status-badge {
@@ -7965,9 +7966,13 @@ section#gen-test .main-content {
 }
 
 .course-code {
-    font-size: 12px;
-    color: #7f8c8d;
+    font-size: 13px;
+    color: #ffffff;
     margin-top: 2px;
+    font-weight: 600;
+    background: #7f7fff;
+    padding: 2px 6px;
+    border-radius: 4px;
 }
 
 .exam-title {
@@ -8311,10 +8316,10 @@ section#gen-test .main-content {
 .course-code {
     background: var(--accent-color);
     color: white;
-    padding: 2px 6px;
+    padding: 3px 8px;
     border-radius: 4px;
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
     display: inline-block;
     margin-bottom: 4px;
 }
@@ -8433,7 +8438,7 @@ section#gen-test .main-content {
     color: #ffffff;
     padding: 3px 8px;
     border-radius: 12px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;

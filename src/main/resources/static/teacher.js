@@ -33,12 +33,17 @@ document.addEventListener('DOMContentLoaded', function() {
 // 初始化教师页面
 async function initializeTeacherPage() {
     try {
+        console.log('=== 开始初始化教师页面 ===');
+        
         // 加载基础数据
+        console.log('加载用户信息...');
         await loadCurrentUser();
         
         // 提前加载课程列表，这样知识库模块就可以使用了
         console.log('初始化时加载课程列表...');
         await loadCourseList();
+        console.log('初始化后的课程数据:', currentCourses);
+        console.log('课程数量:', currentCourses.length);
         
         // 设置默认显示的页面，这会自动加载控制面板数据
         showSection('dashboard');
@@ -49,7 +54,18 @@ async function initializeTeacherPage() {
             updateActiveMenu(defaultMenuItem);
         }
         
-        console.log('教师端页面初始化完成，课程数据:', currentCourses);
+        console.log('教师端页面初始化完成');
+        console.log('最终课程数据:', currentCourses);
+        console.log('currentCourses是否为数组:', Array.isArray(currentCourses));
+        
+        // 添加测试学生按钮功能的调试
+        if (currentCourses.length > 0) {
+            console.log('第一个课程数据:', currentCourses[0]);
+            console.log('可以测试学生按钮功能');
+        } else {
+            console.warn('没有课程数据，学生按钮功能可能无法正常工作');
+        }
+        
     } catch (error) {
         console.error('页面初始化失败:', error);
         showNotification('页面加载失败，请刷新重试', 'error');
@@ -4480,10 +4496,14 @@ async function loadImprovementData() {
 
 async function loadMyCoursesData() {
     try {
-        // 加载课程列表
-        if (!currentCourses || currentCourses.length === 0) {
-            await loadCourseList();
-        }
+        console.log('=== 加载我的课程数据 ===');
+        console.log('当前课程数据:', currentCourses);
+        
+        // 始终重新加载课程列表，确保数据最新
+        console.log('重新加载课程列表...');
+        await loadCourseList();
+        
+        console.log('加载后的课程数据:', currentCourses);
         
         // 显示课程列表
         displayCoursesList();
@@ -4491,7 +4511,7 @@ async function loadMyCoursesData() {
         // 设置搜索和过滤功能
         setupCoursesSearchAndFilter();
         
-        console.log('我的课程页面数据加载完成');
+        console.log('我的课程页面数据加载完成，课程数量:', currentCourses.length);
     } catch (error) {
         console.error('加载我的课程页面数据失败:', error);
         showNotification('加载页面数据失败', 'error');
@@ -4502,9 +4522,18 @@ function displayCoursesList(courses) {
     const coursesToDisplay = courses || currentCourses || [];
     const coursesGrid = document.getElementById('courses-grid');
     
-    if (!coursesGrid) return;
+    console.log('=== 显示课程列表 ===');
+    console.log('传入的courses参数:', courses);
+    console.log('currentCourses变量:', currentCourses);
+    console.log('最终要显示的课程:', coursesToDisplay);
+    
+    if (!coursesGrid) {
+        console.error('找不到courses-grid元素');
+        return;
+    }
     
     if (coursesToDisplay.length === 0) {
+        console.log('没有课程要显示');
         coursesGrid.innerHTML = `
             <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
                 <i class="fas fa-book" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
@@ -4514,6 +4543,8 @@ function displayCoursesList(courses) {
         `;
         return;
     }
+    
+    console.log('开始渲染课程列表，课程数量:', coursesToDisplay.length);
     
     // 改为网格卡片布局，既美观又紧凑
     coursesGrid.innerHTML = `
@@ -4591,6 +4622,12 @@ function displayCoursesList(courses) {
             }).join('')}
         </div>
     `;
+    
+    // 调试信息：确保按钮事件正确绑定
+    console.log('课程列表已渲染，课程数量:', coursesToDisplay.length);
+    coursesToDisplay.forEach(course => {
+        console.log(`课程 ${course.name} (ID: ${course.id}) 的学生按钮已创建`);
+    });
 }
 
 function setupCoursesSearchAndFilter() {
@@ -4648,27 +4685,39 @@ function refreshMyCourses() {
 
 async function viewCourseStudents(courseId) {
     try {
+        console.log('=== 查看课程学生 ===');
+        console.log('课程ID:', courseId);
+        console.log('当前课程列表:', currentCourses);
+        
         showLoading('正在加载学生信息...');
         
         // 获取课程信息
         const course = currentCourses.find(c => c.id === courseId);
+        console.log('找到的课程:', course);
+        
         if (!course) {
+            console.warn('课程信息不存在，课程ID:', courseId);
             showNotification('课程信息不存在', 'error');
+            hideLoading();
             return;
         }
         
         // 获取学生列表
+        console.log('正在获取学生列表...');
         const response = await fetch(`/api/teacher/courses/${courseId}/students`, {
             method: 'GET',
             credentials: 'include'
         });
         
         const result = await response.json();
+        console.log('API响应:', result);
         hideLoading();
         
         if (result.success) {
+            console.log('学生列表:', result.data);
             showStudentManagementModal(course, result.data);
         } else {
+            console.error('获取学生列表失败:', result.message);
             showNotification(result.message || '获取学生列表失败', 'error');
         }
         
@@ -4680,6 +4729,11 @@ async function viewCourseStudents(courseId) {
 }
 
 function showStudentManagementModal(course, students) {
+    console.log('=== 显示学生管理模态框 ===');
+    console.log('课程:', course);
+    console.log('学生数量:', students.length);
+    console.log('学生列表:', students);
+    
     // 创建学生管理模态框
     const modalHtml = `
         <div class="modal-overlay" id="student-management-modal">
@@ -4763,6 +4817,20 @@ function showStudentManagementModal(course, students) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    console.log('模态框已创建并添加到DOM中');
+    
+    // 检查模态框是否成功添加
+    const modal = document.getElementById('student-management-modal');
+    console.log('模态框DOM元素:', modal);
+    
+    if (modal) {
+        console.log('模态框创建成功');
+        // 确保模态框可见
+        modal.style.display = 'flex';
+        modal.style.zIndex = '9999';
+    } else {
+        console.error('模态框创建失败');
+    }
 }
 
 function closeStudentManagementModal() {
@@ -4771,6 +4839,49 @@ function closeStudentManagementModal() {
         modal.remove();
     }
 }
+
+// 全局测试函数 - 用于调试学生按钮功能
+window.testStudentButton = function() {
+    console.log('=== 测试学生按钮功能 ===');
+    console.log('当前课程数据:', currentCourses);
+    console.log('课程数量:', currentCourses ? currentCourses.length : 0);
+    
+    if (!currentCourses || currentCourses.length === 0) {
+        console.error('没有课程数据！');
+        showNotification('没有课程数据，请先创建课程', 'error');
+        return;
+    }
+    
+    const firstCourse = currentCourses[0];
+    console.log('使用第一个课程进行测试:', firstCourse);
+    console.log('课程ID:', firstCourse.id);
+    console.log('课程名称:', firstCourse.name);
+    
+    // 直接调用学生按钮功能
+    viewCourseStudents(firstCourse.id);
+};
+
+// 另一个测试函数 - 强制刷新课程数据
+window.refreshCourseData = async function() {
+    console.log('=== 强制刷新课程数据 ===');
+    try {
+        showLoading('正在刷新课程数据...');
+        await loadCourseList();
+        console.log('刷新后的课程数据:', currentCourses);
+        hideLoading();
+        showNotification('课程数据已刷新', 'success');
+        
+        // 如果在我的课程页面，重新显示列表
+        const myCoursesSection = document.getElementById('my-courses');
+        if (myCoursesSection && !myCoursesSection.classList.contains('hidden-section')) {
+            displayCoursesList();
+        }
+    } catch (error) {
+        hideLoading();
+        console.error('刷新失败:', error);
+        showNotification('刷新失败: ' + error.message, 'error');
+    }
+};
 
 function viewCourseAnalytics(courseId) {
     // 跳转到成绩分析页面，并设置当前课程

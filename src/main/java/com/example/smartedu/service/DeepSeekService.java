@@ -133,6 +133,24 @@ public class DeepSeekService {
             "检索到相关知识块：%d个\n\n" +
             "**RAG技术说明：**\n" +
             "以下内容是通过向量相似性搜索从课程知识库中检索到的最相关内容，请基于这些内容生成教学大纲。\n\n" +
+            "**学生分类假设与针对性教学方案：**\n\n" +
+            "请假设课堂中存在以下几类典型学生，并针对每类学生制定相应的教学策略：\n\n" +
+            "1. **基础扎实型学生（约25%）**\n" +
+            "   - 特点：基础知识牢固，学习主动性强，接受新知识能力强\n" +
+            "   - 教学策略：提供拓展性内容，设计挑战性任务，培养创新思维\n" +
+            "   - 课堂角色：可作为学习小组的领导者，帮助其他同学\n\n" +
+            "2. **中等水平型学生（约50%）**\n" +
+            "   - 特点：基础知识一般，学习态度积极，需要适当引导\n" +
+            "   - 教学策略：注重基础巩固，提供充分的练习机会，循序渐进\n" +
+            "   - 课堂角色：课堂主体，重点关注对象，确保跟上教学进度\n\n" +
+            "3. **基础薄弱型学生（约20%）**\n" +
+            "   - 特点：基础知识不牢固，学习困难较大，需要额外关注\n" +
+            "   - 教学策略：提供基础补强，个别辅导，降低学习难度\n" +
+            "   - 课堂角色：重点帮扶对象，需要更多鼓励和支持\n\n" +
+            "4. **学习困难型学生（约5%）**\n" +
+            "   - 特点：学习基础极差，学习动机不强，需要特别关注\n" +
+            "   - 教学策略：个性化指导，激发学习兴趣，提供简化版内容\n" +
+            "   - 课堂角色：需要一对一辅导，制定个别化学习计划\n\n" +
             "**重要要求：**\n\n" +
             "1. **标题设计要求：**\n" +
             "   - 请根据检索到的知识内容，智能分析其核心主题\n" +
@@ -146,54 +164,71 @@ public class DeepSeekService {
             "   - 表格样式要清晰美观\n\n" +
             "3. **教学大纲结构要求：**\n" +
             "   - **教学目标**：基于检索内容制定具体、可衡量的学习目标\n" +
+            "   - **学生情况分析**：基于上述四类学生的特点分析\n" +
             "   - **教学思路**：体现基于知识库内容的教学逻辑和方法\n" +
             "   - **教学重点**：从检索内容中提炼关键知识点\n" +
             "   - **教学难点**：识别学生理解的潜在困难点\n" +
+            "   - **分层教学策略**：针对不同类型学生的具体教学方法\n" +
             "   - **思政融入点**：结合专业内容的价值观教育\n" +
             "   - **教学设计**：详细的时间安排和教学活动（必须用表格呈现）\n\n" +
             "4. **教学设计表格要求（核心）：**\n" +
             "   - 必须使用以下HTML表格格式\n" +
-            "   - 包含：教学内容、教学手段、时间分配（分钟）三列\n" +
+            "   - 包含：教学内容、教学手段、针对不同学生的策略、时间分配（分钟）四列\n" +
             "   - 时间分配必须精确到分钟，总计必须等于%d分钟\n" +
-            "   - 内容安排要与检索到的知识内容高度相关\n\n" +
+            "   - 内容安排要与检索到的知识内容高度相关\n" +
+            "   - 在'针对不同学生的策略'列中，明确说明如何照顾不同类型的学生\n\n" +
             "**教学设计表格格式（必须严格遵循）：**\n" +
             "<table border='1' style='border-collapse: collapse; width: 100%%;'>\n" +
             "  <tr style='background-color: #f0f8ff;'>\n" +
             "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>教学内容</th>\n" +
             "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>教学手段</th>\n" +
+            "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>针对不同学生的策略</th>\n" +
             "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>时间分配（分钟）</th>\n" +
             "  </tr>\n" +
             "  <tr>\n" +
             "    <td style='padding: 8px; border: 1px solid #ddd;'>课程导入与回顾</td>\n" +
             "    <td style='padding: 8px; border: 1px solid #ddd;'>提问互动、知识回顾</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：提出开放性问题；中等水平型：引导式提问；基础薄弱型：简单回顾；学习困难型：个别询问</td>\n" +
             "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>5</td>\n" +
             "  </tr>\n" +
             "  <tr>\n" +
             "    <td style='padding: 8px; border: 1px solid #ddd;'>核心概念讲解</td>\n" +
             "    <td style='padding: 8px; border: 1px solid #ddd;'>理论讲授、实例分析</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：深入讲解原理；中等水平型：重点突出应用；基础薄弱型：放慢节奏，多举例；学习困难型：简化内容，重复解释</td>\n" +
             "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>20</td>\n" +
             "  </tr>\n" +
             "  <tr>\n" +
             "    <td style='padding: 8px; border: 1px solid #ddd;'>实践操作</td>\n" +
             "    <td style='padding: 8px; border: 1px solid #ddd;'>动手实验、案例演示</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：挑战性任务；中等水平型：标准练习；基础薄弱型：基础题目，同伴协助；学习困难型：一对一指导</td>\n" +
             "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>15</td>\n" +
             "  </tr>\n" +
             "  <tr>\n" +
             "    <td style='padding: 8px; border: 1px solid #ddd;'>总结提升</td>\n" +
             "    <td style='padding: 8px; border: 1px solid #ddd;'>知识梳理、作业布置</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：拓展作业；中等水平型：巩固作业；基础薄弱型：基础作业，提供答案参考；学习困难型：简化作业，课后单独辅导</td>\n" +
             "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>5</td>\n" +
             "  </tr>\n" +
             "</table>\n\n" +
             "%s" +
             "**从知识库检索到的相关内容：**\n" +
             "%s\n\n" +
+            "**5. 分层教学策略详细说明：**\n" +
+            "请在教学大纲中专门设立'分层教学策略'章节，详细说明：\n" +
+            "- 如何识别不同类型的学生\n" +
+            "- 针对每类学生的具体教学方法\n" +
+            "- 课堂互动中的差异化策略\n" +
+            "- 作业布置的层次化设计\n" +
+            "- 评价考核的多元化方式\n\n" +
             "**特别注意：**\n" +
             "- 教学大纲内容必须与检索到的知识内容紧密结合\n" +
             "- 时间分配总和必须精确等于%d分钟\n" +
             "- 教学活动设计要体现对检索内容的深度利用\n" +
             "- 确保教学逻辑清晰，知识点覆盖全面\n" +
             "- **必须使用HTML表格格式，不要使用Markdown或其他格式**\n" +
-            "- 表格要包含完整的样式，确保在网页中显示美观",
+            "- 表格要包含完整的样式，确保在网页中显示美观\n" +
+            "- **每个教学环节都要明确说明如何照顾不同类型的学生**\n" +
+            "- 体现因材施教的教育理念，确保每个学生都能有所收获",
             courseName,
             hours,
             totalMinutes,
