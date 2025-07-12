@@ -48,32 +48,32 @@ public interface StudentCourseRepository extends JpaRepository<StudentCourse, Lo
     /**
      * 统计课程的学生数量
      */
-    @Query("SELECT COUNT(sc) FROM StudentCourse sc WHERE sc.courseId = :courseId AND sc.status = :status")
+    @Query("SELECT COUNT(sc) FROM StudentCourse sc WHERE sc.course.id = :courseId AND sc.status = :status")
     long countByCourseIdAndStatus(@Param("courseId") Long courseId, @Param("status") String status);
     
     /**
      * 统计学生已加入的课程数量
      */
-    @Query("SELECT COUNT(sc) FROM StudentCourse sc WHERE sc.studentId = :studentId AND sc.status = :status")
+    @Query("SELECT COUNT(sc) FROM StudentCourse sc WHERE sc.student.id = :studentId AND sc.status = :status")
     long countByStudentIdAndStatus(@Param("studentId") Long studentId, @Param("status") String status);
     
     /**
      * 根据学生ID和状态查询课程列表
      */
-    @Query("SELECT sc.course FROM StudentCourse sc WHERE sc.studentId = :studentId AND sc.status = :status ORDER BY sc.enrollmentDate DESC")
+    @Query("SELECT sc.course FROM StudentCourse sc WHERE sc.student.id = :studentId AND sc.status = :status ORDER BY sc.enrollmentDate DESC")
     List<Course> findCoursesByStudentIdAndStatus(@Param("studentId") Long studentId, @Param("status") String status);
     
     /**
      * 根据课程ID和状态查询学生列表
      */
-    @Query("SELECT sc.student FROM StudentCourse sc WHERE sc.courseId = :courseId AND sc.status = :status ORDER BY sc.enrollmentDate ASC")
+    @Query("SELECT sc.student FROM StudentCourse sc WHERE sc.course.id = :courseId AND sc.status = :status ORDER BY sc.enrollmentDate ASC")
     List<Student> findStudentsByCourseIdAndStatus(@Param("courseId") Long courseId, @Param("status") String status);
 
     /**
      * 根据课程ID删除所有学生选课记录
      */
     @Modifying
-    @Query("DELETE FROM StudentCourse sc WHERE sc.courseId = :courseId")
+    @Query("DELETE FROM StudentCourse sc WHERE sc.course.id = :courseId")
     void deleteByCourseId(@Param("courseId") Long courseId);
 
     /**
@@ -86,7 +86,7 @@ public interface StudentCourseRepository extends JpaRepository<StudentCourse, Lo
     /**
      * 根据课程ID查找所有学生选课记录（不限状态）
      */
-    @Query("SELECT sc FROM StudentCourse sc WHERE sc.courseId = :courseId")
+    @Query("SELECT sc FROM StudentCourse sc WHERE sc.course.id = :courseId")
     List<StudentCourse> findAllByCourseId(@Param("courseId") Long courseId);
     
     /**

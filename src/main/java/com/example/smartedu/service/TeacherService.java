@@ -843,6 +843,26 @@ public class TeacherService {
                 return "暂无课程数据可供分析，请先创建课程并进行考试。";
             }
             
+            // 检查课程是否有考试和成绩数据
+            boolean hasExamData = false;
+            for (Course course : coursesToAnalyze) {
+                List<Exam> exams = examRepository.findByCourseId(course.getId());
+                if (!exams.isEmpty()) {
+                    for (Exam exam : exams) {
+                        List<ExamResult> results = examResultRepository.findByExamId(exam.getId());
+                        if (!results.isEmpty()) {
+                            hasExamData = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasExamData) break;
+            }
+            
+            if (!hasExamData) {
+                return "暂无考试数据可供分析。\n\n**建议：**\n1. 先创建考试并让学生参加\n2. 学生答题后才能生成基于数据的改进建议\n3. 或者您可以先查看课程的基本教学建议";
+            }
+            
             // 收集考试和成绩数据
             StringBuilder analysisData = new StringBuilder();
             int totalExams = 0;

@@ -84,6 +84,418 @@ public class TeacherController {
     @Autowired
     private AIDetectionService aiDetectionService;
     
+    @Autowired
+    private StudentCourseRepository studentCourseRepository;
+    
+    @Autowired
+    private StudentGroupRepository studentGroupRepository;
+    
+    @Autowired
+    private StudentGroupMemberRepository studentGroupMemberRepository;
+    
+    /**
+     * 获取指定课程的学生列表
+     */
+    @GetMapping("/courses/{courseId}/students")
+    public ApiResponse<List<Map<String, Object>>> getCourseStudents(
+            @PathVariable Long courseId,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 验证权限
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 验证课程是否属于当前教师
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+            
+            Course course = courseOpt.get();
+            if (!course.getTeacher().getId().equals(teacherOpt.get().getId())) {
+                return ApiResponse.error("无权限访问此课程");
+            }
+            
+            // 获取课程学生列表
+            List<Student> students = studentCourseRepository.findStudentsByCourseIdAndStatus(courseId, "active");
+            
+            List<Map<String, Object>> studentList = students.stream().map(student -> {
+                Map<String, Object> studentData = new HashMap<>();
+                studentData.put("id", student.getId());
+                studentData.put("realName", student.getRealName());
+                studentData.put("studentId", student.getStudentId());
+                studentData.put("className", student.getClassName());
+                studentData.put("major", student.getMajor());
+                studentData.put("grade", student.getGrade());
+                studentData.put("entranceYear", student.getEntranceYear());
+                
+                // 获取加入时间
+                Optional<StudentCourse> enrollmentOpt = studentCourseRepository.findByStudentIdAndCourseId(student.getId(), courseId);
+                if (enrollmentOpt.isPresent()) {
+                    studentData.put("enrollmentDate", enrollmentOpt.get().getEnrollmentDate());
+                }
+                
+                return studentData;
+            }).collect(Collectors.toList());
+            
+            return ApiResponse.success("获取学生列表成功", studentList);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("获取学生列表失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 获取课程分组列表
+     */
+    @GetMapping("/courses/{courseId}/groups")
+    public ApiResponse<List<Map<String, Object>>> getCourseGroups(
+            @PathVariable Long courseId,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 验证权限
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 验证课程是否属于当前教师
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+            
+            Course course = courseOpt.get();
+            if (!course.getTeacher().getId().equals(teacherOpt.get().getId())) {
+                return ApiResponse.error("无权限访问此课程");
+            }
+            
+            // 获取课程分组列表
+            List<StudentGroup> groups = studentGroupRepository.findByCourseIdAndStatus(courseId, "active");
+            
+            List<Map<String, Object>> groupList = groups.stream().map(group -> {
+                Map<String, Object> groupData = new HashMap<>();
+                groupData.put("id", group.getId());
+                groupData.put("groupName", group.getGroupName());
+                groupData.put("description", group.getDescription());
+                groupData.put("teachingStrategy", group.getTeachingStrategy());
+                groupData.put("maxSize", group.getMaxSize());
+                groupData.put("currentSize", group.getCurrentSize());
+                groupData.put("createdAt", group.getCreatedAt());
+                
+                // 获取分组成员列表
+                List<StudentGroupMember> members = studentGroupMemberRepository.findByStudentGroupIdAndStatus(group.getId(), "active");
+                List<Map<String, Object>> memberList = members.stream().map(member -> {
+                    Map<String, Object> memberData = new HashMap<>();
+                    memberData.put("id", member.getId());
+                    memberData.put("studentId", member.getStudentId());
+                    memberData.put("studentName", member.getStudent().getRealName());
+                    memberData.put("joinedAt", member.getJoinedAt());
+                    return memberData;
+                }).collect(Collectors.toList());
+                
+                groupData.put("members", memberList);
+                return groupData;
+            }).collect(Collectors.toList());
+            
+            return ApiResponse.success("获取分组列表成功", groupList);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("获取分组列表失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 创建学生分组
+     */
+    @PostMapping("/courses/{courseId}/groups")
+    public ApiResponse<Map<String, Object>> createStudentGroup(
+            @PathVariable Long courseId,
+            @RequestBody Map<String, Object> request,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 验证权限
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 验证课程是否属于当前教师
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ApiResponse.error("课程不存在");
+            }
+            
+            Course course = courseOpt.get();
+            if (!course.getTeacher().getId().equals(teacherOpt.get().getId())) {
+                return ApiResponse.error("无权限访问此课程");
+            }
+            
+            // 获取请求参数
+            String groupName = (String) request.get("groupName");
+            String description = (String) request.get("description");
+            String teachingStrategy = (String) request.get("teachingStrategy");
+            Integer maxSize = (Integer) request.get("maxSize");
+            
+            if (groupName == null || groupName.trim().isEmpty()) {
+                return ApiResponse.error("分组名称不能为空");
+            }
+            
+            // 检查分组名称是否已存在
+            Optional<StudentGroup> existingGroup = studentGroupRepository.findByCourseIdAndGroupNameAndStatus(courseId, groupName, "active");
+            if (existingGroup.isPresent()) {
+                return ApiResponse.error("分组名称已存在");
+            }
+            
+            // 创建新分组
+            StudentGroup group = new StudentGroup();
+            group.setGroupName(groupName);
+            group.setDescription(description);
+            group.setTeachingStrategy(teachingStrategy);
+            group.setMaxSize(maxSize != null ? maxSize : 30);
+            group.setCurrentSize(0);
+            group.setCourse(course);
+            group.setTeacher(teacherOpt.get());
+            group.setStatus("active");
+            group.setCreatedAt(LocalDateTime.now());
+            group.setUpdatedAt(LocalDateTime.now());
+            
+            StudentGroup savedGroup = studentGroupRepository.save(group);
+            
+            // 构造返回数据
+            Map<String, Object> groupData = new HashMap<>();
+            groupData.put("id", savedGroup.getId());
+            groupData.put("groupName", savedGroup.getGroupName());
+            groupData.put("description", savedGroup.getDescription());
+            groupData.put("teachingStrategy", savedGroup.getTeachingStrategy());
+            groupData.put("maxSize", savedGroup.getMaxSize());
+            groupData.put("currentSize", savedGroup.getCurrentSize());
+            groupData.put("createdAt", savedGroup.getCreatedAt());
+            groupData.put("members", new ArrayList<>());
+            
+            return ApiResponse.success("创建分组成功", groupData);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("创建分组失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 分配学生到分组
+     */
+    @PostMapping("/courses/{courseId}/groups/{groupId}/members")
+    public ApiResponse<String> assignStudentsToGroup(
+            @PathVariable Long courseId,
+            @PathVariable Long groupId,
+            @RequestBody Map<String, Object> request,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 验证权限
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 验证课程和分组
+            Optional<StudentGroup> groupOpt = studentGroupRepository.findById(groupId);
+            if (!groupOpt.isPresent()) {
+                return ApiResponse.error("分组不存在");
+            }
+            
+            StudentGroup group = groupOpt.get();
+            if (!group.getCourse().getId().equals(courseId)) {
+                return ApiResponse.error("分组不属于此课程");
+            }
+            
+            // 获取学生ID列表
+            @SuppressWarnings("unchecked")
+            List<Long> studentIds = (List<Long>) request.get("studentIds");
+            
+            if (studentIds == null || studentIds.isEmpty()) {
+                return ApiResponse.error("请选择要分配的学生");
+            }
+            
+            // 检查是否超出分组最大人数
+            if (group.getCurrentSize() + studentIds.size() > group.getMaxSize()) {
+                return ApiResponse.error("分组人数将超出限制");
+            }
+            
+            int assignedCount = 0;
+            for (Long studentId : studentIds) {
+                // 检查学生是否已在其他分组中
+                List<StudentGroupMember> existingMembers = studentGroupMemberRepository.findByStudentIdAndCourseIdAndStatus(studentId, courseId, "active");
+                if (!existingMembers.isEmpty()) {
+                    continue; // 跳过已分组的学生
+                }
+                
+                // 验证学生是否选了这门课
+                Optional<StudentCourse> enrollmentOpt = studentCourseRepository.findByStudentIdAndCourseId(studentId, courseId);
+                if (!enrollmentOpt.isPresent()) {
+                    continue; // 跳过未选课的学生
+                }
+                
+                // 创建分组成员记录
+                StudentGroupMember member = new StudentGroupMember();
+                member.setStudentGroup(group);
+                member.setStudentId(studentId);
+                member.setCourseId(courseId);
+                member.setStatus("active");
+                member.setJoinedAt(LocalDateTime.now());
+                
+                studentGroupMemberRepository.save(member);
+                assignedCount++;
+            }
+            
+            // 更新分组当前人数
+            group.setCurrentSize(group.getCurrentSize() + assignedCount);
+            group.setUpdatedAt(LocalDateTime.now());
+            studentGroupRepository.save(group);
+            
+            return ApiResponse.success("成功分配 " + assignedCount + " 名学生到分组");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("分配学生失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 从分组中移除学生
+     */
+    @DeleteMapping("/courses/{courseId}/groups/{groupId}/members/{memberId}")
+    public ApiResponse<String> removeStudentFromGroup(
+            @PathVariable Long courseId,
+            @PathVariable Long groupId,
+            @PathVariable Long memberId,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 验证权限
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 验证分组成员
+            Optional<StudentGroupMember> memberOpt = studentGroupMemberRepository.findById(memberId);
+            if (!memberOpt.isPresent()) {
+                return ApiResponse.error("成员记录不存在");
+            }
+            
+            StudentGroupMember member = memberOpt.get();
+            if (!member.getStudentGroup().getId().equals(groupId)) {
+                return ApiResponse.error("成员不属于此分组");
+            }
+            
+            // 删除成员记录
+            studentGroupMemberRepository.delete(member);
+            
+            // 更新分组当前人数
+            StudentGroup group = member.getStudentGroup();
+            group.setCurrentSize(Math.max(0, group.getCurrentSize() - 1));
+            group.setUpdatedAt(LocalDateTime.now());
+            studentGroupRepository.save(group);
+            
+            return ApiResponse.success("成功从分组中移除学生");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("移除学生失败：" + e.getMessage());
+        }
+    }
+    
+    /**
+     * 删除分组
+     */
+    @DeleteMapping("/courses/{courseId}/groups/{groupId}")
+    public ApiResponse<String> deleteStudentGroup(
+            @PathVariable Long courseId,
+            @PathVariable Long groupId,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 验证权限
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 验证分组
+            Optional<StudentGroup> groupOpt = studentGroupRepository.findById(groupId);
+            if (!groupOpt.isPresent()) {
+                return ApiResponse.error("分组不存在");
+            }
+            
+            StudentGroup group = groupOpt.get();
+            if (!group.getCourse().getId().equals(courseId)) {
+                return ApiResponse.error("分组不属于此课程");
+            }
+            
+            // 删除分组成员
+            List<StudentGroupMember> members = studentGroupMemberRepository.findByStudentGroupIdAndStatus(groupId, "active");
+            for (StudentGroupMember member : members) {
+                studentGroupMemberRepository.delete(member);
+            }
+            
+            // 删除分组
+            studentGroupRepository.delete(group);
+            
+            return ApiResponse.success("删除分组成功");
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("删除分组失败：" + e.getMessage());
+        }
+    }
+    
     /**
      * 获取教师课程列表
      */
