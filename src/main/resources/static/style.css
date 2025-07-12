@@ -3677,7 +3677,7 @@ section#upload-material .form-actions {
     font-size: 14px;
     color: #2c3e50;
     white-space: pre-wrap;
-    max-height: 600px;
+    max-height: 1000px;
     overflow-y: auto;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -3732,7 +3732,7 @@ section#upload-material .form-actions {
     line-height: 1.7;
     font-size: 14px;
     color: #2c3e50;
-    max-height: 600px;
+    max-height: 1000px;
     overflow-y: auto;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -3920,7 +3920,7 @@ select#history-course-filter {
 .outline-edit-container {
     display: flex !important;
     gap: 16px !important;
-    height: 500px !important;
+    height: 600px !important;
     align-items: stretch !important;
 }
 
@@ -9246,7 +9246,7 @@ section#gen-test .main-content {
     font-size: 14px;
     color: #333;
     min-height: 60px;
-    max-height: 200px;
+    max-height: 600px;
     overflow-y: auto;
 }
 
