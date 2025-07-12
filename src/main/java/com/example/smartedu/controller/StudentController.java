@@ -1289,7 +1289,7 @@ public class StudentController {
             
             // 检查学生是否已提交
             Optional<ExamResult> existingResult = examResultRepository.findByStudentIdAndExamId(student.getId(), examId);
-            if (existingResult.isPresent()) {
+            if (existingResult.isPresent() && existingResult.get().getSubmitTime() != null) {
                 return ApiResponse.error("您已提交过此考试");
             }
             
@@ -1349,21 +1349,27 @@ public class StudentController {
                 return ApiResponse.error("考试已结束");
             }
             
-            // 检查学生是否已开始考试
+            // 检查学生是否已提交考试
             Optional<ExamResult> existingResult = examResultRepository.findByStudentIdAndExamId(student.getId(), examId);
-            if (existingResult.isPresent()) {
-                return ApiResponse.error("您已开始过此考试");
+            if (existingResult.isPresent() && existingResult.get().getSubmitTime() != null) {
+                return ApiResponse.error("您已提交过此考试");
             }
             
-            // 创建考试结果记录
-            ExamResult examResult = new ExamResult();
+            // 创建或获取考试结果记录
+            ExamResult examResult;
+            if (existingResult.isPresent()) {
+                // 如果已经有记录但没有提交，继续使用现有记录
+                examResult = existingResult.get();
+            } else {
+                // 创建新的考试结果记录
+                examResult = new ExamResult();
             examResult.setStudent(student);
             examResult.setExam(exam);
             examResult.setStartTime(now);
             examResult.setTotalScore(exam.getTotalScore());
             examResult.setGradeStatus("PENDING");
-            
             examResult = examResultRepository.save(examResult);
+            }
             
             Map<String, Object> response = new HashMap<>();
             response.put("examResultId", examResult.getId());
@@ -1516,7 +1522,7 @@ public class StudentController {
             // 验证文件类型
             String fileExtension = getFileExtension(fileName);
             if (!isAllowedAssignmentFileType(fileExtension)) {
-                return ApiResponse.error("不支持的文件类型。支持的格式：pdf, doc, docx, txt, rtf");
+                return ApiResponse.error("不支持的文件类型。支持的格式：PDF、Word、Excel、PowerPoint、TXT、RTF、图片、压缩包等常见格式");
             }
             
             // 验证文件大小（50MB）
@@ -1595,7 +1601,7 @@ public class StudentController {
      * 检查是否为允许的大作业文件类型
      */
     private boolean isAllowedAssignmentFileType(String extension) {
-        String[] allowedTypes = {"pdf", "doc", "docx", "txt", "rtf"};
+        String[] allowedTypes = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "jpg", "jpeg", "png", "zip", "rar"};
         return Arrays.asList(allowedTypes).contains(extension.toLowerCase());
     }
 

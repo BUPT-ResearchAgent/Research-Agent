@@ -2553,6 +2553,17 @@ function getExamActionButtons(exam) {
     switch(status) {
         case 'ONGOING':
             if (exam.hasSubmitted) {
+                // 已提交，显示查看试卷
+                return `
+                    <button class="btn" onclick="viewExamResult(${exam.examResultId || exam.id})" 
+                            style="${buttonStyle} background: #3498db; color: white;">
+                        <i class="fas fa-file-alt"></i> 查看试卷
+                    </button>
+                `;
+            } else {
+                // 检查是否有暂存的考试记录
+                if (exam.examResultId) {
+                    // 有考试记录但未提交，显示继续考试
         return `
                     <button class="btn" onclick="continueExam(${exam.id})" 
                             style="${buttonStyle} background: #f39c12; color: white;">
@@ -2560,12 +2571,14 @@ function getExamActionButtons(exam) {
                     </button>
                 `;
             } else {
+                    // 没有考试记录，显示开始考试
                 return `
                     <button class="btn" onclick="startExam(${exam.id})" 
                             style="${buttonStyle} background: #27ae60; color: white;">
                 <i class="fas fa-play"></i> 开始考试
             </button>
         `;
+                }
             }
                 case 'SUBMITTED':
         return `
@@ -2927,7 +2940,7 @@ function renderAssignmentQuestion(question, savedAnswer) {
             
             <div style="margin-bottom: 15px; font-size: 14px; color: #856404; line-height: 1.5;">
                 <i class="fas fa-info-circle"></i> 
-                请根据作业要求完成相关文档并上传。支持格式：PDF、Word、TXT等文档类型。
+                请根据作业要求完成相关文档并上传。支持格式：PDF、Word、Excel、PowerPoint、TXT、RTF、图片、压缩包等常见格式。
             </div>
             
             <div class="upload-area" style="border: 2px dashed #ddb84a; border-radius: 8px; padding: 20px; text-align: center; background: white; cursor: pointer; transition: all 0.3s ease;" 
@@ -2937,7 +2950,7 @@ function renderAssignmentQuestion(question, savedAnswer) {
                 
                 <input type="file" id="${uploadId}" 
                        style="display: none;" 
-                       accept=".pdf,.doc,.docx,.txt,.rtf"
+                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.rtf,.jpg,.jpeg,.png,.zip,.rar"
                        onchange="handleAssignmentFileUpload(${questionId}, this)">
                 
                 <div id="${previewId}">
@@ -3142,10 +3155,10 @@ async function handleAssignmentFileUpload(questionId, fileInput) {
     }
     
     // 验证文件类型
-    const allowedTypes = ['.pdf', '.doc', '.docx', '.txt', '.rtf'];
+    const allowedTypes = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.rtf', '.jpg', '.jpeg', '.png', '.zip', '.rar'];
     const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
     if (!allowedTypes.includes(fileExtension)) {
-        showNotification('不支持的文件格式，请上传PDF、Word或TXT文档', 'error');
+        showNotification('不支持的文件格式，请上传PDF、Word、Excel、PowerPoint、TXT、RTF、图片、压缩包等常见格式', 'error');
         fileInput.value = '';
         return;
     }
@@ -3358,7 +3371,7 @@ async function exitExam() {
         studentAnswers = {};
         
         // 显示退出成功消息
-        showNotification('已退出考试，答案已暂存', 'info');
+        showNotification('已退出考试，答案已暂存。您可以稍后继续考试。', 'info');
         
         // 刷新考试列表，显示可以继续的考试
         if (currentCourseDetail) {
@@ -4812,7 +4825,19 @@ function generateExamActionButtons(exam) {
             `;
         case 'ONGOING':
             if (exam.hasSubmitted) {
-                // 已经有考试记录，显示继续考试
+                // 如果已经提交则不应该显示继续考试，这里可能是逻辑错误
+                // hasSubmitted应该表示是否真正提交了（即考试完成）
+                // 对于暂存的考试，后端应该返回hasSubmitted为false
+                return `
+                    <button class="exam-action-btn btn-info" onclick="viewExamResult(${exam.examResultId || exam.id})">
+                        <i class="fas fa-file-alt"></i>
+                        查看试卷
+                    </button>
+                `;
+            } else {
+                // 检查是否有考试记录（暂存状态）
+                if (exam.examResultId) {
+                    // 有考试记录但未提交，显示继续考试
                 return `
                     <button class="exam-action-btn btn-warning" onclick="continueExam(${exam.id})">
                         <i class="fas fa-play"></i>
@@ -4827,6 +4852,7 @@ function generateExamActionButtons(exam) {
                         开始考试
                     </button>
                 `;
+                }
             }
         case 'SUBMITTED':
             return `

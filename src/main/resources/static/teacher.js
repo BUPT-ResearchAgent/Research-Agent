@@ -170,6 +170,45 @@ function setupEventListeners() {
     
     // 题型分数设置事件监听
     setupQuestionTypeScoreListeners();
+    
+    // 大作业要求模态框事件监听器
+    document.addEventListener('DOMContentLoaded', function() {
+        // 大作业选择框事件监听
+        const assignmentCheckbox = document.getElementById('q-assignment');
+        if (assignmentCheckbox) {
+            assignmentCheckbox.addEventListener('change', function() {
+                toggleAssignmentMode(this);
+            });
+        }
+        
+        // 关闭按钮事件
+        const closeBtn = document.getElementById('close-assignment-requirement-modal');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', hideAssignmentRequirementModal);
+        }
+        
+        // 取消按钮事件
+        const cancelBtn = document.getElementById('cancel-assignment-requirement');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', hideAssignmentRequirementModal);
+        }
+        
+        // 保存按钮事件
+        const saveBtn = document.getElementById('save-assignment-requirement');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', saveAssignmentRequirement);
+        }
+        
+        // ESC键关闭模态框
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const modal = document.getElementById('assignment-requirement-modal');
+                if (modal && modal.style.display === 'flex') {
+                    hideAssignmentRequirementModal();
+                }
+            }
+        });
+    });
 }
 
 // 设置知识块模态框事件监听器
@@ -4501,7 +4540,7 @@ async function loadMyCoursesData() {
         
         // 始终重新加载课程列表，确保数据最新
         console.log('重新加载课程列表...');
-        await loadCourseList();
+            await loadCourseList();
         
         console.log('加载后的课程数据:', currentCourses);
         
@@ -13060,12 +13099,11 @@ function toggleAssignmentMode(checkbox) {
     if (checkbox.checked) {
         // 当选择大作业模式时，提示用户注意事项
         const confirmed = confirm(
-            '大作业模式说明：\n\n' +
-            '• 不需要AI生成题目，教师直接设置作业要求\n' +
-            '• 学生通过上传文档完成作业\n' +
-            '• AI将自动检测文档内容并提供评分建议\n' +
-            '• 教师可参考AI建议进行最终评分\n\n' +
-            '确定启用大作业模式吗？'
+            '🤖 启用AI智能大作业模式？\n\n' +
+            '• 基于课程知识库自动生成大作业题目\n' +
+            '• 学生上传文档完成作业\n' +
+            '• AI辅助评分，教师最终审核\n\n' +
+            '确定启用吗？'
         );
         
         if (!confirmed) {
@@ -13089,7 +13127,7 @@ function toggleAssignmentMode(checkbox) {
         if (countInput && !countInput.value) countInput.value = '1';
         if (scoreInput && !scoreInput.value) scoreInput.value = '50';
         
-        showNotification('已启用大作业模式，其他题型已禁用', 'success');
+        showNotification('🤖 已启用AI智能大作业模式，其他题型已禁用', 'success');
     } else {
         // 重新启用其他题型选项
         const otherCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="q-"]:not(#q-assignment)');
@@ -13228,6 +13266,14 @@ async function saveAssignmentRequirement() {
 
 // 大作业要求模态框事件监听器
 document.addEventListener('DOMContentLoaded', function() {
+    // 大作业选择框事件监听
+    const assignmentCheckbox = document.getElementById('q-assignment');
+    if (assignmentCheckbox) {
+        assignmentCheckbox.addEventListener('change', function() {
+            toggleAssignmentMode(this);
+        });
+    }
+    
     // 关闭按钮事件
     const closeBtn = document.getElementById('close-assignment-requirement-modal');
     if (closeBtn) {

@@ -2249,4 +2249,109 @@ public class DeepSeekService {
         
         return callDeepSeekAPI(prompt);
     }
+
+    /**
+     * 基于知识库RAG内容生成大作业
+     */
+    public String generateAssignmentQuestions(String courseName, String chapter, 
+            Map<String, Object> questionTypes, int totalScore, int duration, 
+            String ragContent, String specialRequirements) {
+        
+        // 构建大作业题型要求字符串
+        StringBuilder typesRequirement = new StringBuilder();
+        int totalAssignments = 0;
+        
+        if (questionTypes != null && questionTypes.containsKey("assignment")) {
+            Map<String, Object> assignmentType = (Map<String, Object>) questionTypes.get("assignment");
+            
+            Integer count = null;
+            Object countObj = assignmentType.get("count");
+            if (countObj instanceof Number) {
+                count = ((Number) countObj).intValue();
+            }
+            
+            Integer scorePerAssignment = null;
+            Object scoreObj = assignmentType.get("scorePerQuestion");
+            if (scoreObj instanceof Number) {
+                scorePerAssignment = ((Number) scoreObj).intValue();
+            }
+            
+            if (count != null && count > 0) {
+                totalAssignments = count;
+                typesRequirement.append(String.format("- 大作业：%d题，每题%d分\n", count, scorePerAssignment != null ? scorePerAssignment : (totalScore / count)));
+            }
+        }
+        
+        // 构建prompt，避免String.format中文括号问题
+        String assignmentNumber = totalAssignments == 1 ? "1" : "X";
+        String specialReqSection = (specialRequirements != null && !specialRequirements.trim().isEmpty()) ? 
+            ("## 特殊要求：\n" + specialRequirements + "\n\n") : "";
+        String separatorLine = totalAssignments > 1 ? "---\n\n" : "";
+        
+        String prompt = "请基于以下知识库内容为《" + courseName + "》课程的《" + chapter + "》章节生成大作业题目。\n\n" +
+            "**严格按照以下要求生成：**\n\n" +
+            "## 大作业数量和分值要求：\n" +
+            typesRequirement.toString() +
+            "总题目数：" + totalAssignments + "题\n" +
+            "总分：" + totalScore + "分\n" +
+            "时长：" + duration + "分钟\n\n" +
+            "## 大作业类型说明：\n" +
+            "大作业应该是综合性、实践性的题目，要求学生：\n" +
+            "- 运用所学知识解决实际问题\n" +
+            "- 进行深入的分析和思考\n" +
+            "- 提交完整的解决方案或分析报告\n" +
+            "- 体现批判性思维和创新能力\n\n" +
+            "## 大作业设计原则：\n" +
+            "1. **综合性**：整合多个知识点，不是简单的知识复述\n" +
+            "2. **实践性**：联系实际应用场景或案例\n" +
+            "3. **开放性**：允许多种解决方案，鼓励创新思维\n" +
+            "4. **层次性**：包含基础要求和拓展要求\n" +
+            "5. **可评估性**：有明确的评分标准和要求\n\n" +
+            "## 输出格式要求：\n" +
+            "请严格按照以下格式输出每道大作业：\n\n" +
+            "### 大作业" + assignmentNumber + "（大作业）\n" +
+            "**题目内容**：[详细的大作业题目描述，包括背景、要求、约束条件等]\n" +
+            "**作业要求**：\n" +
+            "1. [基础要求1]\n" +
+            "2. [基础要求2]\n" +
+            "3. [基础要求3]\n" +
+            "**拓展要求**：（可选）\n" +
+            "1. [拓展要求1]\n" +
+            "2. [拓展要求2]\n" +
+            "**提交方式**：文档上传（PDF、Word等格式）或文本输入\n" +
+            "**评分标准**：\n" +
+            "- 内容完整性（30%）：是否完整回答了所有要求\n" +
+            "- 分析深度（25%）：分析是否深入透彻\n" +
+            "- 逻辑清晰（20%）：论述是否逻辑清晰\n" +
+            "- 创新性（15%）：是否有独特见解或创新点\n" +
+            "- 格式规范（10%）：文档格式是否规范\n" +
+            "**答案**：[参考解答或解答思路，不是标准答案，而是解题方向和要点]\n" +
+            "**解析**：[该大作业的设计意图、考核目标、重点难点分析]\n" +
+            "**知识点**：[涉及的主要知识点，用逗号分隔]\n" +
+            "**分值建议**：[具体分值]分\n\n" +
+            separatorLine +
+            "## 基于知识库的相关内容：\n" +
+            ragContent + "\n\n" +
+            specialReqSection +
+            "**重要提醒（必须严格遵守）：**\n" +
+            "1. 大作业必须基于提供的知识库内容设计\n" +
+            "2. 题目要有实际应用价值和教育意义\n" +
+            "3. 评分标准要具体可操作\n" +
+            "4. 答案部分提供解题思路，不给出完整答案\n" +
+            "5. **必须生成完整的" + totalAssignments + "道大作业题目**\n" +
+            "6. **所有题目的分值之和必须精确等于" + totalScore + "分**\n" +
+            "7. 每道大作业都要充分利用知识库中的相关内容\n" +
+            "8. 题目设计要体现该课程的特色和重点\n\n" +
+            "**特别注意**：\n" +
+            "- 大作业不是简单的问答题，而是综合性的实践任务\n" +
+            "- 要求学生具备分析、综合、评价、创新等高阶思维能力\n" +
+            "- 题目描述要详细，让学生明确知道要做什么\n" +
+            "- 评分标准要客观，便于教师和AI评分\n" +
+            "- 答案部分重点提供解题思路和关键要点，不是完整答案";
+        
+        System.out.println("生成大作业的Prompt长度: " + prompt.length());
+        System.out.println("大作业数量: " + totalAssignments);
+        
+        return callDeepSeekAPI(prompt);
+    }
 } 

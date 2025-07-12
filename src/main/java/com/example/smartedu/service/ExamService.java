@@ -126,9 +126,17 @@ public class ExamService {
             // 根据是否为大作业模式选择不同的处理方式
             String examJson;
             if (isAssignmentMode) {
-                // 大作业模式：不调用AI生成，直接创建作业框架
-                System.out.println("检测到大作业模式，跳过AI生成，创建作业框架");
-                examJson = createAssignmentFramework(course.getName(), questionTypesMap);
+                // 大作业模式：调用AI生成大作业内容
+                System.out.println("检测到大作业模式，使用AI生成大作业内容");
+                examJson = deepSeekService.generateAssignmentQuestions(
+                    course.getName(),
+                    "基于知识库内容",
+                    questionTypesMap,
+                    request.getTotalScore(),
+                    request.getDuration(),
+                    ragContent,
+                    request.getSpecialRequirements()
+                );
             } else {
                 // 普通模式：调用DeepSeek API生成试卷内容
             if (request.getEnableCapabilityAnalysis() != null && request.getEnableCapabilityAnalysis()) {
@@ -374,6 +382,9 @@ public class ExamService {
                         break;
                     case "answer":
                         query.append("解答 分析 计算 解决 方法 过程 ");
+                        break;
+                    case "assignment":
+                        query.append("实践 应用 项目 案例 综合 设计 实现 分析 研究 ");
                         break;
                     case "custom":
                         // 对于自定义题型，尝试从要求中提取关键词
