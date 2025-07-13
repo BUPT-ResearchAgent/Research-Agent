@@ -4743,12 +4743,7 @@ async function viewCourseStudents(courseId) {
         
         // 获取学生列表
         console.log('正在获取学生列表...');
-        const response = await fetch(`/api/teacher/courses/${courseId}/students`, {
-            method: 'GET',
-            credentials: 'include'
-        });
-        
-        const result = await response.json();
+        const result = await TeacherAPI.getCourseStudents(courseId);
         console.log('API响应:', result);
         hideLoading();
         
@@ -4775,16 +4770,18 @@ function showStudentManagementModal(course, students) {
     
     // 创建学生管理模态框
     const modalHtml = `
-        <div class="modal-overlay" id="student-management-modal">
-            <div class="modal-content" style="max-width: 900px; max-height: 80vh;">
-                <div class="modal-header">
-                    <h3><i class="fas fa-users"></i> 学生管理 - ${course.name}</h3>
-                    <button class="modal-close" onclick="closeStudentManagementModal()">
+        <div class="course-modal-overlay show" id="student-management-modal">
+            <div class="course-modal-container" style="max-width: 900px; max-height: 80vh;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <h3><i class="fas fa-users"></i> 学生管理 - ${course.name}</h3>
+                    </div>
+                    <button class="modal-close-btn" onclick="closeStudentManagementModal()">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
                 
-                <div class="modal-body" style="max-height: 600px; overflow-y: auto;">
+                <div class="course-modal-body" style="max-height: 600px; overflow-y: auto;">
                     <div class="student-management-header" style="margin-bottom: 20px;">
                         <div class="course-info-summary" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
                             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; font-size: 14px;">
@@ -4795,13 +4792,13 @@ function showStudentManagementModal(course, students) {
                         </div>
                         
                         <div class="student-actions" style="display: flex; gap: 10px; margin-bottom: 15px;">
-                            <button class="btn btn-success" onclick="createStudentGroup(${course.id})">
+                            <button class="course-btn course-btn-primary" onclick="createStudentGroup(${course.id})">
                                 <i class="fas fa-users"></i> 创建分组
                             </button>
-                            <button class="btn btn-info" onclick="viewStudentGroups(${course.id})">
+                            <button class="course-btn course-btn-primary" onclick="viewStudentGroups(${course.id})" style="background: #17a2b8;">
                                 <i class="fas fa-layer-group"></i> 查看分组
                             </button>
-                            <button class="btn btn-warning" onclick="exportStudentList(${course.id})">
+                            <button class="course-btn course-btn-warning" onclick="exportStudentList(${course.id})">
                                 <i class="fas fa-download"></i> 导出名单
                             </button>
                         </div>
@@ -4824,10 +4821,10 @@ function showStudentManagementModal(course, students) {
                                                 <div style="font-size: 12px; color: #6c757d;">${student.studentId || 'N/A'}</div>
                                             </div>
                                             <div class="student-actions" style="display: flex; gap: 5px;">
-                                                <button class="btn btn-sm btn-primary" onclick="viewStudentProgress(${student.id})">
+                                                <button class="course-btn course-btn-primary" style="padding: 4px 8px; font-size: 12px;" onclick="viewStudentProgress(${student.id})" title="学习进度">
                                                     <i class="fas fa-chart-line"></i>
                                                 </button>
-                                                <button class="btn btn-sm btn-info" onclick="assignToGroup(${student.id})">
+                                                <button class="course-btn course-btn-primary" style="padding: 4px 8px; font-size: 12px; background: #17a2b8;" onclick="assignToGroup(${student.id}, ${course.id})" title="分配到组">
                                                     <i class="fas fa-users"></i>
                                                 </button>
                                             </div>
@@ -4846,8 +4843,8 @@ function showStudentManagementModal(course, students) {
                     </div>
                 </div>
                 
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeStudentManagementModal()">
+                <div class="course-modal-actions">
+                    <button class="course-btn course-btn-cancel" onclick="closeStudentManagementModal()">
                         <i class="fas fa-times"></i> 关闭
                     </button>
                 </div>
@@ -4864,9 +4861,16 @@ function showStudentManagementModal(course, students) {
     
     if (modal) {
         console.log('模态框创建成功');
-        // 确保模态框可见
+        // 模态框已经有show类，确保正确显示
         modal.style.display = 'flex';
         modal.style.zIndex = '9999';
+        
+        // 添加点击背景关闭功能
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeStudentManagementModal();
+            }
+        });
     } else {
         console.error('模态框创建失败');
     }
@@ -4956,18 +4960,28 @@ function manageCourseExams(courseId) {
 
 // 创建学生分组
 function createStudentGroup(courseId) {
+    // 隐藏学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'none';
+    }
+    
     // 创建分组模态框
     const modalHtml = `
-        <div class="modal-overlay" id="create-group-modal">
-            <div class="modal-content" style="max-width: 600px;">
-                <div class="modal-header">
-                    <h3><i class="fas fa-users"></i> 创建学生分组</h3>
-                    <button class="modal-close" onclick="closeCreateGroupModal()">
-                        <i class="fas fa-times"></i>
-                    </button>
+        <div class="course-modal-overlay show" id="create-group-modal">
+            <div class="course-modal-container" style="max-width: 600px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <h3><i class="fas fa-users"></i> 创建学生分组</h3>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="course-btn course-btn-secondary" onclick="backToStudentManagement()" title="返回学生管理">
+                            <i class="fas fa-arrow-left"></i> 返回
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="modal-body">
+                <div class="course-modal-body">
                     <form id="create-group-form">
                         <div class="form-group">
                             <label>分组名称 <span class="required">*</span></label>
@@ -4997,11 +5011,11 @@ function createStudentGroup(courseId) {
                     </form>
                 </div>
                 
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeCreateGroupModal()">
+                <div class="course-modal-actions">
+                    <button class="course-btn course-btn-cancel" onclick="closeCreateGroupModal()">
                         <i class="fas fa-times"></i> 取消
                     </button>
-                    <button class="btn btn-primary" onclick="saveStudentGroup(${courseId})">
+                    <button class="course-btn course-btn-primary" onclick="saveStudentGroup(${courseId})">
                         <i class="fas fa-save"></i> 创建分组
                     </button>
                 </div>
@@ -5012,10 +5026,31 @@ function createStudentGroup(courseId) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
+// 返回学生管理界面
+function backToStudentManagement() {
+    // 关闭创建分组界面
+    const createModal = document.getElementById('create-group-modal');
+    if (createModal) {
+        createModal.remove();
+    }
+    
+    // 显示学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'flex';
+    }
+}
+
 function closeCreateGroupModal() {
     const modal = document.getElementById('create-group-modal');
     if (modal) {
         modal.remove();
+    }
+    
+    // 恢复学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'flex';
     }
 }
 
@@ -5054,10 +5089,18 @@ async function saveStudentGroup(courseId) {
         
         if (result.success) {
             showNotification(`分组"${groupName}"创建成功！`, 'success');
-            closeCreateGroupModal();
             
-            // 刷新分组列表
-            viewStudentGroups(courseId);
+            // 关闭创建分组界面并返回学生管理界面
+            const createModal = document.getElementById('create-group-modal');
+            if (createModal) {
+                createModal.remove();
+            }
+            
+            // 显示学生管理界面
+            const studentModal = document.getElementById('student-management-modal');
+            if (studentModal) {
+                studentModal.style.display = 'flex';
+            }
         } else {
             showNotification(result.message || '创建分组失败', 'error');
         }
@@ -5072,6 +5115,12 @@ async function saveStudentGroup(courseId) {
 // 查看学生分组
 async function viewStudentGroups(courseId) {
     try {
+        // 隐藏学生管理界面
+        const studentModal = document.getElementById('student-management-modal');
+        if (studentModal) {
+            studentModal.style.display = 'none';
+        }
+        
         showLoading('正在加载分组信息...');
         
         // 获取分组列表
@@ -5087,33 +5136,48 @@ async function viewStudentGroups(courseId) {
             showStudentGroupsModal(courseId, result.data);
         } else {
             showNotification(result.message || '获取分组列表失败', 'error');
+            
+            // 恢复学生管理界面
+            if (studentModal) {
+                studentModal.style.display = 'flex';
+            }
         }
         
     } catch (error) {
         hideLoading();
         console.error('获取分组列表失败:', error);
         showNotification('获取分组列表失败，请重试', 'error');
+        
+        // 恢复学生管理界面
+        const studentModal = document.getElementById('student-management-modal');
+        if (studentModal) {
+            studentModal.style.display = 'flex';
+        }
     }
 }
 
 function showStudentGroupsModal(courseId, groups) {
     // 创建分组查看模态框
     const modalHtml = `
-        <div class="modal-overlay" id="view-groups-modal">
-            <div class="modal-content" style="max-width: 1000px; max-height: 80vh;">
-                <div class="modal-header">
-                    <h3><i class="fas fa-layer-group"></i> 学生分组管理</h3>
-                    <button class="modal-close" onclick="closeViewGroupsModal()">
-                        <i class="fas fa-times"></i>
-                    </button>
+        <div class="course-modal-overlay show" id="view-groups-modal">
+            <div class="course-modal-container" style="max-width: 1000px; max-height: 80vh;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <h3><i class="fas fa-layer-group"></i> 学生分组管理</h3>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="course-btn course-btn-secondary" onclick="backToStudentManagementFromGroups()" title="返回学生管理">
+                            <i class="fas fa-arrow-left"></i> 返回
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="modal-body" style="max-height: 600px; overflow-y: auto;">
+                <div class="course-modal-body" style="max-height: 600px; overflow-y: auto;">
                     <div class="groups-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
                         <div style="font-size: 14px; color: #666;">
                             当前共有 <strong>${groups.length}</strong> 个分组
                         </div>
-                        <button class="btn btn-primary" onclick="closeViewGroupsModal(); createStudentGroup(${courseId})">
+                        <button class="course-btn course-btn-primary" onclick="createStudentGroupFromGroups(${courseId})">
                             <i class="fas fa-plus"></i> 新建分组
                         </button>
                     </div>
@@ -5137,10 +5201,10 @@ function showStudentGroupsModal(courseId, groups) {
                                                 </div>
                                             </div>
                                             <div class="group-actions" style="display: flex; gap: 5px;">
-                                                <button class="btn btn-sm btn-success" onclick="manageGroupMembers(${courseId}, ${group.id})" title="管理成员">
+                                                <button class="course-btn course-btn-success" onclick="manageGroupMembers(${courseId}, ${group.id})" title="管理成员">
                                                     <i class="fas fa-users"></i>
                                                 </button>
-                                                <button class="btn btn-sm btn-danger" onclick="deleteGroup(${courseId}, ${group.id})" title="删除分组">
+                                                <button class="course-btn course-btn-danger" onclick="deleteGroup(${courseId}, ${group.id})" title="删除分组">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </div>
@@ -5168,7 +5232,7 @@ function showStudentGroupsModal(courseId, groups) {
                                                                 <span style="font-weight: 500;">${member.studentName}</span>
                                                                 <small style="color: #666; margin-left: 10px;">${member.studentId}</small>
                                                             </div>
-                                                            <button class="btn btn-sm btn-outline-danger" onclick="removeFromGroup(${courseId}, ${group.id}, ${member.id})" title="移除">
+                                                            <button class="course-btn course-btn-outline-danger" onclick="removeFromGroup(${courseId}, ${group.id}, ${member.id})" title="移除">
                                                                 <i class="fas fa-times"></i>
                                                             </button>
                                                         </div>
@@ -5183,8 +5247,8 @@ function showStudentGroupsModal(courseId, groups) {
                     </div>
                 </div>
                 
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeViewGroupsModal()">
+                <div class="course-modal-actions">
+                    <button class="course-btn course-btn-cancel" onclick="closeViewGroupsModal()">
                         <i class="fas fa-times"></i> 关闭
                     </button>
                 </div>
@@ -5195,16 +5259,59 @@ function showStudentGroupsModal(courseId, groups) {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
+// 从分组管理界面创建新分组
+function createStudentGroupFromGroups(courseId) {
+    // 关闭分组查看界面
+    const groupsModal = document.getElementById('view-groups-modal');
+    if (groupsModal) {
+        groupsModal.remove();
+    }
+    
+    // 调用创建分组函数（注意：此时学生管理界面已经隐藏了）
+    createStudentGroup(courseId);
+}
+
+// 从分组管理返回学生管理界面
+function backToStudentManagementFromGroups() {
+    // 关闭分组查看界面
+    const groupsModal = document.getElementById('view-groups-modal');
+    if (groupsModal) {
+        groupsModal.remove();
+    }
+    
+    // 显示学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'flex';
+    }
+}
+
 function closeViewGroupsModal() {
     const modal = document.getElementById('view-groups-modal');
     if (modal) {
         modal.remove();
+    }
+    
+    // 恢复学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'flex';
     }
 }
 
 // 管理分组成员
 async function manageGroupMembers(courseId, groupId) {
     try {
+        // 隐藏当前界面（可能是学生管理界面或分组查看界面）
+        const studentModal = document.getElementById('student-management-modal');
+        const groupsModal = document.getElementById('view-groups-modal');
+        if (studentModal) {
+            studentModal.style.display = 'none';
+        }
+        if (groupsModal) {
+            groupsModal.style.display = 'none';
+        }
+        
         showLoading('正在加载数据...');
         
         // 获取课程学生列表
@@ -5258,16 +5365,20 @@ function showMemberManagementModal(courseId, groupId, group, allStudents) {
     const unassignedStudents = allStudents.filter(student => !assignedStudentIds.includes(student.id));
     
     const modalHtml = `
-        <div class="modal-overlay" id="member-management-modal">
-            <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
-                <div class="modal-header">
-                    <h3><i class="fas fa-users"></i> 管理分组成员 - ${group.groupName}</h3>
-                    <button class="modal-close" onclick="closeMemberManagementModal()">
-                        <i class="fas fa-times"></i>
-                    </button>
+        <div class="course-modal-overlay show" id="member-management-modal">
+            <div class="course-modal-container" style="max-width: 800px; max-height: 80vh;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <h3><i class="fas fa-users"></i> 管理分组成员 - ${group.groupName}</h3>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="course-btn course-btn-secondary" onclick="backFromMemberManagement(${courseId})" title="返回上级">
+                            <i class="fas fa-arrow-left"></i> 返回
+                        </button>
+                    </div>
                 </div>
                 
-                <div class="modal-body" style="max-height: 600px; overflow-y: auto;">
+                <div class="course-modal-body" style="max-height: 600px; overflow-y: auto;">
                     <div class="row">
                         <div class="col-md-6">
                             <h6>未分组学生 (${unassignedStudents.length})</h6>
@@ -5283,7 +5394,7 @@ function showMemberManagementModal(courseId, groupId, group, allStudents) {
                                                 <span>${student.realName}</span>
                                                 <small style="color: #666; margin-left: 10px;">${student.studentId}</small>
                                             </div>
-                                            <button class="btn btn-sm btn-success" onclick="addToGroup(${courseId}, ${groupId}, ${student.id})" title="加入分组">
+                                            <button class="course-btn course-btn-success" onclick="addToGroup(${courseId}, ${groupId}, ${student.id})" title="加入分组">
                                                 <i class="fas fa-plus"></i>
                                             </button>
                                         </div>
@@ -5306,7 +5417,7 @@ function showMemberManagementModal(courseId, groupId, group, allStudents) {
                                                 <span>${member.studentName}</span>
                                                 <small style="color: #666; margin-left: 10px;">${member.studentId}</small>
                                             </div>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="removeFromGroup(${courseId}, ${groupId}, ${member.id})" title="移除">
+                                            <button class="course-btn course-btn-outline-danger" onclick="removeFromGroup(${courseId}, ${groupId}, ${member.id})" title="移除">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         </div>
@@ -5317,8 +5428,8 @@ function showMemberManagementModal(courseId, groupId, group, allStudents) {
                     </div>
                 </div>
                 
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeMemberManagementModal()">
+                <div class="course-modal-actions">
+                    <button class="course-btn course-btn-cancel" onclick="closeMemberManagementModal()">
                         <i class="fas fa-times"></i> 关闭
                     </button>
                 </div>
@@ -5327,12 +5438,100 @@ function showMemberManagementModal(courseId, groupId, group, allStudents) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 添加点击背景关闭功能
+    const modal = document.getElementById('member-management-modal');
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeMemberManagementModal();
+        }
+    });
+}
+
+// 刷新成员管理界面（不隐藏背景界面）
+async function refreshMemberManagement(courseId, groupId) {
+    try {
+        showLoading('正在刷新数据...');
+        
+        // 获取课程学生列表
+        const studentsResponse = await fetch(`/api/teacher/courses/${courseId}/students`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const studentsResult = await studentsResponse.json();
+        
+        if (!studentsResult.success) {
+            hideLoading();
+            showNotification(studentsResult.message || '获取学生列表失败', 'error');
+            return;
+        }
+        
+        // 获取当前分组信息
+        const groupsResponse = await fetch(`/api/teacher/courses/${courseId}/groups`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const groupsResult = await groupsResponse.json();
+        hideLoading();
+        
+        if (!groupsResult.success) {
+            showNotification(groupsResult.message || '获取分组信息失败', 'error');
+            return;
+        }
+        
+        const currentGroup = groupsResult.data.find(g => g.id === groupId);
+        if (!currentGroup) {
+            showNotification('分组不存在', 'error');
+            return;
+        }
+        
+        // 直接显示界面，不隐藏背景
+        showMemberManagementModal(courseId, groupId, currentGroup, studentsResult.data);
+        
+    } catch (error) {
+        hideLoading();
+        console.error('刷新数据失败:', error);
+        showNotification('刷新数据失败，请重试', 'error');
+    }
+}
+
+// 从成员管理返回上级界面
+function backFromMemberManagement(courseId) {
+    // 关闭成员管理界面
+    const memberModal = document.getElementById('member-management-modal');
+    if (memberModal) {
+        memberModal.remove();
+    }
+    
+    // 检查是否有分组查看界面（优先恢复分组界面）
+    const groupsModal = document.getElementById('view-groups-modal');
+    if (groupsModal) {
+        groupsModal.style.display = 'flex';
+    } else {
+        // 如果没有分组界面，恢复学生管理界面
+        const studentModal = document.getElementById('student-management-modal');
+        if (studentModal) {
+            studentModal.style.display = 'flex';
+        }
+    }
 }
 
 function closeMemberManagementModal() {
     const modal = document.getElementById('member-management-modal');
     if (modal) {
         modal.remove();
+    }
+    
+    // 恢复之前的界面
+    const groupsModal = document.getElementById('view-groups-modal');
+    const studentModal = document.getElementById('student-management-modal');
+    
+    if (groupsModal) {
+        groupsModal.style.display = 'flex';
+    } else if (studentModal) {
+        studentModal.style.display = 'flex';
     }
 }
 
@@ -5357,12 +5556,17 @@ async function addToGroup(courseId, groupId, studentId) {
         
         if (result.success) {
             showNotification('学生添加成功', 'success');
-            // 刷新成员管理界面
-            closeMemberManagementModal();
-            // 重新打开管理界面以显示更新后的数据
+            // 直接刷新当前成员管理界面
+            const memberModal = document.getElementById('member-management-modal');
+            if (memberModal) {
+                memberModal.remove();
+            }
+            
+            // 重新打开管理界面以显示更新后的数据（不隐藏背景界面）
             setTimeout(() => {
-                manageGroupMembers(courseId, groupId);
-            }, 500);
+                // 获取数据并重新显示界面，但不隐藏背景
+                refreshMemberManagement(courseId, groupId);
+            }, 300);
         } else {
             showNotification(result.message || '添加学生失败', 'error');
         }
@@ -5393,12 +5597,17 @@ async function removeFromGroup(courseId, groupId, memberId) {
         
         if (result.success) {
             showNotification('学生移除成功', 'success');
-            // 刷新成员管理界面
-            closeMemberManagementModal();
-            // 重新打开管理界面以显示更新后的数据
+            // 直接刷新当前成员管理界面
+            const memberModal = document.getElementById('member-management-modal');
+            if (memberModal) {
+                memberModal.remove();
+            }
+            
+            // 重新打开管理界面以显示更新后的数据（不隐藏背景界面）
             setTimeout(() => {
-                manageGroupMembers(courseId, groupId);
-            }, 500);
+                // 获取数据并重新显示界面，但不隐藏背景
+                refreshMemberManagement(courseId, groupId);
+            }, 300);
         } else {
             showNotification(result.message || '移除学生失败', 'error');
         }
@@ -5443,18 +5652,510 @@ async function deleteGroup(courseId, groupId) {
 }
 
 // 分配学生到分组（从学生管理界面调用）
-function assignToGroup(studentId) {
-    showNotification('请先进入"查看分组"界面创建分组，然后使用"管理成员"功能分配学生', 'info');
+async function assignToGroup(studentId, courseId = null) {
+    try {
+        // 如果没有courseId，尝试从当前上下文获取
+        if (!courseId) {
+            showNotification('请从课程管理界面访问此功能', 'warning');
+            return;
+        }
+        
+        // 隐藏学生管理界面
+        const studentModal = document.getElementById('student-management-modal');
+        if (studentModal) {
+            studentModal.style.display = 'none';
+        }
+        
+        showLoading('正在加载分组信息...');
+        
+        // 获取课程分组列表
+        const groupsResponse = await fetch(`/api/teacher/courses/${courseId}/groups`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        const groupsResult = await groupsResponse.json();
+        hideLoading();
+        
+        if (!groupsResult.success) {
+            showNotification(groupsResult.message || '获取分组列表失败', 'error');
+            // 恢复学生管理界面
+            const studentModal = document.getElementById('student-management-modal');
+            if (studentModal) {
+                studentModal.style.display = 'flex';
+            }
+            return;
+        }
+        
+        const groups = groupsResult.data;
+        
+        if (groups.length === 0) {
+            showNotification('暂无可用分组，请先创建分组', 'warning');
+            // 恢复学生管理界面
+            const studentModal = document.getElementById('student-management-modal');
+            if (studentModal) {
+                studentModal.style.display = 'flex';
+            }
+            return;
+        }
+        
+        // 过滤出未满员的分组
+        const availableGroups = groups.filter(group => group.currentSize < group.maxSize);
+        
+        if (availableGroups.length === 0) {
+            showNotification('所有分组已满员，请增加分组容量或创建新分组', 'warning');
+            // 恢复学生管理界面
+            const studentModal = document.getElementById('student-management-modal');
+            if (studentModal) {
+                studentModal.style.display = 'flex';
+            }
+            return;
+        }
+        
+        showAssignToGroupModal(studentId, courseId, availableGroups);
+        
+    } catch (error) {
+        hideLoading();
+        console.error('加载分组信息失败:', error);
+        showNotification('加载分组信息失败，请重试', 'error');
+        // 恢复学生管理界面
+        const studentModal = document.getElementById('student-management-modal');
+        if (studentModal) {
+            studentModal.style.display = 'flex';
+        }
+    }
 }
 
-// 查看学生学习进度（暂时只显示提示）
-function viewStudentProgress(studentId) {
-    showNotification('学生进度分析功能正在开发中，敬请期待！', 'info');
+function showAssignToGroupModal(studentId, courseId, groups) {
+    const modalHtml = `
+        <div class="course-modal-overlay show" id="assign-to-group-modal">
+            <div class="course-modal-container" style="max-width: 600px;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <h3><i class="fas fa-users"></i> 分配学生到分组</h3>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="course-btn course-btn-secondary" onclick="backToStudentManagementFromAssign()" title="返回学生管理">
+                            <i class="fas fa-arrow-left"></i> 返回
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="course-modal-body">
+                    <div class="form-group">
+                        <label style="margin-bottom: 10px; font-weight: bold;">选择分组：</label>
+                        <div class="groups-selection">
+                            ${groups.map(group => `
+                                <div class="group-option" style="margin-bottom: 10px; padding: 15px; border: 1px solid #dee2e6; border-radius: 8px; cursor: pointer;" 
+                                     onclick="selectGroup(${group.id})">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <div style="font-weight: bold; margin-bottom: 5px;">${group.groupName}</div>
+                                            <div style="font-size: 12px; color: #666;">
+                                                ${group.description || '无描述'}
+                                            </div>
+                                            ${group.teachingStrategy ? `
+                                                <div style="font-size: 12px; color: #007bff; margin-top: 3px;">
+                                                    <i class="fas fa-lightbulb"></i> ${group.teachingStrategy}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <div style="font-size: 14px; font-weight: bold;">
+                                                ${group.currentSize}/${group.maxSize}
+                                            </div>
+                                            <div style="font-size: 12px; color: #666;">
+                                                ${group.maxSize - group.currentSize} 个空位
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="course-modal-actions">
+                    <button class="course-btn course-btn-cancel" onclick="closeAssignToGroupModal()">
+                        <i class="fas fa-times"></i> 取消
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 添加点击背景关闭功能
+    const modal = document.getElementById('assign-to-group-modal');
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeAssignToGroupModal();
+        }
+    });
+    
+    // 存储学生ID和课程ID供后续使用
+    window.assignToGroupData = { studentId, courseId };
+}
+
+// 从分配学生界面返回学生管理
+function backToStudentManagementFromAssign() {
+    // 关闭分配界面
+    const assignModal = document.getElementById('assign-to-group-modal');
+    if (assignModal) {
+        assignModal.remove();
+    }
+    
+    // 显示学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'flex';
+    }
+    
+    delete window.assignToGroupData;
+}
+
+function closeAssignToGroupModal() {
+    const modal = document.getElementById('assign-to-group-modal');
+    if (modal) {
+        modal.remove();
+    }
+    
+    // 恢复学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'flex';
+    }
+    
+    delete window.assignToGroupData;
+}
+
+function selectGroup(groupId) {
+    const data = window.assignToGroupData;
+    if (!data) return;
+    
+    // 高亮选中的分组
+    const options = document.querySelectorAll('.group-option');
+    options.forEach(option => {
+        option.style.backgroundColor = '#f8f9fa';
+        option.style.borderColor = '#dee2e6';
+    });
+    
+    const selectedOption = document.querySelector(`[onclick="selectGroup(${groupId})"]`);
+    if (selectedOption) {
+        selectedOption.style.backgroundColor = '#e3f2fd';
+        selectedOption.style.borderColor = '#2196f3';
+    }
+    
+    // 执行分配
+    assignStudentToGroup(data.studentId, data.courseId, groupId);
+}
+
+async function assignStudentToGroup(studentId, courseId, groupId) {
+    try {
+        showLoading('正在分配学生...');
+        
+        const response = await fetch(`/api/teacher/courses/${courseId}/groups/${groupId}/members`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                studentIds: [studentId]
+            })
+        });
+        
+        const result = await response.json();
+        hideLoading();
+        
+        if (result.success) {
+            showNotification('学生分配成功！', 'success');
+            closeAssignToGroupModal();
+        } else {
+            showNotification(result.message || '分配失败', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('分配学生失败:', error);
+        showNotification('分配学生失败，请重试', 'error');
+    }
+}
+
+// 查看学生学习进度
+async function viewStudentProgress(studentId, courseId = null) {
+    try {
+        // 隐藏学生管理界面
+        const studentModal = document.getElementById('student-management-modal');
+        if (studentModal) {
+            studentModal.style.display = 'none';
+        }
+        
+        showLoading('正在加载学生进度...');
+        
+        const result = await TeacherAPI.getStudentProgress(studentId, courseId);
+        hideLoading();
+        
+        if (result.success) {
+            showStudentProgressModal(result.data);
+        } else {
+            showNotification(result.message || '获取学生进度失败', 'error');
+            // 恢复学生管理界面
+            if (studentModal) {
+                studentModal.style.display = 'flex';
+            }
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('获取学生进度失败:', error);
+        showNotification('获取学生进度失败，请重试', 'error');
+        // 恢复学生管理界面
+        const studentModal = document.getElementById('student-management-modal');
+        if (studentModal) {
+            studentModal.style.display = 'flex';
+        }
+    }
+}
+
+function showStudentProgressModal(progressData) {
+    const student = progressData.studentInfo;
+    const course = progressData.courseInfo;
+    const courseProgress = progressData.courseProgress;
+    const enrolledCourses = progressData.enrolledCourses;
+    const examResults = progressData.examResults;
+    
+    const modalHtml = `
+        <div class="course-modal-overlay show" id="student-progress-modal">
+            <div class="course-modal-container" style="max-width: 900px; max-height: 85vh;">
+                <div class="course-modal-header">
+                    <div class="modal-title-section">
+                        <h3><i class="fas fa-chart-line"></i> 学生学习进度 - ${student.realName}</h3>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="course-btn course-btn-secondary" onclick="backToStudentManagementFromProgress()" title="返回学生管理">
+                            <i class="fas fa-arrow-left"></i> 返回
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="course-modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <!-- 学生基本信息 -->
+                    <div class="progress-section" style="margin-bottom: 20px;">
+                        <h6 style="color: #495057; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #007bff;">
+                            <i class="fas fa-user"></i> 基本信息
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="info-item" style="margin-bottom: 10px;">
+                                    <strong>学号：</strong>${student.studentId || 'N/A'}
+                                </div>
+                                <div class="info-item" style="margin-bottom: 10px;">
+                                    <strong>班级：</strong>${student.className || 'N/A'}
+                                </div>
+                                <div class="info-item" style="margin-bottom: 10px;">
+                                    <strong>年级：</strong>${student.grade || 'N/A'}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="info-item" style="margin-bottom: 10px;">
+                                    <strong>专业：</strong>${student.major || 'N/A'}
+                                </div>
+                                <div class="info-item" style="margin-bottom: 10px;">
+                                    <strong>入学年份：</strong>${student.entranceYear || 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${course && courseProgress ? `
+                        <!-- 课程进度 -->
+                        <div class="progress-section" style="margin-bottom: 20px;">
+                            <h6 style="color: #495057; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #28a745;">
+                                <i class="fas fa-book"></i> 课程进度 - ${course.name}
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="progress-card" style="text-align: center; background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                                        <div style="font-size: 24px; font-weight: bold; color: #007bff;">${courseProgress.examCount}</div>
+                                        <div style="font-size: 12px; color: #666;">参与考试</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="progress-card" style="text-align: center; background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                                        <div style="font-size: 24px; font-weight: bold; color: #28a745;">${courseProgress.averageScore}</div>
+                                        <div style="font-size: 12px; color: #666;">平均分</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="progress-card" style="text-align: center; background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                                        <div style="font-size: 24px; font-weight: bold; color: #ffc107;">${courseProgress.maxScore}</div>
+                                        <div style="font-size: 12px; color: #666;">最高分</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="progress-card" style="text-align: center; background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                                        <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${Math.round(courseProgress.passRate * 100)}%</div>
+                                        <div style="font-size: 12px; color: #666;">通过率</div>
+                                    </div>
+                                </div>
+                            </div>
+                            ${courseProgress.enrollmentDate ? `
+                                <div style="margin-top: 15px; font-size: 14px; color: #666;">
+                                    <i class="fas fa-calendar-alt"></i> 加入时间: ${new Date(courseProgress.enrollmentDate).toLocaleString()}
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                    
+                    <!-- 所有课程 -->
+                    <div class="progress-section" style="margin-bottom: 20px;">
+                        <h6 style="color: #495057; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #17a2b8;">
+                            <i class="fas fa-graduation-cap"></i> 已选课程 (${enrolledCourses.length})
+                        </h6>
+                        ${enrolledCourses.length === 0 ? `
+                            <div style="text-align: center; padding: 20px; color: #999;">
+                                <i class="fas fa-book-open"></i> 暂无选课记录
+                            </div>
+                        ` : `
+                            <div class="courses-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">
+                                ${enrolledCourses.map(course => `
+                                    <div class="course-card" style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                                        <div style="font-weight: bold; margin-bottom: 5px;">${course.name}</div>
+                                        <div style="font-size: 14px; color: #666;">
+                                            <div>课程代码: ${course.courseCode}</div>
+                                            <div>任课教师: ${course.teacherName}</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+                    
+                    <!-- 考试成绩 -->
+                    <div class="progress-section" style="margin-bottom: 20px;">
+                        <h6 style="color: #495057; margin-bottom: 15px; padding-bottom: 5px; border-bottom: 2px solid #dc3545;">
+                            <i class="fas fa-chart-bar"></i> 考试成绩记录 (${examResults.length})
+                        </h6>
+                        ${examResults.length === 0 ? `
+                            <div style="text-align: center; padding: 20px; color: #999;">
+                                <i class="fas fa-clipboard-list"></i> 暂无考试记录
+                            </div>
+                        ` : `
+                            <div class="exam-results-list" style="max-height: 300px; overflow-y: auto;">
+                                ${examResults.map(exam => `
+                                    <div class="exam-result-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; margin-bottom: 8px; background: #f8f9fa; border-radius: 4px;">
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: bold; margin-bottom: 2px;">${exam.examTitle}</div>
+                                            <div style="font-size: 12px; color: #666;">
+                                                ${exam.courseName} | ${exam.submittedAt ? new Date(exam.submittedAt).toLocaleString() : 'N/A'}
+                                            </div>
+                                        </div>
+                                        <div style="text-align: right;">
+                                            <div style="font-size: 18px; font-weight: bold; color: ${exam.score >= 60 ? '#28a745' : '#dc3545'};">
+                                                ${exam.score}/${exam.totalScore}
+                                            </div>
+                                            <div style="font-size: 12px; color: #666;">
+                                                ${Math.round(exam.score / exam.totalScore * 100)}%
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
+                    </div>
+                </div>
+                
+                <div class="course-modal-actions">
+                    <button class="course-btn course-btn-cancel" onclick="closeStudentProgressModal()">
+                        <i class="fas fa-times"></i> 关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 添加点击背景关闭功能
+    const modal = document.getElementById('student-progress-modal');
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            closeStudentProgressModal();
+        }
+    });
+}
+
+// 从学习进度界面返回学生管理
+function backToStudentManagementFromProgress() {
+    // 关闭学习进度界面
+    const progressModal = document.getElementById('student-progress-modal');
+    if (progressModal) {
+        progressModal.remove();
+    }
+    
+    // 显示学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'flex';
+    }
+}
+
+function closeStudentProgressModal() {
+    const modal = document.getElementById('student-progress-modal');
+    if (modal) {
+        modal.remove();
+    }
+    
+    // 恢复学生管理界面
+    const studentModal = document.getElementById('student-management-modal');
+    if (studentModal) {
+        studentModal.style.display = 'flex';
+    }
 }
 
 // 导出学生名单
-function exportStudentList(courseId) {
-    showNotification('学生名单导出功能正在开发中，敬请期待！', 'info');
+async function exportStudentList(courseId) {
+    try {
+        showLoading('正在导出学生名单...');
+        
+        const response = await fetch(`/api/teacher/courses/${courseId}/students/export`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        hideLoading();
+        
+        if (response.ok) {
+            // 获取文件名
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let fileName = 'student_list.xlsx';
+            if (contentDisposition && contentDisposition.includes('filename*=UTF-8\'\'')) {
+                fileName = decodeURIComponent(contentDisposition.split('filename*=UTF-8\'\'')[1]);
+            }
+            
+            // 创建blob并下载
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showNotification('学生名单导出成功！', 'success');
+        } else {
+            showNotification('导出失败，请重试', 'error');
+        }
+        
+    } catch (error) {
+        hideLoading();
+        console.error('导出学生名单失败:', error);
+        showNotification('导出失败，请重试', 'error');
+    }
 }
 
 function updateImprovementCourseSelect() {

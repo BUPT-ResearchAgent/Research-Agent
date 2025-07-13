@@ -18,6 +18,12 @@ public interface StudentGroupMemberRepository extends JpaRepository<StudentGroup
     List<StudentGroupMember> findByStudentGroupIdAndStatus(Long studentGroupId, String status);
     
     /**
+     * 根据分组ID查找所有成员（带Student预加载）
+     */
+    @Query("SELECT sgm FROM StudentGroupMember sgm JOIN FETCH sgm.student WHERE sgm.studentGroupId = :studentGroupId AND sgm.status = :status")
+    List<StudentGroupMember> findByStudentGroupIdAndStatusWithStudent(@Param("studentGroupId") Long studentGroupId, @Param("status") String status);
+    
+    /**
      * 根据学生ID查找所有分组成员记录
      */
     List<StudentGroupMember> findByStudentIdAndStatus(Long studentId, String status);
@@ -32,6 +38,12 @@ public interface StudentGroupMemberRepository extends JpaRepository<StudentGroup
      */
     @Query("SELECT sgm FROM StudentGroupMember sgm JOIN sgm.studentGroup sg WHERE sg.courseId = :courseId AND sgm.status = :status")
     List<StudentGroupMember> findByCourseIdAndStatus(@Param("courseId") Long courseId, @Param("status") String status);
+    
+    /**
+     * 根据课程ID查找所有分组成员（带Student预加载）
+     */
+    @Query("SELECT sgm FROM StudentGroupMember sgm JOIN FETCH sgm.student JOIN sgm.studentGroup sg WHERE sg.courseId = :courseId AND sgm.status = :status")
+    List<StudentGroupMember> findByCourseIdAndStatusWithStudent(@Param("courseId") Long courseId, @Param("status") String status);
     
     /**
      * 统计分组的成员数量

@@ -37,6 +37,20 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import java.io.ByteArrayOutputStream;
+
 @RestController
 @RequestMapping("/api/teacher")
 @CrossOrigin(originPatterns = "*", allowCredentials = "true")
@@ -92,6 +106,9 @@ public class TeacherController {
     
     @Autowired
     private StudentGroupMemberRepository studentGroupMemberRepository;
+    
+    @Autowired
+    private StudentRepository studentRepository;
     
     /**
      * 获取指定课程的学生列表
@@ -206,16 +223,29 @@ public class TeacherController {
                 groupData.put("currentSize", group.getCurrentSize());
                 groupData.put("createdAt", group.getCreatedAt());
                 
-                // 获取分组成员列表
-                List<StudentGroupMember> members = studentGroupMemberRepository.findByStudentGroupIdAndStatus(group.getId(), "active");
-                List<Map<String, Object>> memberList = members.stream().map(member -> {
-                    Map<String, Object> memberData = new HashMap<>();
-                    memberData.put("id", member.getId());
-                    memberData.put("studentId", member.getStudentId());
-                    memberData.put("studentName", member.getStudent().getRealName());
-                    memberData.put("joinedAt", member.getJoinedAt());
-                    return memberData;
-                }).collect(Collectors.toList());
+                            // 获取分组成员列表（使用预加载Student的查询）
+            List<StudentGroupMember> members = studentGroupMemberRepository.findByStudentGroupIdAndStatusWithStudent(group.getId(), "active");
+            List<Map<String, Object>> memberList = members.stream().map(member -> {
+                Map<String, Object> memberData = new HashMap<>();
+                memberData.put("id", member.getId());
+                memberData.put("studentId", member.getStudentId());
+                
+                // 安全地获取学生姓名
+                String studentName = "未知学生";
+                if (member.getStudent() != null) {
+                    studentName = member.getStudent().getRealName();
+                } else {
+                    // 如果Student为null，尝试通过studentId查找
+                    Optional<Student> studentOpt = studentRepository.findById(member.getStudentId());
+                    if (studentOpt.isPresent()) {
+                        studentName = studentOpt.get().getRealName();
+                    }
+                }
+                
+                memberData.put("studentName", studentName);
+                memberData.put("joinedAt", member.getJoinedAt());
+                return memberData;
+            }).collect(Collectors.toList());
                 
                 groupData.put("members", memberList);
                 return groupData;
@@ -325,58 +355,109 @@ public class TeacherController {
             @RequestBody Map<String, Object> request,
             jakarta.servlet.http.HttpSession session) {
         try {
+            System.out.println("=== 开始分配学生到分组 ===");
+            System.out.println("课程ID: " + courseId + ", 分组ID: " + groupId);
+            System.out.println("请求数据: " + request);
+            
             // 验证权限
             Long userId = (Long) session.getAttribute("userId");
             if (userId == null) {
+                System.out.println("错误: 用户未登录");
                 return ApiResponse.error("未登录，请先登录");
             }
             
             String role = (String) session.getAttribute("role");
             if (!"teacher".equals(role)) {
+                System.out.println("错误: 权限不足，角色: " + role);
                 return ApiResponse.error("权限不足");
             }
             
             // 验证课程和分组
             Optional<StudentGroup> groupOpt = studentGroupRepository.findById(groupId);
             if (!groupOpt.isPresent()) {
+                System.out.println("错误: 分组不存在，分组ID: " + groupId);
                 return ApiResponse.error("分组不存在");
             }
             
             StudentGroup group = groupOpt.get();
+            System.out.println("找到分组: " + group.getGroupName() + ", 当前人数: " + group.getCurrentSize() + "/" + group.getMaxSize());
+            
             if (!group.getCourse().getId().equals(courseId)) {
+                System.out.println("错误: 分组不属于此课程，分组课程ID: " + group.getCourse().getId() + ", 请求课程ID: " + courseId);
                 return ApiResponse.error("分组不属于此课程");
             }
             
             // 获取学生ID列表
             @SuppressWarnings("unchecked")
-            List<Long> studentIds = (List<Long>) request.get("studentIds");
+            List<Object> studentIdObjects = (List<Object>) request.get("studentIds");
             
-            if (studentIds == null || studentIds.isEmpty()) {
+            if (studentIdObjects == null || studentIdObjects.isEmpty()) {
+                System.out.println("错误: 学生ID列表为空");
                 return ApiResponse.error("请选择要分配的学生");
             }
             
+            // 转换为Long类型
+            List<Long> studentIds = new ArrayList<>();
+            for (Object obj : studentIdObjects) {
+                if (obj instanceof Integer) {
+                    studentIds.add(((Integer) obj).longValue());
+                } else if (obj instanceof Long) {
+                    studentIds.add((Long) obj);
+                } else {
+                    studentIds.add(Long.parseLong(obj.toString()));
+                }
+            }
+            
+            System.out.println("要分配的学生ID: " + studentIds);
+            
             // 检查是否超出分组最大人数
             if (group.getCurrentSize() + studentIds.size() > group.getMaxSize()) {
+                System.out.println("错误: 分组人数将超出限制，当前: " + group.getCurrentSize() + ", 要添加: " + studentIds.size() + ", 最大: " + group.getMaxSize());
                 return ApiResponse.error("分组人数将超出限制");
             }
             
             int assignedCount = 0;
+            int skippedCount = 0;
+            StringBuilder skippedReasons = new StringBuilder();
+            
             for (Long studentId : studentIds) {
+                System.out.println("处理学生ID: " + studentId);
+                
                 // 检查学生是否已在其他分组中
                 List<StudentGroupMember> existingMembers = studentGroupMemberRepository.findByStudentIdAndCourseIdAndStatus(studentId, courseId, "active");
                 if (!existingMembers.isEmpty()) {
+                    System.out.println("学生 " + studentId + " 已在其他分组中，跳过");
+                    skippedCount++;
+                    skippedReasons.append("学生ID " + studentId + " 已在其他分组中; ");
                     continue; // 跳过已分组的学生
                 }
                 
                 // 验证学生是否选了这门课
                 Optional<StudentCourse> enrollmentOpt = studentCourseRepository.findByStudentIdAndCourseId(studentId, courseId);
                 if (!enrollmentOpt.isPresent()) {
+                    System.out.println("学生 " + studentId + " 未选这门课，跳过");
+                    skippedCount++;
+                    skippedReasons.append("学生ID " + studentId + " 未选此课程; ");
                     continue; // 跳过未选课的学生
                 }
+                
+                System.out.println("学生 " + studentId + " 验证通过，开始创建分组成员记录");
+                
+                // 获取Student实体
+                Optional<Student> studentOpt = studentRepository.findById(studentId);
+                if (!studentOpt.isPresent()) {
+                    System.out.println("学生 " + studentId + " 不存在，跳过");
+                    skippedCount++;
+                    skippedReasons.append("学生ID " + studentId + " 不存在; ");
+                    continue;
+                }
+                
+                Student student = studentOpt.get();
                 
                 // 创建分组成员记录
                 StudentGroupMember member = new StudentGroupMember();
                 member.setStudentGroup(group);
+                member.setStudent(student);  // 设置Student实体
                 member.setStudentId(studentId);
                 member.setCourseId(courseId);
                 member.setStatus("active");
@@ -384,6 +465,7 @@ public class TeacherController {
                 
                 studentGroupMemberRepository.save(member);
                 assignedCount++;
+                System.out.println("成功分配学生 " + studentId + " 到分组");
             }
             
             // 更新分组当前人数
@@ -391,9 +473,26 @@ public class TeacherController {
             group.setUpdatedAt(LocalDateTime.now());
             studentGroupRepository.save(group);
             
-            return ApiResponse.success("成功分配 " + assignedCount + " 名学生到分组");
+            System.out.println("分配完成，成功: " + assignedCount + ", 跳过: " + skippedCount);
+            
+            if (assignedCount == 0) {
+                String errorMsg = "没有学生被分配到分组";
+                if (skippedReasons.length() > 0) {
+                    errorMsg += "，原因: " + skippedReasons.toString();
+                }
+                System.out.println("错误: " + errorMsg);
+                return ApiResponse.error(errorMsg);
+            }
+            
+            String successMsg = "成功分配 " + assignedCount + " 名学生到分组";
+            if (skippedCount > 0) {
+                successMsg += "，跳过 " + skippedCount + " 名学生";
+            }
+            
+            return ApiResponse.success(successMsg);
             
         } catch (Exception e) {
+            System.out.println("异常发生: " + e.getMessage());
             e.printStackTrace();
             return ApiResponse.error("分配学生失败：" + e.getMessage());
         }
@@ -3945,6 +4044,352 @@ public class TeacherController {
                     .headers(headers)
                     .body(fileBytes);
                     
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * 获取学生学习进度详情
+     */
+    @GetMapping("/students/{studentId}/progress")
+    public ApiResponse<Map<String, Object>> getStudentProgress(
+            @PathVariable Long studentId,
+            @RequestParam(required = false) Long courseId,
+            jakarta.servlet.http.HttpSession session) {
+        try {
+            // 验证权限
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ApiResponse.error("未登录，请先登录");
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ApiResponse.error("权限不足");
+            }
+            
+            // 验证教师权限
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ApiResponse.error("教师信息不存在");
+            }
+            
+            // 获取学生信息
+            Optional<Student> studentOpt = studentRepository.findById(studentId);
+            if (!studentOpt.isPresent()) {
+                return ApiResponse.error("学生不存在");
+            }
+            
+            Student student = studentOpt.get();
+            
+            // 构建进度信息
+            Map<String, Object> progressData = new HashMap<>();
+            progressData.put("studentInfo", buildStudentInfo(student));
+            
+            // 如果指定了课程，获取该课程的进度
+            if (courseId != null) {
+                Optional<Course> courseOpt = courseRepository.findById(courseId);
+                if (courseOpt.isPresent()) {
+                    Course course = courseOpt.get();
+                    progressData.put("courseInfo", buildCourseInfo(course));
+                    progressData.put("courseProgress", buildCourseProgress(student, course));
+                }
+            }
+            
+            // 获取学生的所有课程
+            List<Course> enrolledCourses = studentCourseRepository.findCoursesByStudentIdAndStatus(studentId, "active");
+            progressData.put("enrolledCourses", buildEnrolledCoursesInfo(enrolledCourses));
+            
+            // 获取考试成绩
+            List<ExamResult> examResults = examResultRepository.findByStudentId(studentId);
+            progressData.put("examResults", buildExamResultsInfo(examResults));
+            
+            // 获取能力发展情况
+            if (courseId != null) {
+                try {
+                    Map<String, Object> capabilityDevelopment = capabilityAnalysisService.analyzeCapabilityDevelopment(studentId, courseId);
+                    progressData.put("capabilityDevelopment", capabilityDevelopment);
+                } catch (Exception e) {
+                    // 如果能力分析失败，不影响其他数据展示
+                    progressData.put("capabilityDevelopment", null);
+                }
+            }
+            
+            return ApiResponse.success("获取学生进度成功", progressData);
+            
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ApiResponse.error("获取学生进度失败：" + e.getMessage());
+        }
+    }
+    
+    private Map<String, Object> buildStudentInfo(Student student) {
+        Map<String, Object> info = new HashMap<>();
+        info.put("id", student.getId());
+        info.put("studentId", student.getStudentId());
+        info.put("realName", student.getRealName());
+        info.put("className", student.getClassName());
+        info.put("major", student.getMajor());
+        info.put("grade", student.getGrade());
+        info.put("entranceYear", student.getEntranceYear());
+        return info;
+    }
+    
+    private Map<String, Object> buildCourseInfo(Course course) {
+        Map<String, Object> info = new HashMap<>();
+        info.put("id", course.getId());
+        info.put("name", course.getName());
+        info.put("courseCode", course.getCourseCode());
+        info.put("description", course.getDescription());
+        return info;
+    }
+    
+    private Map<String, Object> buildCourseProgress(Student student, Course course) {
+        Map<String, Object> progress = new HashMap<>();
+        
+        // 获取课程考试成绩
+        List<ExamResult> courseExamResults = examResultRepository.findByStudentIdAndCourseId(student.getId(), course.getId());
+        progress.put("examCount", courseExamResults.size());
+        
+        if (!courseExamResults.isEmpty()) {
+            double avgScore = courseExamResults.stream()
+                .mapToDouble(ExamResult::getScore)
+                .average()
+                .orElse(0.0);
+            progress.put("averageScore", Math.round(avgScore * 100.0) / 100.0);
+            
+            double maxScore = courseExamResults.stream()
+                .mapToDouble(ExamResult::getScore)
+                .max()
+                .orElse(0.0);
+            progress.put("maxScore", Math.round(maxScore * 100.0) / 100.0);
+            
+            // 计算通过率（假设60分及格）
+            long passCount = courseExamResults.stream()
+                .filter(r -> r.getScore() >= 60)
+                .count();
+            progress.put("passRate", Math.round((double) passCount / courseExamResults.size() * 100.0) / 100.0);
+        } else {
+            progress.put("averageScore", 0.0);
+            progress.put("maxScore", 0.0);
+            progress.put("passRate", 0.0);
+        }
+        
+        // 获取加入课程时间
+        Optional<StudentCourse> scOpt = studentCourseRepository.findByStudentIdAndCourseId(student.getId(), course.getId());
+        if (scOpt.isPresent()) {
+            progress.put("enrollmentDate", scOpt.get().getEnrollmentDate());
+        }
+        
+        return progress;
+    }
+    
+    private List<Map<String, Object>> buildEnrolledCoursesInfo(List<Course> courses) {
+        return courses.stream().map(course -> {
+            Map<String, Object> courseInfo = new HashMap<>();
+            courseInfo.put("id", course.getId());
+            courseInfo.put("name", course.getName());
+            courseInfo.put("courseCode", course.getCourseCode());
+            courseInfo.put("teacherName", course.getTeacher().getRealName());
+            return courseInfo;
+        }).collect(Collectors.toList());
+    }
+    
+    private List<Map<String, Object>> buildExamResultsInfo(List<ExamResult> examResults) {
+        return examResults.stream().map(result -> {
+            Map<String, Object> examInfo = new HashMap<>();
+            examInfo.put("id", result.getId());
+            examInfo.put("examTitle", result.getExam().getTitle());
+            examInfo.put("score", result.getScore());
+            examInfo.put("totalScore", result.getTotalScore());
+            examInfo.put("submittedAt", result.getSubmitTime());
+            examInfo.put("courseName", result.getExam().getCourse().getName());
+            return examInfo;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 导出课程学生名单到Excel
+     */
+    @GetMapping("/courses/{courseId}/students/export")
+    public ResponseEntity<byte[]> exportStudentList(@PathVariable Long courseId, jakarta.servlet.http.HttpSession session) {
+        try {
+            // 验证权限
+            Long userId = (Long) session.getAttribute("userId");
+            if (userId == null) {
+                return ResponseEntity.status(401).build();
+            }
+            
+            String role = (String) session.getAttribute("role");
+            if (!"teacher".equals(role)) {
+                return ResponseEntity.status(403).build();
+            }
+            
+            // 验证课程是否属于当前教师
+            Optional<Teacher> teacherOpt = teacherManagementService.getTeacherByUserId(userId);
+            if (!teacherOpt.isPresent()) {
+                return ResponseEntity.status(404).build();
+            }
+            
+            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            if (!courseOpt.isPresent()) {
+                return ResponseEntity.status(404).build();
+            }
+            
+            Course course = courseOpt.get();
+            if (!course.getTeacher().getId().equals(teacherOpt.get().getId())) {
+                return ResponseEntity.status(403).build();
+            }
+            
+            // 获取课程学生列表
+            List<Student> students = studentCourseRepository.findStudentsByCourseIdAndStatus(courseId, "active");
+            
+            // 创建Excel工作簿
+            try (Workbook workbook = new XSSFWorkbook()) {
+                Sheet sheet = workbook.createSheet("学生名单");
+                
+                // 设置列宽
+                sheet.setColumnWidth(0, 4000); // 序号
+                sheet.setColumnWidth(1, 4000); // 学号
+                sheet.setColumnWidth(2, 4000); // 姓名
+                sheet.setColumnWidth(3, 4000); // 班级
+                sheet.setColumnWidth(4, 4000); // 专业
+                sheet.setColumnWidth(5, 4000); // 年级
+                sheet.setColumnWidth(6, 6000); // 加入时间
+                
+                // 创建标题样式
+                CellStyle titleStyle = workbook.createCellStyle();
+                Font titleFont = workbook.createFont();
+                titleFont.setBold(true);
+                titleFont.setFontHeightInPoints((short) 14);
+                titleStyle.setFont(titleFont);
+                titleStyle.setAlignment(HorizontalAlignment.CENTER);
+                titleStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+                
+                // 创建表头样式
+                CellStyle headerStyle = workbook.createCellStyle();
+                Font headerFont = workbook.createFont();
+                headerFont.setBold(true);
+                headerFont.setFontHeightInPoints((short) 12);
+                headerStyle.setFont(headerFont);
+                headerStyle.setAlignment(HorizontalAlignment.CENTER);
+                headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+                headerStyle.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
+                headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+                headerStyle.setBorderBottom(BorderStyle.THIN);
+                headerStyle.setBorderLeft(BorderStyle.THIN);
+                headerStyle.setBorderRight(BorderStyle.THIN);
+                headerStyle.setBorderTop(BorderStyle.THIN);
+                
+                // 创建数据样式
+                CellStyle dataStyle = workbook.createCellStyle();
+                dataStyle.setAlignment(HorizontalAlignment.CENTER);
+                dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+                dataStyle.setBorderBottom(BorderStyle.THIN);
+                dataStyle.setBorderLeft(BorderStyle.THIN);
+                dataStyle.setBorderRight(BorderStyle.THIN);
+                dataStyle.setBorderTop(BorderStyle.THIN);
+                
+                // 创建标题行
+                Row titleRow = sheet.createRow(0);
+                Cell titleCell = titleRow.createCell(0);
+                titleCell.setCellValue(course.getName() + " - 学生名单");
+                titleCell.setCellStyle(titleStyle);
+                sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 0, 6));
+                
+                // 创建课程信息行
+                Row infoRow = sheet.createRow(1);
+                Cell infoCell = infoRow.createCell(0);
+                infoCell.setCellValue("课程代码: " + course.getCourseCode() + " | 总人数: " + students.size() + " | 导出时间: " + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()));
+                infoCell.setCellStyle(dataStyle);
+                sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(1, 1, 0, 6));
+                
+                // 创建空行
+                sheet.createRow(2);
+                
+                // 创建表头
+                Row headerRow = sheet.createRow(3);
+                String[] headers = {"序号", "学号", "姓名", "班级", "专业", "年级", "加入时间"};
+                for (int i = 0; i < headers.length; i++) {
+                    Cell cell = headerRow.createCell(i);
+                    cell.setCellValue(headers[i]);
+                    cell.setCellStyle(headerStyle);
+                }
+                
+                // 填充数据
+                int rowNum = 4;
+                for (int i = 0; i < students.size(); i++) {
+                    Student student = students.get(i);
+                    Row row = sheet.createRow(rowNum++);
+                    
+                    // 序号
+                    Cell cell0 = row.createCell(0);
+                    cell0.setCellValue(i + 1);
+                    cell0.setCellStyle(dataStyle);
+                    
+                    // 学号
+                    Cell cell1 = row.createCell(1);
+                    cell1.setCellValue(student.getStudentId() != null ? student.getStudentId() : "");
+                    cell1.setCellStyle(dataStyle);
+                    
+                    // 姓名
+                    Cell cell2 = row.createCell(2);
+                    cell2.setCellValue(student.getRealName() != null ? student.getRealName() : "");
+                    cell2.setCellStyle(dataStyle);
+                    
+                    // 班级
+                    Cell cell3 = row.createCell(3);
+                    cell3.setCellValue(student.getClassName() != null ? student.getClassName() : "");
+                    cell3.setCellStyle(dataStyle);
+                    
+                    // 专业
+                    Cell cell4 = row.createCell(4);
+                    cell4.setCellValue(student.getMajor() != null ? student.getMajor() : "");
+                    cell4.setCellStyle(dataStyle);
+                    
+                    // 年级
+                    Cell cell5 = row.createCell(5);
+                    cell5.setCellValue(student.getGrade() != null ? student.getGrade() : "");
+                    cell5.setCellStyle(dataStyle);
+                    
+                    // 加入时间
+                    Cell cell6 = row.createCell(6);
+                    Optional<StudentCourse> scOpt = studentCourseRepository.findByStudentIdAndCourseId(student.getId(), courseId);
+                    if (scOpt.isPresent()) {
+                        LocalDateTime enrollmentDate = scOpt.get().getEnrollmentDate();
+                        if (enrollmentDate != null) {
+                            cell6.setCellValue(enrollmentDate.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                        } else {
+                            cell6.setCellValue("N/A");
+                        }
+                    } else {
+                        cell6.setCellValue("N/A");
+                    }
+                    cell6.setCellStyle(dataStyle);
+                }
+                
+                // 写入ByteArrayOutputStream
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                workbook.write(out);
+                byte[] excelBytes = out.toByteArray();
+                
+                // 设置响应头
+                HttpHeaders responseHeaders = new HttpHeaders();
+                responseHeaders.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+                
+                String fileName = course.getName() + "-学生名单-" + new SimpleDateFormat("yyyyMMdd").format(new Date()) + ".xlsx";
+                String encodedFileName = URLEncoder.encode(fileName, "UTF-8");
+                responseHeaders.set("Content-Disposition", "attachment; filename*=UTF-8''" + encodedFileName);
+                responseHeaders.set("Cache-Control", "no-cache");
+                responseHeaders.setContentLength(excelBytes.length);
+                
+                return ResponseEntity.ok()
+                        .headers(responseHeaders)
+                        .body(excelBytes);
+            }
+            
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).build();

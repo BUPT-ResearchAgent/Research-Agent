@@ -79,6 +79,17 @@ class TeacherAPI {
         return this.request(`/api/teacher/knowledge-mastery/${courseId}`);
     }
 
+    // 获取课程学生列表
+    static async getCourseStudents(courseId) {
+        return this.request(`/api/teacher/courses/${courseId}/students`);
+    }
+
+    // 获取学生学习进度
+    static async getStudentProgress(studentId, courseId = null) {
+        const params = courseId ? `?courseId=${courseId}` : '';
+        return this.request(`/api/teacher/students/${studentId}/progress${params}`);
+    }
+
     // 获取通知列表
     static async getNotices() {
         return this.request('/api/teacher/notices');

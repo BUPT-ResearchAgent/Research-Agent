@@ -6,12 +6,14 @@ import com.example.smartedu.entity.User;
 import com.example.smartedu.entity.Course;
 import com.example.smartedu.entity.Exam;
 import com.example.smartedu.entity.Question;
+import com.example.smartedu.entity.StudentCourse;
 import com.example.smartedu.repository.UserRepository;
 import com.example.smartedu.repository.TeacherRepository;
 import com.example.smartedu.repository.StudentRepository;
 import com.example.smartedu.repository.CourseRepository;
 import com.example.smartedu.repository.ExamRepository;
 import com.example.smartedu.repository.QuestionRepository;
+import com.example.smartedu.repository.StudentCourseRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,9 @@ public class DataInitializationService implements CommandLineRunner {
     
     @Autowired
     private QuestionRepository questionRepository;
+    
+    @Autowired
+    private StudentCourseRepository studentCourseRepository;
     
     @Autowired
     private UserService userService;
@@ -108,6 +113,9 @@ public class DataInitializationService implements CommandLineRunner {
             // 创建示例课程
             initializeSampleCourses();
             
+            // 创建学生课程关联
+            initializeStudentCourseRelations();
+            
             // 更新题目的知识点标记
             updateQuestionKnowledgePoints();
             
@@ -178,6 +186,42 @@ public class DataInitializationService implements CommandLineRunner {
             
         } catch (Exception e) {
             System.err.println("创建示例课程失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    private void initializeStudentCourseRelations() {
+        try {
+            // 获取默认学生
+            java.util.Optional<Student> studentOpt = studentRepository.findByStudentId("2024001");
+            if (!studentOpt.isPresent()) {
+                System.out.println("未找到默认学生，跳过学生课程关联创建");
+                return;
+            }
+            Student student = studentOpt.get();
+            
+            // 获取示例课程
+            Course course = courseRepository.findByCourseCode("SE-9099");
+            if (course == null) {
+                System.out.println("未找到示例课程，跳过学生课程关联创建");
+                return;
+            }
+            
+            // 检查是否已存在关联
+            boolean exists = studentCourseRepository.existsByStudentIdAndCourseIdAndStatus(
+                student.getId(), course.getId(), "active");
+            
+            if (!exists) {
+                // 创建学生课程关联
+                StudentCourse studentCourse = new StudentCourse(student, course);
+                studentCourseRepository.save(studentCourse);
+                System.out.println("创建学生课程关联: " + student.getRealName() + " - " + course.getName());
+            } else {
+                System.out.println("学生课程关联已存在，跳过创建");
+            }
+            
+        } catch (Exception e) {
+            System.err.println("创建学生课程关联失败: " + e.getMessage());
             e.printStackTrace();
         }
     }

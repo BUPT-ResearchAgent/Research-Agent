@@ -2683,6 +2683,32 @@ input[type="checkbox"].checkbox-sm {
     z-index: 99999;
 }
 
+/* 学生管理界面层级 */
+#student-management-modal {
+    z-index: 1120;
+}
+
+/* 分组管理相关弹窗层级（需要覆盖在学生管理界面上） */
+#view-groups-modal {
+    z-index: 1200;
+}
+
+#create-group-modal {
+    z-index: 1300;
+}
+
+#member-management-modal {
+    z-index: 1400;
+}
+
+#assign-to-group-modal {
+    z-index: 1350;
+}
+
+#student-progress-modal {
+    z-index: 1360;
+}
+
 .course-modal-overlay.show {
     display: flex;
 }
@@ -8254,7 +8280,7 @@ section#gen-test .main-content {
 /* 我的课程列表样式 */
 .courses-list-container {
     padding: 20px;
-    max-height: 600px;
+    max-height: 800px;
     overflow-y: auto;
 }
 
