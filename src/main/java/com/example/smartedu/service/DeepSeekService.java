@@ -126,59 +126,8 @@ public class DeepSeekService {
     public String generateTeachingOutlineWithRAG(String courseName, String ragContent, String requirements, Integer hours, int matchCount) {
         int totalMinutes = hours * 45; // 1学时 = 45分钟
         
-        String prompt = String.format(
-            "**基于知识库检索结果生成教学大纲**\n\n" +
-            "课程名称：《%s》\n" +
-            "教学学时：%d学时（共%d分钟）\n" +
-            "检索到相关知识块：%d个\n\n" +
-            "**RAG技术说明：**\n" +
-            "以下内容是通过向量相似性搜索从课程知识库中检索到的最相关内容，请基于这些内容生成教学大纲。\n\n" +
-            "**学生分类假设与针对性教学方案：**\n\n" +
-            "请假设课堂中存在以下几类典型学生，并针对每类学生制定相应的教学策略：\n\n" +
-            "1. **基础扎实型学生（约25%）**\n" +
-            "   - 特点：基础知识牢固，学习主动性强，接受新知识能力强\n" +
-            "   - 教学策略：提供拓展性内容，设计挑战性任务，培养创新思维\n" +
-            "   - 课堂角色：可作为学习小组的领导者，帮助其他同学\n\n" +
-            "2. **中等水平型学生（约50%）**\n" +
-            "   - 特点：基础知识一般，学习态度积极，需要适当引导\n" +
-            "   - 教学策略：注重基础巩固，提供充分的练习机会，循序渐进\n" +
-            "   - 课堂角色：课堂主体，重点关注对象，确保跟上教学进度\n\n" +
-            "3. **基础薄弱型学生（约20%）**\n" +
-            "   - 特点：基础知识不牢固，学习困难较大，需要额外关注\n" +
-            "   - 教学策略：提供基础补强，个别辅导，降低学习难度\n" +
-            "   - 课堂角色：重点帮扶对象，需要更多鼓励和支持\n\n" +
-            "4. **学习困难型学生（约5%）**\n" +
-            "   - 特点：学习基础极差，学习动机不强，需要特别关注\n" +
-            "   - 教学策略：个性化指导，激发学习兴趣，提供简化版内容\n" +
-            "   - 课堂角色：需要一对一辅导，制定个别化学习计划\n\n" +
-            "**重要要求：**\n\n" +
-            "1. **标题设计要求：**\n" +
-            "   - 请根据检索到的知识内容，智能分析其核心主题\n" +
-            "   - 将教学大纲标题设定为：《%s》[基于检索内容的核心主题]\n" +
-            "   - 例如：《Python程序设计》面向对象编程与异常处理、《数据结构》栈与队列实现、《计算机网络》TCP/IP协议原理等\n" +
-            "   - 标题必须体现具体的教学内容主题，而非泛泛的课程名称\n\n" +
-            "2. **输出格式要求（重要）：**\n" +
-            "   - **必须使用HTML表格格式**\n" +
-            "   - **不要使用Markdown表格格式**\n" +
-            "   - 表格必须包含完整的HTML标签\n" +
-            "   - 表格样式要清晰美观\n\n" +
-            "3. **教学大纲结构要求：**\n" +
-            "   - **教学目标**：基于检索内容制定具体、可衡量的学习目标\n" +
-            "   - **学生情况分析**：基于上述四类学生的特点分析\n" +
-            "   - **教学思路**：体现基于知识库内容的教学逻辑和方法\n" +
-            "   - **教学重点**：从检索内容中提炼关键知识点\n" +
-            "   - **教学难点**：识别学生理解的潜在困难点\n" +
-            "   - **分层教学策略**：针对不同类型学生的具体教学方法\n" +
-            "   - **思政融入点**：结合专业内容的价值观教育\n" +
-            "   - **教学设计**：详细的时间安排和教学活动（必须用表格呈现）\n\n" +
-            "4. **教学设计表格要求（核心）：**\n" +
-            "   - 必须使用以下HTML表格格式\n" +
-            "   - 包含：教学内容、教学手段、针对不同学生的策略、时间分配（分钟）四列\n" +
-            "   - 时间分配必须精确到分钟，总计必须等于%d分钟\n" +
-            "   - 内容安排要与检索到的知识内容高度相关\n" +
-            "   - 在'针对不同学生的策略'列中，明确说明如何照顾不同类型的学生\n\n" +
-            "**教学设计表格格式（必须严格遵循）：**\n" +
-            "<table border='1' style='border-collapse: collapse; width: 100%%;'>\n" +
+        // 构建HTML表格模板
+        String tableTemplate = "<table border='1' style='border-collapse: collapse; width: 100%;'>\n" +
             "  <tr style='background-color: #f0f8ff;'>\n" +
             "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>教学内容</th>\n" +
             "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>教学手段</th>\n" +
@@ -209,37 +158,87 @@ public class DeepSeekService {
             "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：拓展作业；中等水平型：巩固作业；基础薄弱型：基础作业，提供答案参考；学习困难型：简化作业，课后单独辅导</td>\n" +
             "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>5</td>\n" +
             "  </tr>\n" +
-            "</table>\n\n" +
-            "%s" +
-            "**从知识库检索到的相关内容：**\n" +
-            "%s\n\n" +
-            "**5. 分层教学策略详细说明：**\n" +
-            "请在教学大纲中专门设立'分层教学策略'章节，详细说明：\n" +
-            "- 如何识别不同类型的学生\n" +
-            "- 针对每类学生的具体教学方法\n" +
-            "- 课堂互动中的差异化策略\n" +
-            "- 作业布置的层次化设计\n" +
-            "- 评价考核的多元化方式\n\n" +
-            "**特别注意：**\n" +
-            "- 教学大纲内容必须与检索到的知识内容紧密结合\n" +
-            "- 时间分配总和必须精确等于%d分钟\n" +
-            "- 教学活动设计要体现对检索内容的深度利用\n" +
-            "- 确保教学逻辑清晰，知识点覆盖全面\n" +
-            "- **必须使用HTML表格格式，不要使用Markdown或其他格式**\n" +
-            "- 表格要包含完整的样式，确保在网页中显示美观\n" +
-            "- **每个教学环节都要明确说明如何照顾不同类型的学生**\n" +
-            "- 体现因材施教的教育理念，确保每个学生都能有所收获",
-            courseName,
-            hours,
-            totalMinutes,
-            matchCount,
-            courseName,
-            totalMinutes,
-            (requirements != null && !requirements.trim().isEmpty()) ? 
-                ("**特殊教学要求：**\n" + requirements + "\n\n") : "",
-            ragContent,
-            totalMinutes
-        );
+            "</table>\n\n";
+        
+        // 构建特殊要求部分
+        String specialRequirements = (requirements != null && !requirements.trim().isEmpty()) ? 
+            ("**特殊教学要求：**\n" + requirements + "\n\n") : "";
+        
+        // 使用字符串拼接构建完整的prompt
+        StringBuilder promptBuilder = new StringBuilder();
+        promptBuilder.append("**基于知识库检索结果生成教学大纲**\n\n");
+        promptBuilder.append("课程名称：《").append(courseName).append("》\n");
+        promptBuilder.append("教学学时：").append(hours).append("学时（共").append(totalMinutes).append("分钟）\n");
+        promptBuilder.append("检索到相关知识块：").append(matchCount).append("个\n\n");
+        promptBuilder.append("**RAG技术说明：**\n");
+        promptBuilder.append("以下内容是通过向量相似性搜索从课程知识库中检索到的最相关内容，请基于这些内容生成教学大纲。\n\n");
+        promptBuilder.append("**学生分类假设与针对性教学方案：**\n\n");
+        promptBuilder.append("请假设课堂中存在以下几类典型学生，并针对每类学生制定相应的教学策略：\n\n");
+        promptBuilder.append("1. **基础扎实型学生（约25%）**\n");
+        promptBuilder.append("   - 特点：基础知识牢固，学习主动性强，接受新知识能力强\n");
+        promptBuilder.append("   - 教学策略：提供拓展性内容，设计挑战性任务，培养创新思维\n");
+        promptBuilder.append("   - 课堂角色：可作为学习小组的领导者，帮助其他同学\n\n");
+        promptBuilder.append("2. **中等水平型学生（约50%）**\n");
+        promptBuilder.append("   - 特点：基础知识一般，学习态度积极，需要适当引导\n");
+        promptBuilder.append("   - 教学策略：注重基础巩固，提供充分的练习机会，循序渐进\n");
+        promptBuilder.append("   - 课堂角色：课堂主体，重点关注对象，确保跟上教学进度\n\n");
+        promptBuilder.append("3. **基础薄弱型学生（约20%）**\n");
+        promptBuilder.append("   - 特点：基础知识不牢固，学习困难较大，需要额外关注\n");
+        promptBuilder.append("   - 教学策略：提供基础补强，个别辅导，降低学习难度\n");
+        promptBuilder.append("   - 课堂角色：重点帮扶对象，需要更多鼓励和支持\n\n");
+        promptBuilder.append("4. **学习困难型学生（约5%）**\n");
+        promptBuilder.append("   - 特点：学习基础极差，学习动机不强，需要特别关注\n");
+        promptBuilder.append("   - 教学策略：个性化指导，激发学习兴趣，提供简化版内容\n");
+        promptBuilder.append("   - 课堂角色：需要一对一辅导，制定个别化学习计划\n\n");
+        promptBuilder.append("**重要要求：**\n\n");
+        promptBuilder.append("1. **标题设计要求：**\n");
+        promptBuilder.append("   - 请根据检索到的知识内容，智能分析其核心主题\n");
+        promptBuilder.append("   - 将教学大纲标题设定为：《").append(courseName).append("》[基于检索内容的核心主题]\n");
+        promptBuilder.append("   - 例如：《Python程序设计》面向对象编程与异常处理、《数据结构》栈与队列实现、《计算机网络》TCP/IP协议原理等\n");
+        promptBuilder.append("   - 标题必须体现具体的教学内容主题，而非泛泛的课程名称\n\n");
+        promptBuilder.append("2. **输出格式要求（重要）：**\n");
+        promptBuilder.append("   - **必须使用HTML表格格式**\n");
+        promptBuilder.append("   - **不要使用Markdown表格格式**\n");
+        promptBuilder.append("   - 表格必须包含完整的HTML标签\n");
+        promptBuilder.append("   - 表格样式要清晰美观\n\n");
+        promptBuilder.append("3. **教学大纲结构要求：**\n");
+        promptBuilder.append("   - **教学目标**：基于检索内容制定具体、可衡量的学习目标\n");
+        promptBuilder.append("   - **学生情况分析**：基于上述四类学生的特点分析\n");
+        promptBuilder.append("   - **教学思路**：体现基于知识库内容的教学逻辑和方法\n");
+        promptBuilder.append("   - **教学重点**：从检索内容中提炼关键知识点\n");
+        promptBuilder.append("   - **教学难点**：识别学生理解的潜在困难点\n");
+        promptBuilder.append("   - **分层教学策略**：针对不同类型学生的具体教学方法\n");
+        promptBuilder.append("   - **思政融入点**：结合专业内容的价值观教育\n");
+        promptBuilder.append("   - **教学设计**：详细的时间安排和教学活动（必须用表格呈现）\n\n");
+        promptBuilder.append("4. **教学设计表格要求（核心）：**\n");
+        promptBuilder.append("   - 必须使用以下HTML表格格式\n");
+        promptBuilder.append("   - 包含：教学内容、教学手段、针对不同学生的策略、时间分配（分钟）四列\n");
+        promptBuilder.append("   - 时间分配必须精确到分钟，总计必须等于").append(totalMinutes).append("分钟\n");
+        promptBuilder.append("   - 内容安排要与检索到的知识内容高度相关\n");
+        promptBuilder.append("   - 在'针对不同学生的策略'列中，明确说明如何照顾不同类型的学生\n\n");
+        promptBuilder.append("**教学设计表格格式（必须严格遵循）：**\n");
+        promptBuilder.append(tableTemplate);
+        promptBuilder.append(specialRequirements);
+        promptBuilder.append("**从知识库检索到的相关内容：**\n");
+        promptBuilder.append(ragContent).append("\n\n");
+        promptBuilder.append("**5. 分层教学策略详细说明：**\n");
+        promptBuilder.append("请在教学大纲中专门设立'分层教学策略'章节，详细说明：\n");
+        promptBuilder.append("- 如何识别不同类型的学生\n");
+        promptBuilder.append("- 针对每类学生的具体教学方法\n");
+        promptBuilder.append("- 课堂互动中的差异化策略\n");
+        promptBuilder.append("- 作业布置的层次化设计\n");
+        promptBuilder.append("- 评价考核的多元化方式\n\n");
+        promptBuilder.append("**特别注意：**\n");
+        promptBuilder.append("- 教学大纲内容必须与检索到的知识内容紧密结合\n");
+        promptBuilder.append("- 时间分配总和必须精确等于").append(totalMinutes).append("分钟\n");
+        promptBuilder.append("- 教学活动设计要体现对检索内容的深度利用\n");
+        promptBuilder.append("- 确保教学逻辑清晰，知识点覆盖全面\n");
+        promptBuilder.append("- **必须使用HTML表格格式，不要使用Markdown或其他格式**\n");
+        promptBuilder.append("- 表格要包含完整的样式，确保在网页中显示美观\n");
+        promptBuilder.append("- **每个教学环节都要明确说明如何照顾不同类型的学生**\n");
+        promptBuilder.append("- 体现因材施教的教育理念，确保每个学生都能有所收获");
+        
+        String prompt = promptBuilder.toString();
         
         System.out.println("生成RAG教学大纲的Prompt长度: " + prompt.length());
         System.out.println("使用的知识块数量: " + matchCount);
