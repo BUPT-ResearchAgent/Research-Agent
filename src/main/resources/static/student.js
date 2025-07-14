@@ -6769,19 +6769,30 @@ async function loadStudentCourses() {
     try {
         console.log('开始加载学生课程列表...');
         
-        // 完全按照教师端方式，使用硬编码的用户信息
+        // 动态获取当前用户信息
+        if (!currentUser || !currentUser.userId) {
+            console.error('无法获取当前用户信息或userId');
+            throw new Error('用户信息不完整');
+        }
+        
         const userInfo = {
-            userId: 3, // 使用用户ID 3（对应数据库中的学生，从日志看这是活跃学生）
+            userId: currentUser.userId,
             userType: 'STUDENT',
-            userName: 'student1学生',
+            userName: currentUser.realName || currentUser.username,
             role: 'student'
         };
         
         console.log('用户信息:', userInfo);
         
-        const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+        // 添加时间戳防止缓存，确保获取最新数据
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}&_t=${timestamp}`, {
             method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
         });
         
         console.log('课程API响应状态:', response.status);
@@ -6849,19 +6860,30 @@ async function loadStudentCourseUsers(courseId) {
             return;
         }
         
-        // 完全按照教师端方式，使用硬编码的用户信息
+        // 动态获取当前用户信息
+        if (!currentUser || !currentUser.userId) {
+            console.error('无法获取当前用户信息或userId');
+            throw new Error('用户信息不完整');
+        }
+        
         const userInfo = {
-            userId: 3, // 使用用户ID 3（对应数据库中的学生）
+            userId: currentUser.userId,
             userType: 'STUDENT',
-            userName: 'student1学生',
+            userName: currentUser.realName || currentUser.username,
             role: 'student'
         };
         
         console.log('学生用户信息:', userInfo);
         
-        const response = await fetch(`/api/messages/course-users?courseId=${courseId}&userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+        // 添加时间戳防止缓存，确保获取最新数据，并使用正确的API路径
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/messages/course/${courseId}/users?userId=${userInfo.userId}&userType=${userInfo.userType}&_t=${timestamp}`, {
             method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
         });
         
         console.log('用户列表API响应状态:', response.status);
@@ -6885,7 +6907,7 @@ async function loadStudentCourseUsers(courseId) {
 }
 
 /**
- * 显示课程用户列表
+ * 显示课程用户列表（移除用户类型筛选，显示所有相关用户）
  */
 function displayCourseUsers(users, courseId = null) {
     const usersList = document.getElementById('available-users-list');
@@ -6905,13 +6927,8 @@ function displayCourseUsers(users, courseId = null) {
     // 清空现有内容
     usersList.innerHTML = '';
     
-    // 筛选用户类型
-    const userTypeFilter = document.getElementById('user-type-filter');
-    const filterType = userTypeFilter?.value || '';
-    
-    const filteredUsers = filterType ? users.filter(user => user.type === filterType) : users;
-    
-    filteredUsers.forEach(user => {
+    // 显示所有用户，不进行类型筛选
+    users.forEach(user => {
         const userCard = document.createElement('div');
         userCard.className = 'user-card';
         
@@ -7027,15 +7044,7 @@ function clearStudentCourseUsersList() {
 /**
  * 筛选用户列表
  */
-function filterUsers() {
-    const courseSelect = document.getElementById('course-select');
-    const courseId = courseSelect?.value;
-    
-    if (courseId) {
-        // 重新显示当前课程的用户，应用筛选
-        loadCourseUsers();
-    }
-}
+// 已删除用户类型筛选功能，学生端直接显示所有相关用户
 
 /**
  * 学生端开始聊天功能（参照教师端实现）

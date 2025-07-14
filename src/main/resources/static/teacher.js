@@ -496,6 +496,22 @@ async function initializeMessageConversations() {
 async function initializeNewChat() {
     console.log('🔄 开始初始化新建对话页面...');
     
+    // 确保用户信息已经完全加载
+    let retryCount = 0;
+    const maxRetries = 5;
+    
+    while (retryCount < maxRetries) {
+        const currentUser = getCurrentUser();
+        if (currentUser && (currentUser.id || currentUser.userId)) {
+            console.log('✅ 用户信息已加载，开始加载课程');
+            break;
+        }
+        
+        console.log(`⏳ 等待用户信息加载... (${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, 200));
+        retryCount++;
+    }
+    
     // 直接在这里实现课程加载逻辑
     await loadTeacherCourses();
     
@@ -516,18 +532,30 @@ async function loadTeacherCourses() {
     try {
         console.log('开始加载教师课程列表...');
         
+        // 照搬学生端的实现方式 - 直接使用全局变量
+        if (!window.currentUser || !window.currentUser.userId) {
+            console.error('无法获取当前用户信息或userId');
+            throw new Error('用户信息不完整');
+        }
+        
         const userInfo = {
-            userId: 4, // 使用用户ID 4（对应数据库中的教师ID 2）
+            userId: window.currentUser.userId,
             userType: 'TEACHER',
-            userName: 'teacher2教师',
+            userName: window.currentUser.realName || window.currentUser.username,
             role: 'teacher'
         };
         
         console.log('用户信息:', userInfo);
         
-        const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+        // 添加时间戳防止缓存，确保获取最新数据
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}&_t=${timestamp}`, {
             method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
         });
         
         console.log('课程API响应状态:', response.status);
@@ -571,14 +599,26 @@ async function loadTeacherCourseUsers(courseId) {
             return;
         }
         
+        // 照搬学生端的实现方式 - 直接使用全局变量
+        if (!window.currentUser || !window.currentUser.userId) {
+            console.error('无法获取当前用户信息或userId');
+            throw new Error('用户信息不完整');
+        }
+        
         const userInfo = {
-            userId: 4,
+            userId: window.currentUser.userId,
             userType: 'TEACHER'
         };
         
-        const response = await fetch(`/api/messages/course/${courseId}/users?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+        // 添加时间戳防止缓存，确保获取最新数据
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/messages/course/${courseId}/users?userId=${userInfo.userId}&userType=${userInfo.userType}&_t=${timestamp}`, {
             method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
         });
         
         console.log('学生API响应状态:', response.status);
@@ -8155,8 +8195,13 @@ async function loadCurrentUser() {
             }
         }
         
-        // 保存用户信息到全局变量，并尝试获取teacherId
+        // 保存用户信息到全局变量，并添加学生端那样的兼容性处理
         window.currentUser = userData;
+        
+        // 照搬学生端的兼容性处理：为了兼容性，添加userId字段
+        if (window.currentUser.id && !window.currentUser.userId) {
+            window.currentUser.userId = window.currentUser.id;
+        }
         
         // 异步获取详细用户信息（不阻塞主流程）
         setTimeout(async () => {

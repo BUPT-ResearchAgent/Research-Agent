@@ -489,9 +489,15 @@ async function loadUserCourses() {
             return;
         }
         
-        const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+        // 添加时间戳防止缓存，确保获取最新数据
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}&_t=${timestamp}`, {
             method: 'GET',
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
         });
         
         console.log('用户课程API响应状态:', response.status);
@@ -501,9 +507,27 @@ async function loadUserCourses() {
         if (result.success) {
             const select = document.getElementById('course-select');
             if (select) {
-                select.innerHTML = '<option value="">请选择课程</option>' + 
-                    result.data.map(course => `<option value="${course.id}">${course.name} (${course.courseCode})</option>`).join('');
+                // 清空原有选项并添加新选项
+                select.innerHTML = '<option value="">请选择课程</option>';
+                
+                if (result.data && result.data.length > 0) {
+                    const options = result.data.map(course => {
+                        const courseName = course.name || '未命名课程';
+                        const courseCode = course.courseCode || 'N/A';
+                        return `<option value="${course.id}">${courseName} (${courseCode})</option>`;
+                    }).join('');
+                    select.innerHTML += options;
+                    
+                    console.log(`✅ 成功加载 ${result.data.length} 个课程到下拉框`);
+                } else {
+                    console.log('⚠️ 用户没有可用的课程');
+                    select.innerHTML += '<option value="" disabled>暂无可用课程</option>';
+                }
+            } else {
+                console.error('找不到course-select元素');
             }
+        } else {
+            console.error('获取用户课程失败:', result.message);
         }
     } catch (error) {
         console.error('加载课程列表失败:', error);
@@ -523,12 +547,30 @@ async function loadCourseUsers() {
     
     try {
         const userInfo = getCurrentUserInfo();
-        if (!userInfo || !userInfo.userId) return;
+        if (!userInfo || !userInfo.userId) {
+            console.error('无法获取用户信息');
+            return;
+        }
         
-        const response = await fetch(`/api/messages/course/${courseId}/users?userId=${userInfo.userId}&userType=${userInfo.userType}`);
+        console.log(`加载课程 ${courseId} 的用户列表，当前用户: ${userInfo.userId} (${userInfo.userType})`);
+        
+        // 添加时间戳防止缓存，确保获取最新数据
+        const timestamp = new Date().getTime();
+        const response = await fetch(`/api/messages/course/${courseId}/users?userId=${userInfo.userId}&userType=${userInfo.userType}&_t=${timestamp}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+        });
+        
+        console.log('课程用户API响应状态:', response.status);
         const result = await response.json();
+        console.log('课程用户API响应:', result);
         
         if (result.success) {
+            console.log(`✅ 成功获取 ${result.data ? result.data.length : 0} 个用户`);
             displayCourseUsers(result.data);
             // 隐藏空状态
             const emptyElement = document.getElementById('users-empty');
@@ -536,14 +578,23 @@ async function loadCourseUsers() {
                 emptyElement.style.display = result.data.length === 0 ? 'block' : 'none';
             }
         } else {
+            console.error('获取课程用户失败:', result.message);
             if (container) {
-                container.innerHTML = '<div style="text-align: center; color: #6c757d; padding: 40px;">获取用户列表失败</div>';
+                container.innerHTML = `<div style="text-align: center; color: #e74c3c; padding: 40px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 12px;"></i>
+                    <br>获取用户列表失败<br>
+                    <small style="color: #7f8c8d;">${result.message || '请检查网络连接'}</small>
+                </div>`;
             }
         }
     } catch (error) {
         console.error('加载课程用户失败:', error);
         if (container) {
-            container.innerHTML = '<div style="text-align: center; color: #6c757d; padding: 40px;">加载失败</div>';
+            container.innerHTML = `<div style="text-align: center; color: #e74c3c; padding: 40px;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 12px;"></i>
+                <br>加载失败<br>
+                <small style="color: #7f8c8d;">请检查网络连接后重试</small>
+            </div>`;
         }
     }
 }
