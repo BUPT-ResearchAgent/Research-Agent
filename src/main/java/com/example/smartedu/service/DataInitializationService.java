@@ -45,8 +45,7 @@ public class DataInitializationService implements CommandLineRunner {
     @Autowired
     private UserService userService;
     
-    @Autowired
-    private IndustryInfoService industryInfoService;
+
     
     @Override
     public void run(String... args) throws Exception {
@@ -119,15 +118,7 @@ public class DataInitializationService implements CommandLineRunner {
             // 创建学生课程关联
             initializeStudentCourseRelations();
             
-            // 初始化教学产业信息数据
-            try {
-                System.out.println("开始初始化教学产业信息数据...");
-                industryInfoService.crawlAndProcessExternalInfo();
-                System.out.println("教学产业信息数据初始化完成");
-            } catch (Exception e) {
-                System.err.println("教学产业信息数据初始化失败: " + e.getMessage());
-                e.printStackTrace();
-            }
+
             
             // 更新题目的知识点标记
             updateQuestionKnowledgePoints();

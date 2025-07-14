@@ -2,7 +2,7 @@ package com.example.smartedu.config;
 
 import com.example.smartedu.service.OnlineUserService;
 import com.example.smartedu.service.ExamService;
-import com.example.smartedu.service.IndustryInfoService;
+
 import com.example.smartedu.service.ClassroomCollaborationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -17,8 +17,7 @@ public class ScheduledTasks {
     @Autowired
     private ExamService examService;
     
-    @Autowired
-    private IndustryInfoService industryInfoService;
+
     
     @Autowired
     private ClassroomCollaborationService classroomCollaborationService;
@@ -44,19 +43,7 @@ public class ScheduledTasks {
         }
     }
     
-    /**
-     * 每2小时抓取一次教学产业信息
-     */
-    @Scheduled(fixedRate = 7200000) // 2小时 = 7200000毫秒
-    public void crawlIndustryInfo() {
-        try {
-            industryInfoService.crawlAndProcessExternalInfo();
-            System.out.println("教学产业信息抓取完成");
-        } catch (Exception e) {
-            System.err.println("抓取教学产业信息时发生错误: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
+
     
     /**
      * 每6小时清理一次过期的课堂会话

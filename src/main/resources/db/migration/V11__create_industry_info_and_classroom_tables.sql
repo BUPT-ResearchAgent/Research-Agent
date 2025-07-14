@@ -1,20 +1,4 @@
--- 创建教学产业信息表
-CREATE TABLE IF NOT EXISTS industry_info (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    title VARCHAR(500) NOT NULL,
-    content TEXT,
-    source VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL,
-    subject_category VARCHAR(100),
-    importance_level INTEGER,
-    source_url VARCHAR(500),
-    published_at DATETIME,
-    created_at DATETIME,
-    updated_at DATETIME,
-    is_active BOOLEAN DEFAULT TRUE,
-    view_count INTEGER DEFAULT 0,
-    keywords VARCHAR(1000)
-);
+
 
 -- 创建课堂会话表
 CREATE TABLE IF NOT EXISTS classroom_sessions (
@@ -76,11 +60,6 @@ CREATE TABLE IF NOT EXISTS classroom_participants (
 );
 
 -- 创建索引
-CREATE INDEX idx_industry_info_type ON industry_info(type);
-CREATE INDEX idx_industry_info_subject ON industry_info(subject_category);
-CREATE INDEX idx_industry_info_published ON industry_info(published_at);
-CREATE INDEX idx_industry_info_active ON industry_info(is_active);
-
 CREATE INDEX idx_classroom_sessions_teacher ON classroom_sessions(teacher_id);
 CREATE INDEX idx_classroom_sessions_course ON classroom_sessions(course_id);
 CREATE INDEX idx_classroom_sessions_active ON classroom_sessions(is_active);
