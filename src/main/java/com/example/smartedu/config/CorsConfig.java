@@ -42,7 +42,7 @@ public class CorsConfig implements WebMvcConfigurer {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // 允许所有来源
+        // 允许所有来源模式（使用allowedOriginPatterns而不是allowedOrigins）
         configuration.setAllowedOriginPatterns(Arrays.asList("*"));
         
         // 允许的HTTP方法

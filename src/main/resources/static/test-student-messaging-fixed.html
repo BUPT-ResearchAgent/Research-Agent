@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生端消息功能测试 - 修复后</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-title {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        #console-log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-card">
+        <h1 class="test-title">学生端消息功能 - 修复验证</h1>
+        <p>本页面用于测试修复后的学生端消息功能。主要修复：messaging-functions.js中使用userId而不是studentId。</p>
+    </div>
+
+    <div class="test-card">
+        <h2 class="test-title">1. 认证状态检查</h2>
+        <button onclick="testAuth()">检查认证状态</button>
+        <div id="auth-result"></div>
+    </div>
+
+    <div class="test-card">
+        <h2 class="test-title">2. 用户信息获取测试</h2>
+        <button onclick="testGetCurrentUserInfo()">测试 getCurrentUserInfo()</button>
+        <div id="userinfo-result"></div>
+    </div>
+
+    <div class="test-card">
+        <h2 class="test-title">3. 课程列表API测试</h2>
+        <button onclick="testCourseAPI()">测试课程列表API</button>
+        <div id="course-result"></div>
+    </div>
+
+    <div class="test-card">
+        <h2 class="test-title">4. 完整消息功能测试</h2>
+        <button onclick="testFullMessaging()">测试完整消息功能</button>
+        <div id="messaging-result"></div>
+    </div>
+
+    <div class="test-card">
+        <h2 class="test-title">调试日志</h2>
+        <div id="console-log"></div>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <script>
+        // 重写console.log来显示在页面上
+        const originalLog = console.log;
+        const originalError = console.error;
+        const logDiv = document.getElementById('console-log');
+        
+        function addLog(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#dc3545' : type === 'warn' ? '#ffc107' : '#333';
+            logDiv.innerHTML += `<div style="color: ${color}; margin: 2px 0;">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+        
+        function clearLog() {
+            logDiv.innerHTML = '';
+        }
+        
+        // 模拟学生用户登录状态
+        window.currentUser = {
+            id: 5,
+            userId: 5,
+            username: 'student2',
+            realName: '学生2',
+            role: 'student'
+        };
+        
+        console.log('测试页面初始化完成, 模拟用户:', window.currentUser);
+
+        async function testAuth() {
+            const resultDiv = document.getElementById('auth-result');
+            try {
+                const response = await fetch('/api/auth/current-user', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `<div class="test-result success">✅ 认证成功: ${JSON.stringify(result.data, null, 2)}</div>`;
+                    // 更新全局用户信息
+                    window.currentUser = result.data;
+                    if (window.currentUser.id && !window.currentUser.userId) {
+                        window.currentUser.userId = window.currentUser.id;
+                    }
+                } else {
+                    resultDiv.innerHTML = `<div class="test-result error">❌ 认证失败: ${result.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="test-result error">❌ 网络错误: ${error.message}</div>`;
+            }
+        }
+
+        function testGetCurrentUserInfo() {
+            const resultDiv = document.getElementById('userinfo-result');
+            
+            // 确保messaging-functions.js已加载
+            if (typeof getCurrentUserInfo === 'function') {
+                try {
+                    const userInfo = getCurrentUserInfo();
+                    if (userInfo) {
+                        resultDiv.innerHTML = `<div class="test-result success">✅ getCurrentUserInfo() 成功: ${JSON.stringify(userInfo, null, 2)}</div>`;
+                    } else {
+                        resultDiv.innerHTML = `<div class="test-result error">❌ getCurrentUserInfo() 返回 null</div>`;
+                    }
+                } catch (error) {
+                    resultDiv.innerHTML = `<div class="test-result error">❌ getCurrentUserInfo() 错误: ${error.message}</div>`;
+                }
+            } else {
+                resultDiv.innerHTML = `<div class="test-result error">❌ getCurrentUserInfo() 函数未找到，请确保messaging-functions.js已加载</div>`;
+            }
+        }
+
+        async function testCourseAPI() {
+            const resultDiv = document.getElementById('course-result');
+            
+            // 首先获取用户信息
+            const userInfo = getCurrentUserInfo ? getCurrentUserInfo() : null;
+            if (!userInfo) {
+                resultDiv.innerHTML = `<div class="test-result error">❌ 无法获取用户信息</div>`;
+                return;
+            }
+            
+            try {
+                const url = `/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}`;
+                console.log('测试课程API URL:', url);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `<div class="test-result success">✅ 课程API成功: 找到 ${result.data.length} 门课程<br>
+                    <pre>${JSON.stringify(result.data, null, 2)}</pre></div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="test-result error">❌ 课程API失败: ${result.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="test-result error">❌ 课程API网络错误: ${error.message}</div>`;
+            }
+        }
+
+        async function testFullMessaging() {
+            const resultDiv = document.getElementById('messaging-result');
+            resultDiv.innerHTML = `<div class="test-result info">🔄 开始完整消息功能测试...</div>`;
+            
+            let testResults = [];
+            
+            // 1. 测试用户信息获取
+            try {
+                const userInfo = getCurrentUserInfo ? getCurrentUserInfo() : null;
+                if (userInfo && userInfo.userId) {
+                    testResults.push(`✅ 用户信息获取: 用户ID ${userInfo.userId}`);
+                } else {
+                    testResults.push(`❌ 用户信息获取失败`);
+                    resultDiv.innerHTML = `<div class="test-result error">${testResults.join('<br>')}</div>`;
+                    return;
+                }
+                
+                // 2. 测试课程列表
+                const courseResponse = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+                    credentials: 'include'
+                });
+                const courseResult = await courseResponse.json();
+                
+                if (courseResult.success && courseResult.data.length > 0) {
+                    testResults.push(`✅ 课程列表: 找到 ${courseResult.data.length} 门课程`);
+                    
+                    // 3. 测试第一门课程的用户列表
+                    const firstCourse = courseResult.data[0];
+                    const usersResponse = await fetch(`/api/messages/course-users?courseId=${firstCourse.id}&userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+                        credentials: 'include'
+                    });
+                    const usersResult = await usersResponse.json();
+                    
+                    if (usersResult.success) {
+                        testResults.push(`✅ 课程用户列表: 课程"${firstCourse.name}"中有 ${usersResult.data.length} 个用户`);
+                        testResults.push(`🎉 所有测试通过！学生端消息功能已正常工作！`);
+                    } else {
+                        testResults.push(`❌ 课程用户列表失败: ${usersResult.message}`);
+                    }
+                } else {
+                    testResults.push(`❌ 课程列表: ${courseResult.message || '没有找到课程'}`);
+                }
+                
+            } catch (error) {
+                testResults.push(`❌ 测试过程中发生错误: ${error.message}`);
+            }
+            
+            const resultClass = testResults.some(r => r.includes('❌')) ? 'error' : 'success';
+            resultDiv.innerHTML = `<div class="test-result ${resultClass}">${testResults.join('<br>')}</div>`;
+        }
+
+        // 页面加载完成后自动运行基础测试
+        window.addEventListener('load', function() {
+            console.log('页面加载完成，开始自动测试...');
+            setTimeout(() => {
+                testAuth();
+            }, 1000);
+        });
+    </script>
+    
+    <!-- 加载必要的消息功能文件 -->
+    <script src="messaging-functions.js"></script>
+</body>
+</html> 

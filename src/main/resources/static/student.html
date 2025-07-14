@@ -319,6 +319,16 @@
             <i class="fas fa-stopwatch"></i>
             <span>实时练习评测</span>
         </div>
+        
+        <div class="menu-item">
+            <i class="fas fa-comments"></i>
+            <span>互动交流</span>
+            <i class="fas fa-chevron-down arrow"></i>
+        </div>
+        <div class="submenu">
+            <div class="submenu-item" data-section="message-conversations"><i class="fas fa-comment-dots"></i> 对话列表</div>
+            <div class="submenu-item" data-section="message-new-chat"><i class="fas fa-plus-circle"></i> 新建对话</div>
+        </div>
     </nav>
 
     <!-- 主要内容区域 -->
@@ -906,6 +916,129 @@
             </div>
         </section>
         
+        <!-- 互动交流 - 对话列表 -->
+        <section id="message-conversations" class="main-section hidden-section">
+            <div class="content-header">
+                <h1 class="page-title">对话列表</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="refreshConversations()">
+                        <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                    <span id="unread-messages-badge" class="notification-badge" style="display: none;">0</span>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-comment-dots"></i> 我的对话
+                    </div>
+                    
+                    <!-- 对话列表 -->
+                    <div id="conversations-list" class="conversations-container">
+                        <!-- 对话项将在这里动态生成 -->
+                    </div>
+                    
+                    <!-- 空状态 -->
+                    <div id="conversations-empty" style="display: none;">
+                        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                            <i class="fas fa-comments" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                            <p>暂无对话</p>
+                            <p>开始与老师和同学交流吧</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 聊天窗口 -->
+                <div id="chat-window" class="chat-window" style="display: none;">
+                    <div class="chat-header">
+                        <div class="chat-user-info">
+                            <i class="fas fa-user-circle chat-avatar"></i>
+                            <div class="chat-user-details">
+                                <div class="chat-user-name" id="chat-user-name"></div>
+                                <div class="chat-user-type" id="chat-user-type"></div>
+                            </div>
+                        </div>
+                        <button class="btn btn-text" onclick="closeChatWindow()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="chat-messages" id="chat-messages">
+                        <!-- 消息将在这里显示 -->
+                    </div>
+                    
+                    <div class="chat-input-area">
+                        <div class="chat-input-container">
+                            <textarea id="message-input" class="chat-input" placeholder="输入消息..." rows="1"></textarea>
+                            <button class="btn btn-primary send-btn" onclick="sendStudentMessage()">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 互动交流 - 新建对话 -->
+        <section id="message-new-chat" class="main-section hidden-section">
+            <div class="content-header">
+                <h1 class="page-title">新建对话</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="initializeStudentNewChat()">
+                        <i class="fas fa-sync-alt"></i> 刷新用户列表
+                    </button>
+                </div>
+            </div>
+            
+            <div class="main-content">
+                <!-- 课程筛选 -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-filter"></i> 筛选条件
+                    </div>
+                    
+                    <div class="filter-row">
+                        <div class="form-group">
+                            <label>选择课程：</label>
+                            <select id="course-select" class="form-select" onchange="loadStudentCourseUsers(this.value)">
+                                <option value="">请选择课程</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>用户类型：</label>
+                            <select id="user-type-filter" class="form-select" onchange="filterUsers()">
+                                <option value="">全部</option>
+                                <option value="TEACHER">老师</option>
+                                <option value="STUDENT">同学</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 用户列表 -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-users"></i> 可对话用户
+                    </div>
+                    
+                    <div id="available-users-list" class="users-grid">
+                        <!-- 用户卡片将在这里动态生成 -->
+                    </div>
+                    
+                    <!-- 空状态 -->
+                    <div id="users-empty" style="display: none;">
+                        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                            <i class="fas fa-users" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                            <p>暂无可对话用户</p>
+                            <p>请先选择课程</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
         <div class="content-footer">
             <p>© 2025 智教SmartEdu - 教学实训智能体软件 | 基于DeepSeek大模型</p>
         </div>
@@ -1452,5 +1585,6 @@
 
     <script src="student.js"></script>
     <script src="profile.js"></script>
+    <script src="messaging-functions.js"></script>
 </body>
 </html> 

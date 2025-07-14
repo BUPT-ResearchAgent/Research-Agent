@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消息功能调试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { margin: 5px; padding: 8px 15px; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; }
+        select { margin: 5px; padding: 5px; min-width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>消息功能调试工具</h1>
+    
+    <div class="test-section">
+        <h3>1. 测试课程加载（教师ID 4）</h3>
+        <button onclick="testLoadCourses()">加载课程列表</button>
+        <select id="course-select" onchange="testLoadCourseUsers()">
+            <option value="">请选择课程</option>
+        </select>
+        <div id="course-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. 测试课程用户加载</h3>
+        <button onclick="testLoadCourseUsers()">加载选中课程的用户</button>
+        <div id="users-result" class="result"></div>
+        <div id="available-users-list"></div>
+        <div id="users-empty" style="display: none;">无用户</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. 调试信息</h3>
+        <button onclick="showDebugInfo()">显示调试信息</button>
+        <div id="debug-info" class="result"></div>
+    </div>
+    
+    <script src="messaging-functions.js"></script>
+    <script>
+        // 测试函数
+        async function testLoadCourses() {
+            const result = document.getElementById('course-result');
+            result.innerHTML = '正在加载课程...';
+            
+            try {
+                console.log('开始测试课程加载...');
+                
+                // 使用正确的用户ID 4
+                const userInfo = { userId: 4, userType: 'TEACHER' };
+                console.log('用户信息:', userInfo);
+                
+                const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                console.log('API响应状态:', response.status);
+                const data = await response.json();
+                console.log('API响应数据:', data);
+                
+                if (data.success) {
+                    const select = document.getElementById('course-select');
+                    select.innerHTML = '<option value="">请选择课程</option>';
+                    
+                    data.data.forEach(course => {
+                        const option = document.createElement('option');
+                        option.value = course.id;
+                        option.textContent = `${course.name} (${course.courseCode})`;
+                        select.appendChild(option);
+                    });
+                    
+                    result.innerHTML = `成功加载 ${data.data.length} 个课程`;
+                } else {
+                    result.innerHTML = `加载失败: ${data.message}`;
+                }
+            } catch (error) {
+                console.error('加载课程失败:', error);
+                result.innerHTML = `错误: ${error.message}`;
+            }
+        }
+        
+        async function testLoadCourseUsers() {
+            const courseSelect = document.getElementById('course-select');
+            const courseId = courseSelect.value;
+            const result = document.getElementById('users-result');
+            
+            if (!courseId) {
+                result.innerHTML = '请先选择课程';
+                return;
+            }
+            
+            result.innerHTML = '正在加载用户...';
+            
+            try {
+                // 使用正确的用户ID 4
+                const userInfo = { userId: 4, userType: 'TEACHER' };
+                
+                const response = await fetch(`/api/messages/course/${courseId}/users?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                console.log('用户API响应状态:', response.status);
+                const data = await response.json();
+                console.log('用户API响应数据:', data);
+                
+                if (data.success) {
+                    result.innerHTML = `成功加载 ${data.data.length} 个用户`;
+                    
+                    // 显示用户列表
+                    const container = document.getElementById('available-users-list');
+                    if (data.data.length > 0) {
+                        container.innerHTML = data.data.map(user => `
+                            <div style="margin: 5px 0; padding: 10px; border: 1px solid #ddd;">
+                                <strong>${user.name}</strong> (${user.userType})
+                                ${user.className ? ` - ${user.className}` : ''}
+                                ${user.studentId ? ` - 学号: ${user.studentId}` : ''}
+                            </div>
+                        `).join('');
+                        document.getElementById('users-empty').style.display = 'none';
+                    } else {
+                        container.innerHTML = '';
+                        document.getElementById('users-empty').style.display = 'block';
+                    }
+                } else {
+                    result.innerHTML = `加载失败: ${data.message}`;
+                }
+            } catch (error) {
+                console.error('加载用户失败:', error);
+                result.innerHTML = `错误: ${error.message}`;
+            }
+        }
+        
+        function showDebugInfo() {
+            const debug = document.getElementById('debug-info');
+            debug.innerHTML = `
+                <p><strong>当前页面:</strong> ${window.location.href}</p>
+                <p><strong>messaging-functions.js 是否加载:</strong> ${typeof refreshAvailableUsers !== 'undefined' ? '是' : '否'}</p>
+                <p><strong>loadUserCourses 函数:</strong> ${typeof loadUserCourses !== 'undefined' ? '是' : '否'}</p>
+                <p><strong>loadCourseUsers 函数:</strong> ${typeof loadCourseUsers !== 'undefined' ? '是' : '否'}</p>
+                <p><strong>getCurrentUserInfo 函数:</strong> ${typeof getCurrentUserInfo !== 'undefined' ? '是' : '否'}</p>
+                <p><strong>getCurrentUserInfo() 结果:</strong> ${typeof getCurrentUserInfo !== 'undefined' ? JSON.stringify(getCurrentUserInfo()) : '不可用'}</p>
+            `;
+        }
+        
+        // 页面加载完成后的测试
+        window.addEventListener('load', function() {
+            showDebugInfo();
+            console.log('调试页面加载完成');
+        });
+    </script>
+</body>
+</html> 

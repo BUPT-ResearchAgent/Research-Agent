@@ -31,6 +31,11 @@ public interface StudentCourseRepository extends JpaRepository<StudentCourse, Lo
     List<StudentCourse> findByStudentIdAndStatus(Long studentId, String status);
     
     /**
+     * 根据学生ID查找所有课程（不限状态）
+     */
+    List<StudentCourse> findByStudentId(Long studentId);
+    
+    /**
      * 根据课程查找已加入的学生
      */
     List<StudentCourse> findByCourseAndStatus(Course course, String status);
@@ -44,6 +49,11 @@ public interface StudentCourseRepository extends JpaRepository<StudentCourse, Lo
      * 检查学生是否已加入指定课程
      */
     boolean existsByStudentIdAndCourseIdAndStatus(Long studentId, Long courseId, String status);
+    
+    /**
+     * 检查学生是否已加入指定课程（不限状态）
+     */
+    boolean existsByStudentIdAndCourseId(Long studentId, Long courseId);
     
     /**
      * 统计课程的学生数量

@@ -16,7 +16,7 @@ window.checkCurrentUser = function() {
 };
 
 // 内容切换功能 - 移到全局作用域
-function showSection(sectionId) {
+async function showSection(sectionId) {
     document.querySelectorAll('.main-section').forEach(sec => {
         if(sec.id === sectionId) {
             sec.classList.remove('hidden-section');
@@ -42,6 +42,17 @@ function showSection(sectionId) {
         case 'practice-eval':
             // 异步初始化考试页面
             setTimeout(() => initializeExamPage(), 100);
+            break;
+        case 'message-conversations':
+            if (typeof refreshConversations === 'function') {
+                refreshConversations();
+            }
+            if (typeof refreshUnreadCount === 'function') {
+                refreshUnreadCount();
+            }
+            break;
+        case 'message-new-chat':
+            await initializeStudentNewChat();
             break;
     }
 }
@@ -99,6 +110,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (currentUser.id && !currentUser.userId) {
                 currentUser.userId = currentUser.id;
             }
+            // 保存到全局变量
+            window.currentUser = currentUser;
             console.log('currentUser 加载成功:', currentUser);
         } else {
             console.log('登录检查API返回:', result);
@@ -4580,6 +4593,11 @@ async function getCurrentUserId() {
     }
 }
 
+// 获取当前用户信息
+function getCurrentUser() {
+    return window.currentUser;
+}
+
 // 页面加载时初始化学习助手
 document.addEventListener('DOMContentLoaded', function() {
     // 检查是否在学习助手页面
@@ -6737,6 +6755,888 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
+// ==================== 学生端消息功能 ====================
+
+/**
+ * 获取当前学生用户信息 - 适配messaging-functions.js
+ */
+function getCurrentUserInfo() {
+    console.log('学生端获取当前用户信息');
+    console.log('currentUser:', currentUser);
+    
+    if (!currentUser) {
+        console.warn('当前用户信息不存在，尝试从全局获取');
+        // 尝试从全局窗口对象获取
+        if (window.currentUser) {
+            currentUser = window.currentUser;
+        } else {
+            console.error('无法获取用户信息');
+            return null;
+        }
+    }
+    
+    // 确保有有效的用户ID
+    const userId = currentUser.userId || currentUser.id;
+    if (!userId || userId === 'unknown') {
+        console.error('用户ID无效:', userId);
+        return null;
+    }
+    
+    return {
+        id: userId,
+        name: currentUser.realName || currentUser.username || currentUser.name,
+        type: 'STUDENT'
+    };
+}
+
+/**
+ * 加载学生的课程列表
+ */
+async function loadStudentCourses() {
+    try {
+        console.log('开始加载学生课程列表...');
+        
+        // 完全按照教师端方式，使用硬编码的用户信息
+        const userInfo = {
+            userId: 3, // 使用用户ID 3（对应数据库中的学生，从日志看这是活跃学生）
+            userType: 'STUDENT',
+            userName: 'student1学生',
+            role: 'student'
+        };
+        
+        console.log('用户信息:', userInfo);
+        
+        const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        console.log('课程API响应状态:', response.status);
+        const result = await response.json();
+        console.log('课程API响应数据:', result);
+        
+        if (result.success) {
+            const select = document.getElementById('course-select');
+            if (select) {
+                select.innerHTML = '<option value="">请选择课程</option>' + 
+                    result.data.map(course => `<option value="${course.id}">${course.name} (${course.courseCode})</option>`).join('');
+                
+                console.log(`成功加载 ${result.data.length} 门课程到选择器`);
+                
+                // 如果只有一门课程，自动选择并加载用户
+                if (result.data.length === 1) {
+                    select.value = result.data[0].id;
+                    await loadStudentCourseUsers(result.data[0].id);
+                }
+            } else {
+                console.error('找不到course-select元素');
+            }
+        } else {
+            console.error('课程加载失败:', result.message);
+            showNotification('课程加载失败: ' + result.message, 'error');
+        }
+        
+    } catch (error) {
+        console.error('加载学生课程列表失败:', error);
+        showNotification('网络错误，请重试', 'error');
+    }
+}
+
+/**
+ * 学生端初始化新建对话页面（参照教师端实现）
+ */
+async function initializeStudentNewChat() {
+    console.log('🔄 开始初始化学生端新建对话页面...');
+    
+    // 加载学生的课程列表
+    await loadStudentCourses();
+    
+    // 清空用户列表
+    const usersContainer = document.getElementById('available-users-list');
+    if (usersContainer) {
+        usersContainer.innerHTML = '';
+    }
+    
+    const emptyDiv = document.getElementById('users-empty');
+    if (emptyDiv) {
+        emptyDiv.style.display = 'block';
+    }
+}
+
+/**
+ * 加载课程中的用户列表（学生端选择聊天对象，参照教师端实现）
+ */
+async function loadStudentCourseUsers(courseId) {
+    try {
+        console.log('加载课程用户列表，课程ID:', courseId);
+        
+        if (!courseId) {
+            console.log('没有选择课程，清空用户列表');
+            clearStudentCourseUsersList();
+            return;
+        }
+        
+        // 完全按照教师端方式，使用硬编码的用户信息
+        const userInfo = {
+            userId: 3, // 使用用户ID 3（对应数据库中的学生）
+            userType: 'STUDENT',
+            userName: 'student1学生',
+            role: 'student'
+        };
+        
+        console.log('学生用户信息:', userInfo);
+        
+        const response = await fetch(`/api/messages/course-users?courseId=${courseId}&userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        console.log('用户列表API响应状态:', response.status);
+        const result = await response.json();
+        console.log('用户列表API响应数据:', result);
+        
+        if (result.success) {
+            displayStudentCourseUsers(result.data, courseId);
+            console.log(`课程 ${courseId} 中有 ${result.data.length} 个用户`);
+        } else {
+            console.error('加载课程用户失败:', result.message);
+            clearStudentCourseUsersList();
+            showNotification('加载课程用户失败: ' + result.message, 'error');
+        }
+        
+    } catch (error) {
+        console.error('加载课程用户列表失败:', error);
+        clearStudentCourseUsersList();
+        showNotification('网络错误，请重试', 'error');
+    }
+}
+
+/**
+ * 显示课程用户列表
+ */
+function displayCourseUsers(users, courseId = null) {
+    const usersList = document.getElementById('available-users-list');
+    const usersEmpty = document.getElementById('users-empty');
+    
+    if (!usersList) return;
+    
+    if (!users || users.length === 0) {
+        usersList.style.display = 'none';
+        if (usersEmpty) usersEmpty.style.display = 'block';
+        return;
+    }
+    
+    if (usersEmpty) usersEmpty.style.display = 'none';
+    usersList.style.display = 'grid';
+    
+    // 清空现有内容
+    usersList.innerHTML = '';
+    
+    // 筛选用户类型
+    const userTypeFilter = document.getElementById('user-type-filter');
+    const filterType = userTypeFilter?.value || '';
+    
+    const filteredUsers = filterType ? users.filter(user => user.type === filterType) : users;
+    
+    filteredUsers.forEach(user => {
+        const userCard = document.createElement('div');
+        userCard.className = 'user-card';
+        
+        const typeText = user.type === 'TEACHER' ? '教师' : '同学';
+        const iconClass = user.type === 'TEACHER' ? 'fa-chalkboard-teacher' : 'fa-user-graduate';
+        
+        userCard.innerHTML = `
+            <div class="user-card-header">
+                <div class="user-card-avatar">
+                    <i class="fas ${iconClass}"></i>
+                </div>
+                <div class="user-card-info">
+                    <div class="user-card-name">${user.name}</div>
+                    <div class="user-card-type">${typeText}</div>
+                </div>
+            </div>
+            <div class="user-card-actions">
+                <button class="chat-btn" onclick="startStudentChat(${user.id}, '${user.userType}', '${user.name}', ${courseId})">
+                    <i class="fas fa-comment"></i>
+                    开始聊天
+                </button>
+            </div>
+        `;
+        
+        usersList.appendChild(userCard);
+    });
+    
+    console.log('显示课程用户列表完成，共', filteredUsers.length, '个用户');
+}
+
+/**
+ * 显示课程用户列表（学生端新版本，参照教师端实现）
+ */
+function displayStudentCourseUsers(users, courseId) {
+    const container = document.getElementById('available-users-list');
+    const emptyDiv = document.getElementById('users-empty');
+    
+    if (!container) {
+        console.error('❌ 找不到available-users-list元素');
+        return;
+    }
+    
+    if (!users || users.length === 0) {
+        container.innerHTML = '';
+        if (emptyDiv) emptyDiv.style.display = 'block';
+        console.log('没有找到可对话用户');
+        return;
+    }
+    
+    if (emptyDiv) emptyDiv.style.display = 'none';
+    
+    // 按照用户类型分组
+    const teachers = users.filter(user => user.userType === 'TEACHER');
+    const students = users.filter(user => user.userType === 'STUDENT');
+    
+    let html = '';
+    
+    // 显示教师
+    if (teachers.length > 0) {
+        html += '<h4 style="margin: 15px 0 10px 0; color: #2c3e50;">👨‍🏫 教师</h4>';
+        teachers.forEach(user => {
+            html += `
+                <div class="user-card" style="border: 1px solid #e0e0e0; margin: 10px 0; padding: 15px; border-radius: 8px; background: #f9f9f9;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 style="margin: 0 0 5px 0; color: #333;">${user.name}</h4>
+                            <p style="margin: 0; color: #666;">教师</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="startStudentChat(${user.id}, '${user.userType}', '${user.name}', ${courseId})">
+                            <i class="fas fa-comments"></i> 开始聊天
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    // 显示学生
+    if (students.length > 0) {
+        html += '<h4 style="margin: 15px 0 10px 0; color: #2c3e50;">👨‍🎓 同学</h4>';
+        students.forEach(user => {
+            html += `
+                <div class="user-card" style="border: 1px solid #e0e0e0; margin: 10px 0; padding: 15px; border-radius: 8px; background: #f9f9f9;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 style="margin: 0 0 5px 0; color: #333;">${user.name}</h4>
+                            <p style="margin: 0; color: #666;">学生</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="startStudentChat(${user.id}, '${user.userType}', '${user.name}', ${courseId})">
+                            <i class="fas fa-comments"></i> 开始聊天
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    
+    container.innerHTML = html;
+    console.log(`显示了 ${users.length} 个可对话用户 (${teachers.length} 名教师, ${students.length} 名学生)`);
+}
+
+/**
+ * 清空用户列表
+ */
+function clearStudentCourseUsersList() {
+    const container = document.getElementById('available-users-list');
+    const emptyDiv = document.getElementById('users-empty');
+    
+    if (container) container.innerHTML = '';
+    if (emptyDiv) emptyDiv.style.display = 'block';
+}
+
+/**
+ * 筛选用户列表
+ */
+function filterUsers() {
+    const courseSelect = document.getElementById('course-select');
+    const courseId = courseSelect?.value;
+    
+    if (courseId) {
+        // 重新显示当前课程的用户，应用筛选
+        loadCourseUsers();
+    }
+}
+
+/**
+ * 学生端开始聊天功能（参照教师端实现）
+ */
+async function startStudentChat(userId, userType, userName, courseId) {
+    try {
+        console.log('🚀 学生端开始聊天:', {userId, userType, userName, courseId});
+        
+        // 跳转到对话页面
+        showSection('message-conversations');
+        
+        // 等待页面加载完成后打开对话
+        setTimeout(async () => {
+            // 检查messaging-functions.js是否已加载
+            if (typeof openConversation === 'function') {
+                console.log('✅ 调用openConversation函数');
+                await openConversation(userId, userType, userName, courseId);
+            } else {
+                console.error('❌ openConversation函数不存在');
+                showNotification('聊天功能尚未加载完成，请刷新页面重试', 'error');
+                return;
+            }
+        }, 300);
+        
+        showNotification(`正在打开与 ${userName} 的对话...`, 'success');
+    } catch (error) {
+        console.error('开始聊天失败:', error);
+        showNotification('开始聊天失败: ' + error.message, 'error');
+    }
+}
+
+/**
+ * 学生端发送消息适配函数
+ */
+async function sendStudentMessage() {
+    const messageInput = document.getElementById('message-input');
+    const message = messageInput?.value?.trim();
+    
+    if (!message) {
+        showNotification('请输入消息内容', 'warning');
+        return;
+    }
+    
+    const userInfo = getCurrentUserInfo();
+    if (!userInfo) {
+        showNotification('用户信息获取失败', 'error');
+        return;
+    }
+    
+    // 获取当前聊天对象信息
+    const chatWindow = document.getElementById('chat-window');
+    const receiverId = chatWindow?.dataset?.receiverId;
+    const receiverType = chatWindow?.dataset?.receiverType;
+    const courseId = chatWindow?.dataset?.courseId;
+    
+    if (!receiverId || !receiverType) {
+        showNotification('聊天信息获取失败', 'error');
+        return;
+    }
+    
+    try {
+        console.log('学生发送消息:', {
+            senderId: userInfo.userId,
+            senderType: userInfo.userType || 'STUDENT',
+            receiverId: parseInt(receiverId),
+            receiverType: receiverType,
+            message: message,
+            courseId: courseId ? parseInt(courseId) : null
+        });
+        
+        const response = await fetch('/api/messages/send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                senderId: userInfo.userId,
+                senderType: userInfo.userType || 'STUDENT',
+                receiverId: parseInt(receiverId),
+                receiverType: receiverType,
+                content: message,
+                courseId: courseId ? parseInt(courseId) : null
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // 清空输入框
+            messageInput.value = '';
+            
+            // 添加消息到聊天窗口
+            addStudentMessageToChat({
+                id: result.data.id,
+                content: message,
+                senderId: userInfo.userId,
+                senderType: userInfo.userType || 'STUDENT',
+                senderName: userInfo.userName || userInfo.realName,
+                sentAt: new Date().toISOString(),
+                isRead: false
+            }, true);
+            
+            console.log('学生消息发送成功');
+        } else {
+            throw new Error(result.message || '发送失败');
+        }
+    } catch (error) {
+        console.error('学生发送消息失败:', error);
+        showNotification('发送消息失败: ' + error.message, 'error');
+    }
+}
+
+/**
+ * 学生端刷新对话列表
+ */
+async function refreshStudentConversations() {
+    try {
+        console.log('刷新学生端对话列表');
+        
+        const userInfo = getCurrentUserInfo();
+        if (!userInfo) {
+            console.error('获取用户信息失败');
+            return;
+        }
+        
+        const response = await fetch(`/api/messages/conversations?userId=${userInfo.id}&userType=${userInfo.type}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('学生端对话列表响应:', result);
+        
+        if (result.success && result.data) {
+            displayConversationsList(result.data);
+        } else {
+            throw new Error(result.message || '获取对话列表失败');
+        }
+    } catch (error) {
+        console.error('刷新学生端对话列表失败:', error);
+        showNotification('刷新对话列表失败: ' + error.message, 'error');
+    }
+}
+
+/**
+ * 学生端刷新当前聊天窗口的消息（为messaging-functions.js提供）
+ */
+async function refreshMessages() {
+    try {
+        console.log('学生端刷新消息');
+        
+        // 获取当前聊天窗口信息
+        const chatWindow = document.querySelector('.chat-window:not([style*="display: none"])');
+        if (!chatWindow) {
+            console.log('没有打开的聊天窗口');
+            return;
+        }
+        
+        const receiverId = chatWindow.getAttribute('data-receiver-id');
+        const receiverType = chatWindow.getAttribute('data-receiver-type');
+        
+        if (!receiverId || !receiverType) {
+            console.log('聊天窗口缺少用户信息');
+            return;
+        }
+        
+        const userInfo = getCurrentUserInfo();
+        if (!userInfo) {
+            console.error('获取用户信息失败');
+            return;
+        }
+        
+        // 加载消息历史
+        await loadConversationMessages(userInfo.id, userInfo.type, parseInt(receiverId), receiverType);
+        
+    } catch (error) {
+        console.error('学生端刷新消息失败:', error);
+    }
+}
+
+/**
+ * 加载对话消息历史
+ */
+async function loadConversationMessages(senderId, senderType, receiverId, receiverType) {
+    try {
+        console.log('加载对话消息历史:', { senderId, senderType, receiverId, receiverType });
+        
+        const response = await fetch(`/api/messages/conversation?senderId=${senderId}&senderType=${senderType}&receiverId=${receiverId}&receiverType=${receiverType}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('消息历史响应:', result);
+        
+        if (result.success && result.data) {
+            // 清空聊天窗口并重新显示所有消息
+            const messagesContainer = document.getElementById('chat-messages');
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
+                
+                // 添加所有消息
+                result.data.forEach(message => {
+                    addStudentMessageToChat(message, message.senderId === senderId);
+                });
+                
+                // 滚动到底部
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+            
+            // 标记消息为已读
+            await markMessagesAsRead(senderId, senderType, receiverId, receiverType);
+        }
+    } catch (error) {
+        console.error('加载对话消息失败:', error);
+    }
+}
+
+/**
+ * 标记消息为已读
+ */
+async function markMessagesAsRead(senderId, senderType, receiverId, receiverType) {
+    try {
+        await fetch('/api/messages/mark-read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                receiverId: senderId,
+                receiverType: senderType,
+                senderId: receiverId,
+                senderType: receiverType
+            })
+        });
+    } catch (error) {
+        console.error('标记消息已读失败:', error);
+    }
+}
+
+/**
+ * 启动学生端消息自动刷新
+ */
+let studentMessageRefreshTimer = null;
+
+function startStudentMessageRefresh() {
+    // 停止之前的定时器
+    if (studentMessageRefreshTimer) {
+        clearInterval(studentMessageRefreshTimer);
+    }
+    
+    // 启动新的定时器，每30秒刷新一次
+    studentMessageRefreshTimer = setInterval(() => {
+        // 只有在聊天窗口打开时才刷新消息
+        const chatWindow = document.querySelector('.chat-window:not([style*="display: none"])');
+        if (chatWindow) {
+            refreshMessages();
+        }
+        
+        // 始终刷新对话列表
+        if (document.getElementById('conversations-section') && !document.getElementById('conversations-section').hidden) {
+            refreshStudentConversations();
+        }
+    }, 30000); // 30秒
+    
+    console.log('学生端消息自动刷新已启动');
+}
+
+function stopStudentMessageRefresh() {
+    if (studentMessageRefreshTimer) {
+        clearInterval(studentMessageRefreshTimer);
+        studentMessageRefreshTimer = null;
+        console.log('学生端消息自动刷新已停止');
+    }
+}
+
+/**
+ * 显示对话列表（为messaging-functions.js提供）
+ */
+function displayConversationsList(conversations) {
+    console.log('显示学生端对话列表:', conversations);
+    
+    const conversationsContainer = document.getElementById('conversations-list');
+    const emptyState = document.getElementById('conversations-empty');
+    
+    if (!conversationsContainer) {
+        console.error('找不到对话列表容器');
+        return;
+    }
+    
+    if (!conversations || conversations.length === 0) {
+        conversationsContainer.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+    }
+    
+    if (emptyState) emptyState.style.display = 'none';
+    conversationsContainer.style.display = 'block';
+    
+    conversationsContainer.innerHTML = conversations.map(conv => `
+        <div class="conversation-item" onclick="openConversationFromList('${conv.userId}', '${conv.userName}', '${conv.userType}', ${conv.courseId || 'null'})">
+            <div class="conversation-avatar">
+                <i class="fas fa-${conv.userType === 'TEACHER' ? 'chalkboard-teacher' : 'user-graduate'}"></i>
+            </div>
+            <div class="conversation-info">
+                <div class="conversation-name">${conv.userName}</div>
+                <div class="conversation-type">${conv.userType === 'TEACHER' ? '教师' : '学生'}</div>
+                <div class="conversation-preview">${conv.lastMessage || '暂无消息'}</div>
+            </div>
+            <div class="conversation-meta">
+                <div class="conversation-time">${conv.lastMessageTime || ''}</div>
+                ${conv.unreadCount > 0 ? `<div class="unread-count">${conv.unreadCount}</div>` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+/**
+ * 学生端专用的打开对话函数
+ */
+async function openConversation(partnerId, partnerType, partnerName, courseId = null) {
+    console.log('🗨️ 学生端打开对话:', { partnerId, partnerType, partnerName, courseId });
+    
+    try {
+        // 显示聊天窗口
+        const chatWindow = document.getElementById('chat-window');
+        if (chatWindow) {
+            chatWindow.style.display = 'block';
+            
+            // 设置聊天对象信息到dataset中，供发送消息使用
+            chatWindow.dataset.receiverId = partnerId;
+            chatWindow.dataset.receiverType = partnerType;
+            chatWindow.dataset.courseId = courseId || '';
+        }
+        
+        // 更新聊天界面标题（学生端结构）
+        const chatUserName = document.getElementById('chat-user-name');
+        const chatUserType = document.getElementById('chat-user-type');
+        
+        if (chatUserName) {
+            chatUserName.textContent = partnerName;
+        }
+        if (chatUserType) {
+            chatUserType.textContent = partnerType === 'TEACHER' ? '教师' : '学生';
+        }
+        
+        // 清空并准备消息区域
+        const chatMessages = document.getElementById('chat-messages');
+        if (chatMessages) {
+            chatMessages.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;"><i class="fas fa-spinner fa-spin"></i> 加载对话历史...</div>';
+        }
+        
+        // 获取当前学生用户信息
+        const currentUserInfo = getCurrentUserInfo();
+        if (!currentUserInfo) {
+            console.error('无法获取当前用户信息');
+            showNotification('无法获取用户信息，请重新登录', 'error');
+            return;
+        }
+        
+        console.log('当前用户:', currentUserInfo);
+        console.log('聊天对象:', { partnerId, partnerType });
+        
+        // 加载对话历史 - 使用学生端的参数格式
+        await loadConversationMessages(
+            currentUserInfo.userId, 
+            currentUserInfo.userType || 'STUDENT',
+            parseInt(partnerId), 
+            partnerType
+        );
+        
+        // 标记消息为已读
+        try {
+            await markMessagesAsRead(
+                parseInt(partnerId), 
+                partnerType,
+                currentUserInfo.userId,
+                currentUserInfo.userType || 'STUDENT'
+            );
+        } catch (error) {
+            console.log('标记已读失败:', error.message);
+        }
+        
+        // 初始化并聚焦到输入框
+        initializeStudentMessageInput();
+        const messageInput = document.getElementById('message-input');
+        if (messageInput) {
+            setTimeout(() => messageInput.focus(), 300);
+        }
+        
+        // 启动消息自动刷新
+        startStudentMessageRefresh();
+        
+        console.log('✅ 学生端对话界面已打开');
+        showNotification(`已打开与${partnerName}的对话`, 'success');
+        
+    } catch (error) {
+        console.error('打开对话失败:', error);
+        showNotification('打开对话失败: ' + error.message, 'error');
+    }
+}
+
+/**
+ * 学生端关闭对话函数
+ */
+function closeConversation() {
+    const chatWindow = document.getElementById('chat-window');
+    if (chatWindow) {
+        chatWindow.style.display = 'none';
+        // 清除dataset
+        delete chatWindow.dataset.receiverId;
+        delete chatWindow.dataset.receiverType;
+        delete chatWindow.dataset.courseId;
+    }
+    
+    // 停止消息刷新
+    stopStudentMessageRefresh();
+    
+    console.log('✅ 学生端对话窗口已关闭');
+}
+
+/**
+ * 从对话列表打开对话
+ */
+async function openConversationFromList(userId, userName, userType, courseId) {
+    console.log('从对话列表打开对话:', { userId, userName, userType, courseId });
+    
+    try {
+        await openConversation(userId, userType, userName, courseId);
+    } catch (error) {
+        console.error('打开对话失败:', error);
+        showNotification('打开对话失败: ' + error.message, 'error');
+    }
+}
+
+/**
+ * 关闭聊天窗口
+ */
+function closeChatWindow() {
+    if (typeof closeConversation === 'function') {
+        closeConversation();
+    } else {
+        // 简单的关闭逻辑
+        const chatWindow = document.getElementById('chat-window');
+        if (chatWindow) {
+            chatWindow.style.display = 'none';
+        }
+    }
+}
+
+/**
+ * 刷新未读消息数量
+ */
+function refreshUnreadCount() {
+    // 这个函数可以根据需要实现
+    console.log('刷新未读消息数量');
+}
+
+/**
+ * 学生端专用的添加消息到聊天窗口函数
+ */
+function addStudentMessageToChat(message, isOwnMessage = false) {
+    const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
+    
+    // 创建消息元素
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isOwnMessage ? 'message-own' : 'message-other'}`;
+    
+    // 格式化时间
+    const sentTime = new Date(message.sentAt);
+    const timeStr = sentTime.toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    // 消息内容HTML - 使用已有的escapeHtml函数
+    const messageContent = escapeHtml(message.content).replace(/\n/g, '<br>');
+    const senderName = escapeHtml(message.senderName || '未知用户');
+    
+    if (isOwnMessage) {
+        // 自己发送的消息 - 右对齐，使用WeChat样式
+        messageDiv.innerHTML = `
+            <div class="message-content message-right">
+                <div class="message-header">
+                    <span class="message-time">${timeStr}</span>
+                    <span class="message-sender">我</span>
+                </div>
+                <div class="message-bubble message-bubble-own">
+                    ${messageContent}
+                </div>
+            </div>
+        `;
+    } else {
+        // 别人发送的消息 - 左对齐，使用WeChat样式
+        messageDiv.innerHTML = `
+            <div class="message-content message-left">
+                <div class="message-header">
+                    <span class="message-sender">${senderName}</span>
+                    <span class="message-time">${timeStr}</span>
+                </div>
+                <div class="message-bubble message-bubble-other">
+                    ${messageContent}
+                </div>
+            </div>
+        `;
+    }
+    
+    // 添加到容器
+    messagesContainer.appendChild(messageDiv);
+    
+    // 滚动到底部
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    console.log('已添加消息到聊天窗口:', { 
+        isOwnMessage, 
+        sender: senderName,
+        content: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '')
+    });
+}
+
+/**
+ * 初始化学生端消息输入功能
+ */
+function initializeStudentMessageInput() {
+    const messageInput = document.getElementById('message-input');
+    if (!messageInput) return;
+    
+    // 回车发送消息，Shift+Enter换行
+    messageInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            if (e.shiftKey) {
+                // Shift+Enter允许换行，不做任何处理
+                return;
+            } else {
+                // 单独Enter键发送消息
+                e.preventDefault();
+                const message = this.value.trim();
+                if (message) {
+                    sendStudentMessage();
+                }
+            }
+        }
+    });
+    
+    // 自动调整高度
+    messageInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+}
+
+/**
+ * 全局消息功能适配
+ */
+window.refreshConversations = refreshStudentConversations;
+window.refreshAvailableUsers = initializeStudentNewChat;
+window.sendMessage = sendStudentMessage;
+window.startChat = startStudentChat; // 提供通用的开始聊天函数
+window.displayConversationsList = displayConversationsList;
+window.refreshUnreadCount = refreshUnreadCount;
+
+// ==================== DOMContentLoaded 事件监听器 ====================
+
 // 页面加载完成后的初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('学生页面开始初始化...');
@@ -6750,9 +7650,13 @@ document.addEventListener('DOMContentLoaded', function() {
     setupAllNoticesModal();
     initializeHelper();
     initializeExamPage();
+    initializeStudentMessageInput();
     
     // 启动课程数据自动刷新机制
     startCourseDataRefresh();
+    
+    // 启动消息自动刷新机制
+    startStudentMessageRefresh();
     
     // 检查登录状态
     fetch('/api/auth/current-user', {

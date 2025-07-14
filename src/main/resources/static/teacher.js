@@ -468,10 +468,210 @@ async function loadSectionData(sectionId) {
             case 'knowledge':
                 await loadKnowledgeData();
                 break;
+            case 'industry-info':
+                await initializeIndustryInfo();
+                break;
+            case 'industry-trends':
+                await initializeTrends();
+                break;
+            case 'message-conversations':
+                await initializeMessageConversations();
+                break;
+            case 'message-new-chat':
+                await initializeNewChat();
+                break;
         }
     } catch (error) {
         console.error('加载页面数据失败:', error);
         showNotification('数据加载失败', 'error');
+    }
+}
+
+// 初始化消息对话页面
+async function initializeMessageConversations() {
+    if (typeof refreshConversations === 'function') {
+        await refreshConversations();
+    }
+    if (typeof refreshUnreadCount === 'function') {
+        await refreshUnreadCount();
+    }
+}
+
+// 初始化新建对话页面
+async function initializeNewChat() {
+    console.log('🔄 开始初始化新建对话页面...');
+    
+    // 直接在这里实现课程加载逻辑
+    await loadTeacherCourses();
+    
+    // 清空学生列表
+    const usersContainer = document.getElementById('available-users-list');
+    if (usersContainer) {
+        usersContainer.innerHTML = '';
+    }
+    
+    const emptyDiv = document.getElementById('users-empty');
+    if (emptyDiv) {
+        emptyDiv.style.display = 'block';
+    }
+}
+
+// 加载教师课程列表
+async function loadTeacherCourses() {
+    try {
+        console.log('开始加载教师课程列表...');
+        
+        const userInfo = {
+            userId: 4, // 使用用户ID 4（对应数据库中的教师ID 2）
+            userType: 'TEACHER',
+            userName: 'teacher2教师',
+            role: 'teacher'
+        };
+        
+        console.log('用户信息:', userInfo);
+        
+        const response = await fetch(`/api/messages/user-courses?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        console.log('课程API响应状态:', response.status);
+        const result = await response.json();
+        console.log('课程API响应数据:', result);
+        
+        if (result.success) {
+            const select = document.getElementById('course-select');
+            if (select) {
+                select.innerHTML = '<option value="">请选择课程</option>' + 
+                    result.data.map(course => `<option value="${course.id}">${course.name} (${course.courseCode})</option>`).join('');
+                
+                console.log(`成功加载 ${result.data.length} 门课程到选择器`);
+                
+                // 如果只有一门课程，自动选择并加载学生
+                if (result.data.length === 1) {
+                    select.value = result.data[0].id;
+                    await loadTeacherCourseUsers(result.data[0].id);
+                }
+            } else {
+                console.error('找不到course-select元素');
+            }
+        } else {
+            console.error('课程加载失败:', result.message);
+            showNotification('课程加载失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('加载课程列表失败:', error);
+        showNotification('课程加载失败', 'error');
+    }
+}
+
+// 加载课程学生列表
+async function loadTeacherCourseUsers(courseId) {
+    try {
+        console.log('加载课程学生，课程ID:', courseId);
+        
+        if (!courseId) {
+            console.log('没有选择课程，清空学生列表');
+            clearCourseUsersList();
+            return;
+        }
+        
+        const userInfo = {
+            userId: 4,
+            userType: 'TEACHER'
+        };
+        
+        const response = await fetch(`/api/messages/course/${courseId}/users?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        console.log('学生API响应状态:', response.status);
+        const result = await response.json();
+        console.log('学生API响应数据:', result);
+        
+        if (result.success) {
+            displayTeacherCourseUsers(result.data);
+        } else {
+            console.error('学生列表加载失败:', result.message);
+            clearCourseUsersList();
+        }
+    } catch (error) {
+        console.error('加载学生列表失败:', error);
+        clearCourseUsersList();
+    }
+}
+
+// 显示课程学生列表
+function displayTeacherCourseUsers(users) {
+    const container = document.getElementById('available-users-list');
+    const emptyDiv = document.getElementById('users-empty');
+    
+    if (!container) {
+        console.error('❌ 找不到available-users-list元素');
+        return;
+    }
+    
+    if (!users || users.length === 0) {
+        container.innerHTML = '';
+        if (emptyDiv) emptyDiv.style.display = 'block';
+        console.log('没有找到学生');
+        return;
+    }
+    
+    if (emptyDiv) emptyDiv.style.display = 'none';
+    
+    container.innerHTML = users.map(user => `
+        <div class="user-card" style="border: 1px solid #e0e0e0; margin: 10px 0; padding: 15px; border-radius: 8px; background: #f9f9f9;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h4 style="margin: 0 0 5px 0; color: #333;">${user.name}</h4>
+                    <p style="margin: 0; color: #666;">学号: ${user.username}</p>
+                </div>
+                <button class="btn btn-primary" onclick="startTeacherChat(${user.id}, '${user.userType}', '${user.name}', 5)">
+                    <i class="fas fa-comments"></i> 开始聊天
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    console.log(`显示了 ${users.length} 名学生`);
+}
+
+// 清空学生列表
+function clearCourseUsersList() {
+    const container = document.getElementById('available-users-list');
+    const emptyDiv = document.getElementById('users-empty');
+    
+    if (container) container.innerHTML = '';
+    if (emptyDiv) emptyDiv.style.display = 'block';
+}
+
+// 开始聊天
+async function startTeacherChat(userId, userType, userName, courseId = 5) {
+    try {
+        console.log('🚀 开始聊天:', {userId, userType, userName, courseId});
+        
+        // 跳转到对话页面
+        showSection('message-conversations');
+        
+        // 等待页面加载完成后打开对话
+        setTimeout(async () => {
+            // 检查messaging-functions.js是否已加载
+            if (typeof openConversation === 'function') {
+                console.log('✅ 调用openConversation函数');
+                await openConversation(userId, userType, userName, courseId);
+            } else {
+                console.error('❌ openConversation函数不存在');
+                showNotification('聊天功能尚未加载完成，请刷新页面重试', 'error');
+                return;
+            }
+        }, 300);
+        
+        showNotification(`正在打开与 ${userName} 的对话...`, 'success');
+    } catch (error) {
+        console.error('开始聊天失败:', error);
+        showNotification('开始聊天失败: ' + error.message, 'error');
     }
 }
 
@@ -7960,11 +8160,41 @@ async function loadCurrentUser() {
             }
         }
         
-        console.log('当前用户:', userData);
+        // 保存用户信息到全局变量，并尝试获取teacherId
+        window.currentUser = userData;
+        
+        // 异步获取详细用户信息（不阻塞主流程）
+        setTimeout(async () => {
+            try {
+                const detailResponse = await fetch('/api/auth/current-user', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const detailResult = await detailResponse.json();
+                if (detailResult.success && detailResult.data) {
+                    // 更新用户信息，包含teacherId
+                    window.currentUser = {
+                        ...userData,
+                        teacherId: detailResult.data.teacherId,
+                        studentId: detailResult.data.studentId
+                    };
+                    console.log('用户信息已更新（包含ID）:', window.currentUser);
+                }
+            } catch (detailError) {
+                console.log('获取详细用户信息失败，继续使用基础信息:', detailError.message);
+            }
+        }, 100);
+        
+        console.log('当前用户（基础信息）:', userData);
     } catch (error) {
         console.error('加载用户信息失败:', error);
         window.location.href = 'SmartEdu.html';
     }
+}
+
+// 获取当前用户信息
+function getCurrentUser() {
+    return window.currentUser;
 }
 
 // 设置修改密码模态框事件
@@ -16727,6 +16957,1115 @@ function displayTrainingObjectives(objectives) {
             `;
             container.appendChild(objectiveItem);
         });
+    }
+}
+
+// ========== 教学产业信息相关函数 ==========
+
+// 刷新教学产业信息
+async function refreshIndustryInfo() {
+    try {
+        const response = await fetch('/api/industry-info/latest?limit=20');
+        const result = await response.json();
+        
+        if (result.success) {
+            displayIndustryInfoList(result.data);
+        } else {
+            showAlert('获取信息失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('刷新教学产业信息失败:', error);
+        showAlert('刷新失败，请检查网络连接', 'error');
+    }
+}
+
+// 手动抓取教学产业信息
+async function crawlIndustryInfo() {
+    try {
+        showAlert('开始抓取信息，请稍候...', 'info');
+        
+        const response = await fetch('/api/industry-info/crawl', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('信息抓取成功', 'success');
+            await refreshIndustryInfo();
+        } else {
+            showAlert('抓取失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('抓取教学产业信息失败:', error);
+        showAlert('抓取失败，请检查网络连接', 'error');
+    }
+}
+
+// 显示信息统计
+async function showInfoStatistics() {
+    try {
+        const response = await fetch('/api/industry-info/statistics');
+        const result = await response.json();
+        
+        if (result.success) {
+            const stats = result.data;
+            showAlert(`信息统计：
+                总计：${stats.totalCount} 条
+                学科热点：${stats.typeCount.hot_topic || 0} 条
+                行业趋势：${stats.typeCount.industry_trend || 0} 条
+                政策更新：${stats.typeCount.policy_update || 0} 条
+                研究报告：${stats.typeCount.research_report || 0} 条`, 'info');
+        } else {
+            showAlert('获取统计信息失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('获取统计信息失败:', error);
+        showAlert('获取统计信息失败', 'error');
+    }
+}
+
+// 搜索教学产业信息
+async function searchIndustryInfo() {
+    try {
+        const keyword = document.getElementById('info-search-keyword').value.trim();
+        const type = document.getElementById('info-type-filter').value;
+        const subject = document.getElementById('subject-filter').value;
+        
+        let url = '/api/industry-info/';
+        
+        if (keyword) {
+            url += `search?keyword=${encodeURIComponent(keyword)}`;
+        } else if (type) {
+            url += `type/${encodeURIComponent(type)}`;
+        } else if (subject) {
+            url += `subject/${encodeURIComponent(subject)}`;
+        } else {
+            url += 'latest?limit=20';
+        }
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success) {
+            displayIndustryInfoList(result.data);
+        } else {
+            showAlert('搜索失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('搜索失败:', error);
+        showAlert('搜索失败，请检查网络连接', 'error');
+    }
+}
+
+// 显示信息列表
+function displayIndustryInfoList(infos) {
+    const container = document.getElementById('industry-info-list');
+    
+    if (!infos || infos.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无信息</div>';
+        return;
+    }
+    
+    container.innerHTML = infos.map(info => `
+        <div class="info-item" style="margin-bottom: 16px; padding: 16px; border: 1px solid #e9ecef; border-radius: 8px; background: white;">
+            <div class="info-header" style="display: flex; justify-content: between; align-items: center; margin-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 16px; color: #2c3e50; flex: 1;">${info.title}</h3>
+                <div class="info-meta" style="font-size: 12px; color: #7f8c8d;">
+                    <span class="info-type" style="background: ${getTypeColor(info.type)}; color: white; padding: 2px 8px; border-radius: 4px; margin-right: 8px;">
+                        ${getTypeText(info.type)}
+                    </span>
+                    <span class="info-time">${formatDateTime(info.publishedAt)}</span>
+                </div>
+            </div>
+            <div class="info-content" style="font-size: 14px; color: #34495e; line-height: 1.6; margin-bottom: 8px;">
+                ${info.content.substring(0, 200)}${info.content.length > 200 ? '...' : ''}
+            </div>
+            <div class="info-footer" style="display: flex; justify-content: between; align-items: center; font-size: 12px; color: #7f8c8d;">
+                <div class="info-details">
+                    <span>来源: ${info.source}</span>
+                    ${info.subjectCategory ? `<span style="margin-left: 16px;">学科: ${info.subjectCategory}</span>` : ''}
+                    <span style="margin-left: 16px;">查看: ${info.viewCount || 0} 次</span>
+                    <span style="margin-left: 16px;">重要性: ${getImportanceStars(info.importanceLevel)}</span>
+                </div>
+                <div class="info-actions">
+                    <button class="btn btn-sm btn-primary" onclick="viewInfoDetail(${info.id})" style="font-size: 12px; padding: 4px 8px;">
+                        <i class="fas fa-eye"></i> 详情
+                    </button>
+                    ${info.sourceUrl ? `<a href="${info.sourceUrl}" target="_blank" class="btn btn-sm btn-secondary" style="font-size: 12px; padding: 4px 8px; margin-left: 8px; text-decoration: none;">
+                        <i class="fas fa-external-link-alt"></i> 原文
+                    </a>` : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 获取类型颜色
+function getTypeColor(type) {
+    const colors = {
+        'hot_topic': '#e74c3c',
+        'industry_trend': '#3498db',
+        'policy_update': '#f39c12',
+        'research_report': '#27ae60'
+    };
+    return colors[type] || '#95a5a6';
+}
+
+// 获取类型文本
+function getTypeText(type) {
+    const texts = {
+        'hot_topic': '学科热点',
+        'industry_trend': '行业趋势',
+        'policy_update': '政策更新',
+        'research_report': '研究报告'
+    };
+    return texts[type] || '未知类型';
+}
+
+// 获取重要性星级
+function getImportanceStars(level) {
+    const stars = '★'.repeat(level || 1) + '☆'.repeat(5 - (level || 1));
+    return stars;
+}
+
+// 查看信息详情
+async function viewInfoDetail(id) {
+    try {
+        const response = await fetch(`/api/industry-info/${id}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const info = result.data;
+            showModal(`
+                <div class="modal-header">
+                    <h3>${info.title}</h3>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="info-meta" style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 6px;">
+                        <div style="display: flex; gap: 16px; margin-bottom: 8px;">
+                            <span class="info-type" style="background: ${getTypeColor(info.type)}; color: white; padding: 4px 8px; border-radius: 4px;">
+                                ${getTypeText(info.type)}
+                            </span>
+                            <span>来源: ${info.source}</span>
+                            <span>发布时间: ${formatDateTime(info.publishedAt)}</span>
+                        </div>
+                        <div style="display: flex; gap: 16px;">
+                            ${info.subjectCategory ? `<span>学科: ${info.subjectCategory}</span>` : ''}
+                            <span>重要性: ${getImportanceStars(info.importanceLevel)}</span>
+                            <span>查看次数: ${info.viewCount || 0}</span>
+                        </div>
+                    </div>
+                    <div class="info-content" style="line-height: 1.6;">
+                        ${info.content.replace(/\n/g, '<br>')}
+                    </div>
+                    ${info.keywords ? `<div class="info-keywords" style="margin-top: 16px;">
+                        <strong>关键词:</strong> ${info.keywords.split(',').map(k => `<span class="keyword-tag" style="background: #e9ecef; padding: 2px 6px; border-radius: 3px; margin-right: 8px;">${k.trim()}</span>`).join('')}
+                    </div>` : ''}
+                    ${info.sourceUrl ? `<div style="margin-top: 16px;">
+                        <a href="${info.sourceUrl}" target="_blank" class="btn btn-primary">
+                            <i class="fas fa-external-link-alt"></i> 查看原文
+                        </a>
+                    </div>` : ''}
+                </div>
+            `);
+        } else {
+            showAlert('获取详情失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('获取详情失败:', error);
+        showAlert('获取详情失败', 'error');
+    }
+}
+
+// 刷新行业趋势
+async function refreshTrends() {
+    try {
+        const response = await fetch('/api/industry-info/type/industry_trend');
+        const result = await response.json();
+        
+        if (result.success) {
+            displayTrendsContent(result.data);
+        } else {
+            showAlert('获取行业趋势失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('获取行业趋势失败:', error);
+        showAlert('获取行业趋势失败', 'error');
+    }
+}
+
+// 显示行业趋势内容
+function displayTrendsContent(trends) {
+    const container = document.getElementById('trends-content');
+    
+    if (!trends || trends.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无行业趋势数据</div>';
+        return;
+    }
+    
+    container.innerHTML = trends.map(trend => `
+        <div class="trend-item" style="margin-bottom: 24px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: white;">
+            <h4 style="margin: 0 0 12px 0; color: #2c3e50;">${trend.title}</h4>
+            <div style="font-size: 14px; color: #34495e; line-height: 1.6; margin-bottom: 12px;">
+                ${trend.content}
+            </div>
+            <div style="font-size: 12px; color: #7f8c8d; display: flex; justify-content: between; align-items: center;">
+                <span>来源: ${trend.source} | 发布时间: ${formatDateTime(trend.publishedAt)}</span>
+                <span>重要性: ${getImportanceStars(trend.importanceLevel)}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 导出趋势报告
+async function exportTrendReport() {
+    try {
+        const response = await fetch('/api/industry-info/type/industry_trend');
+        const result = await response.json();
+        
+        if (result.success) {
+            const reportContent = generateTrendReport(result.data);
+            downloadTextFile(reportContent, 'industry_trend_report.txt');
+        } else {
+            showAlert('导出失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('导出失败:', error);
+        showAlert('导出失败', 'error');
+    }
+}
+
+// 生成趋势报告
+function generateTrendReport(trends) {
+    let report = `教育行业趋势报告\n生成时间: ${new Date().toLocaleString()}\n\n`;
+    
+    trends.forEach((trend, index) => {
+        report += `${index + 1}. ${trend.title}\n`;
+        report += `   来源: ${trend.source}\n`;
+        report += `   发布时间: ${formatDateTime(trend.publishedAt)}\n`;
+        report += `   学科分类: ${trend.subjectCategory || '未分类'}\n`;
+        report += `   重要性: ${trend.importanceLevel}/5\n`;
+        report += `   内容: ${trend.content}\n\n`;
+    });
+    
+    return report;
+}
+
+// 刷新学科热点
+async function refreshHotTopics() {
+    try {
+        const response = await fetch('/api/industry-info/type/hot_topic');
+        const result = await response.json();
+        
+        if (result.success) {
+            displayHotTopicsContent(result.data);
+        } else {
+            console.error('获取学科热点失败:', result.message);
+        }
+    } catch (error) {
+        console.error('获取学科热点失败:', error);
+    }
+}
+
+// 显示学科热点内容
+function displayHotTopicsContent(topics) {
+    const container = document.getElementById('hot-topics-content');
+    
+    if (!topics || topics.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无学科热点数据</div>';
+        return;
+    }
+    
+    container.innerHTML = topics.map(topic => `
+        <div class="topic-item" style="margin-bottom: 24px; padding: 20px; border: 1px solid #e9ecef; border-radius: 8px; background: white; border-left: 4px solid #e74c3c;">
+            <h4 style="margin: 0 0 12px 0; color: #2c3e50; display: flex; align-items: center;">
+                <i class="fas fa-fire" style="color: #e74c3c; margin-right: 8px;"></i>
+                ${topic.title}
+            </h4>
+            <div style="font-size: 14px; color: #34495e; line-height: 1.6; margin-bottom: 12px;">
+                ${topic.content}
+            </div>
+            <div style="margin-bottom: 12px;">
+                ${topic.keywords ? topic.keywords.split(',').map(k => `<span class="keyword-tag" style="background: #fee; color: #e74c3c; padding: 2px 6px; border-radius: 3px; margin-right: 8px; font-size: 12px;">${k.trim()}</span>`).join('') : ''}
+            </div>
+            <div style="font-size: 12px; color: #7f8c8d; display: flex; justify-content: space-between; align-items: center;">
+                <span>来源: ${topic.source} | 学科: ${topic.subjectCategory || '未分类'}</span>
+                <span>查看: ${topic.viewCount || 0} 次 | 重要性: ${getImportanceStars(topic.importanceLevel)}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 显示模态框
+function showModal(content) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    `;
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="background: white; border-radius: 8px; max-width: 80%; max-height: 80%; overflow-y: auto;">
+            ${content}
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // 点击背景关闭模态框
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+}
+
+// 关闭模态框
+function closeModal() {
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// 下载文本文件
+function downloadTextFile(content, filename) {
+    const element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+    element.setAttribute('download', filename);
+    element.style.display = 'none';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+}
+
+// 初始化教学产业信息页面
+async function initializeIndustryInfo() {
+    await refreshIndustryInfo();
+}
+
+// 初始化行业趋势页面（包含学科热点）
+async function initializeTrends() {
+    await refreshTrends();
+    await refreshHotTopics();
+}
+
+// ========== 站内通信相关函数 ==========
+
+// 这些全局变量已在messaging-functions.js中定义，此处删除重复定义
+
+
+
+// 显示会话列表
+function displaySessionsList(sessions) {
+    const container = document.getElementById('sessions-list');
+    
+    if (!sessions || sessions.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无会话</div>';
+        return;
+    }
+    
+    container.innerHTML = sessions.map(session => `
+        <div class="session-item" style="margin-bottom: 16px; padding: 16px; border: 1px solid #e9ecef; border-radius: 8px; background: white;">
+            <div class="session-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 16px; color: #2c3e50;">${session.sessionName}</h3>
+                <div class="session-meta">
+                    <span class="session-code" style="background: #3498db; color: white; padding: 4px 8px; border-radius: 4px; font-family: monospace; margin-right: 8px;">
+                        ${session.sessionCode}
+                    </span>
+                    <span class="session-status" style="background: ${session.isActive ? '#27ae60' : '#95a5a6'}; color: white; padding: 4px 8px; border-radius: 4px;">
+                        ${session.isActive ? '进行中' : '已结束'}
+                    </span>
+                </div>
+            </div>
+            <div class="session-info" style="font-size: 14px; color: #7f8c8d; margin-bottom: 8px;">
+                <span>类型: ${getSessionTypeText(session.sessionType)}</span>
+                <span style="margin-left: 16px;">参与者: ${session.currentParticipants}/${session.maxParticipants}</span>
+                <span style="margin-left: 16px;">开始时间: ${formatDateTime(session.startTime)}</span>
+            </div>
+            <div class="session-description" style="font-size: 14px; color: #34495e; margin-bottom: 12px;">
+                ${session.description || '无描述'}
+            </div>
+            <div class="session-actions">
+                ${session.isActive ? `
+                    <button class="btn btn-sm btn-primary" onclick="enterSession(${session.id})">
+                        <i class="fas fa-sign-in-alt"></i> 进入会话
+                    </button>
+                    <button class="btn btn-sm btn-secondary" onclick="viewSessionStats(${session.id})" style="margin-left: 8px;">
+                        <i class="fas fa-chart-bar"></i> 统计
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="endSession(${session.id})" style="margin-left: 8px;">
+                        <i class="fas fa-stop"></i> 结束会话
+                    </button>
+                ` : `
+                    <button class="btn btn-sm btn-secondary" onclick="viewSessionHistory(${session.id})">
+                        <i class="fas fa-history"></i> 查看记录
+                    </button>
+                `}
+            </div>
+        </div>
+    `).join('');
+}
+
+// 获取会话类型文本
+function getSessionTypeText(type) {
+    const types = {
+        'discussion': '讨论课',
+        'presentation': '演示课',
+        'collaboration': '协作课',
+        'quiz': '测验课'
+    };
+    return types[type] || '普通课堂';
+}
+
+// 显示创建会话模态框
+function showCreateSessionModal() {
+    const user = getCurrentUser();
+    if (!user || !user.teacherId) {
+        showAlert('请先登录', 'error');
+        return;
+    }
+    
+    showModal(`
+        <div class="modal-header">
+            <h3>创建新会话</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="create-session-form">
+                <div class="form-group">
+                    <label>会话名称:</label>
+                    <input type="text" id="session-name" class="form-control" placeholder="输入会话名称" required>
+                </div>
+                <div class="form-group">
+                    <label>选择课程:</label>
+                    <select id="session-course" class="form-select" required>
+                        <option value="">请选择课程</option>
+                        ${currentCourses.map(course => `<option value="${course.id}">${course.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>会话类型:</label>
+                    <select id="session-type" class="form-select">
+                        <option value="discussion">讨论课</option>
+                        <option value="presentation">演示课</option>
+                        <option value="collaboration">协作课</option>
+                        <option value="quiz">测验课</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>会话描述:</label>
+                    <textarea id="session-description" class="form-control" rows="3" placeholder="输入会话描述（可选）"></textarea>
+                </div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn btn-primary" style="margin-left: 8px;">创建会话</button>
+                </div>
+            </form>
+        </div>
+    `);
+    
+    // 绑定表单提交事件
+    document.getElementById('create-session-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await createSession();
+    });
+}
+
+// 创建会话
+async function createSession() {
+    try {
+        const user = getCurrentUser();
+        const sessionName = document.getElementById('session-name').value.trim();
+        const courseId = document.getElementById('session-course').value;
+        const sessionType = document.getElementById('session-type').value;
+        const description = document.getElementById('session-description').value.trim();
+        
+        if (!sessionName || !courseId) {
+            showAlert('请填写完整信息', 'error');
+            return;
+        }
+        
+        const response = await fetch('/api/classroom/sessions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                teacherId: user.teacherId,
+                courseId: parseInt(courseId),
+                sessionName: sessionName,
+                sessionType: sessionType,
+                description: description
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showAlert('会话创建成功！会话代码: ' + result.data.sessionCode, 'success');
+            closeModal();
+            await refreshSessions();
+        } else {
+            showAlert('创建失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('创建会话失败:', error);
+        showAlert('创建失败，请检查网络连接', 'error');
+    }
+}
+
+// 根据代码加入会话
+async function joinSessionByCode() {
+    try {
+        const sessionCode = document.getElementById('session-code-input').value.trim().toUpperCase();
+        if (!sessionCode || sessionCode.length !== 8) {
+            showAlert('请输入正确的8位会话代码', 'error');
+            return;
+        }
+        
+        // 查找会话
+        const response = await fetch(`/api/classroom/sessions/code/${sessionCode}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const session = result.data;
+            if (!session.isActive) {
+                showAlert('会话已结束', 'error');
+                return;
+            }
+            
+            // 加入会话
+            const user = getCurrentUser();
+            const joinResponse = await fetch(`/api/classroom/sessions/${session.id}/join`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    userId: user.teacherId,
+                    userName: user.realName || user.username,
+                    userType: 'teacher'
+                })
+            });
+            
+            const joinResult = await joinResponse.json();
+            if (joinResult.success) {
+                currentSession = session;
+                currentUserId = user.teacherId;
+                currentUserName = user.realName || user.username;
+                showAlert('成功加入会话', 'success');
+                document.getElementById('session-code-input').value = '';
+                showSessionRoom(session);
+            } else {
+                showAlert('加入失败: ' + joinResult.message, 'error');
+            }
+        } else {
+            showAlert('会话不存在或代码错误', 'error');
+        }
+    } catch (error) {
+        console.error('加入会话失败:', error);
+        showAlert('加入失败，请检查网络连接', 'error');
+    }
+}
+
+// 显示会话室界面
+function showSessionRoom(session) {
+    const sessionRoom = document.getElementById('session-room');
+    const currentSessionCard = document.getElementById('current-session');
+    
+    sessionRoom.innerHTML = `
+        <div style="display: flex; height: 600px;">
+            <!-- 左侧：参与者列表 -->
+            <div style="width: 250px; border-right: 1px solid #e9ecef; background: #f8f9fa;">
+                <div style="padding: 16px; border-bottom: 1px solid #e9ecef; background: white;">
+                    <h4 style="margin: 0; font-size: 14px;">参与者 (<span id="participant-count">0</span>)</h4>
+                </div>
+                <div id="participants-list" style="padding: 8px; max-height: 520px; overflow-y: auto;">
+                    <!-- 参与者列表 -->
+                </div>
+            </div>
+            
+            <!-- 右侧：聊天区域 -->
+            <div style="flex: 1; display: flex; flex-direction: column;">
+                <div style="padding: 16px; border-bottom: 1px solid #e9ecef; background: white;">
+                    <h4 style="margin: 0; font-size: 14px;">${session.sessionName} - ${session.sessionCode}</h4>
+                </div>
+                
+                <!-- 消息区域 -->
+                <div id="messages-area" style="flex: 1; padding: 16px; overflow-y: auto; background: #f8f9fa;">
+                    <!-- 消息列表 -->
+                </div>
+                
+                <!-- 消息输入区域 -->
+                <div style="padding: 16px; border-top: 1px solid #e9ecef; background: white;">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="message-input" class="form-control" placeholder="输入消息..." onkeypress="handleMessageKeyPress(event)">
+                        <button class="btn btn-primary" onclick="sendMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                        <button class="btn btn-secondary" onclick="toggleHandRaise()" id="hand-raise-btn">
+                            <i class="fas fa-hand-paper"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    currentSessionCard.style.display = 'block';
+    
+    // 开始定时更新
+    startSessionUpdates(session.id);
+}
+
+// 开始会话更新
+function startSessionUpdates(sessionId) {
+    // 立即加载一次
+    loadSessionData(sessionId);
+    
+    // 每3秒更新一次
+    messageInterval = setInterval(() => {
+        loadSessionData(sessionId);
+    }, 3000);
+}
+
+// 加载会话数据
+async function loadSessionData(sessionId) {
+    try {
+        // 加载参与者
+        const participantsResponse = await fetch(`/api/classroom/sessions/${sessionId}/participants`);
+        const participantsResult = await participantsResponse.json();
+        if (participantsResult.success) {
+            displayParticipants(participantsResult.data);
+        }
+        
+        // 加载消息
+        const messagesResponse = await fetch(`/api/classroom/sessions/${sessionId}/messages`);
+        const messagesResult = await messagesResponse.json();
+        if (messagesResult.success) {
+            displayMessages(messagesResult.data);
+        }
+    } catch (error) {
+        console.error('加载会话数据失败:', error);
+    }
+}
+
+// 显示参与者列表
+function displayParticipants(participants) {
+    const container = document.getElementById('participants-list');
+    const countElement = document.getElementById('participant-count');
+    
+    countElement.textContent = participants.length;
+    
+    container.innerHTML = participants.map(participant => `
+        <div class="participant-item" style="padding: 8px; margin-bottom: 4px; border-radius: 4px; ${participant.isHandRaised ? 'background: #fff3cd; border: 1px solid #ffeaa7;' : 'background: white;'}">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <div style="font-weight: 500; font-size: 13px;">${participant.userName}</div>
+                    <div style="font-size: 11px; color: #7f8c8d;">
+                        ${participant.userType === 'teacher' ? '教师' : '学生'}
+                        ${participant.permissionLevel === 'host' ? ' (主持人)' : ''}
+                    </div>
+                </div>
+                <div>
+                    ${participant.isHandRaised ? '<i class="fas fa-hand-paper" style="color: #f39c12;"></i>' : ''}
+                    ${participant.isMuted ? '<i class="fas fa-microphone-slash" style="color: #e74c3c;"></i>' : ''}
+                    <span style="width: 8px; height: 8px; border-radius: 50%; background: ${participant.isOnline ? '#27ae60' : '#95a5a6'}; display: inline-block; margin-left: 4px;"></span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 显示消息列表
+function displayMessages(messages) {
+    const container = document.getElementById('messages-area');
+    
+    container.innerHTML = messages.map(message => `
+        <div class="message-item" style="margin-bottom: 12px;">
+            <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 4px;">
+                <span style="font-weight: 500;">${message.senderName}</span>
+                <span style="margin-left: 8px;">${formatDateTime(message.createdAt)}</span>
+                ${message.isSystemMessage ? '<span style="margin-left: 8px; background: #3498db; color: white; padding: 1px 4px; border-radius: 2px; font-size: 10px;">系统</span>' : ''}
+            </div>
+            <div style="background: ${message.isSystemMessage ? '#ecf0f1' : 'white'}; padding: 8px 12px; border-radius: 8px; border-left: 4px solid ${message.senderType === 'teacher' ? '#3498db' : '#27ae60'};">
+                ${message.content}
+                ${message.fileUrl ? `<br><a href="${message.fileUrl}" target="_blank" style="color: #3498db;"><i class="fas fa-paperclip"></i> ${message.fileName}</a>` : ''}
+            </div>
+        </div>
+    `).join('');
+    
+    // 滚动到底部
+    container.scrollTop = container.scrollHeight;
+}
+
+// 发送消息
+async function sendMessage() {
+    try {
+        const messageInput = document.getElementById('message-input');
+        const content = messageInput.value.trim();
+        
+        if (!content || !currentSession) {
+            return;
+        }
+        
+        const response = await fetch(`/api/classroom/sessions/${currentSession.id}/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                senderId: currentUserId,
+                senderName: currentUserName,
+                senderType: 'teacher',
+                messageType: 'text',
+                content: content
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            messageInput.value = '';
+            // 立即刷新消息列表
+            loadSessionData(currentSession.id);
+        } else {
+            showAlert('发送失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('发送消息失败:', error);
+        showAlert('发送失败', 'error');
+    }
+}
+
+// 处理消息输入键盘事件
+function handleMessageKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendMessage();
+    }
+}
+
+// 举手/取消举手
+async function toggleHandRaise() {
+    try {
+        if (!currentSession) return;
+        
+        const response = await fetch(`/api/classroom/sessions/${currentSession.id}/hand-raise`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: currentUserId
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            // 立即刷新参与者列表
+            loadSessionData(currentSession.id);
+        } else {
+            showAlert('操作失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('举手操作失败:', error);
+        showAlert('操作失败', 'error');
+    }
+}
+
+// 离开当前会话
+async function leaveCurrentSession() {
+    try {
+        if (!currentSession) return;
+        
+        const response = await fetch(`/api/classroom/sessions/${currentSession.id}/leave`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: currentUserId
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showAlert('已离开会话', 'success');
+            
+            // 清理状态
+            currentSession = null;
+            currentUserId = null;
+            currentUserName = null;
+            
+            if (messageInterval) {
+                clearInterval(messageInterval);
+                messageInterval = null;
+            }
+            
+            document.getElementById('current-session').style.display = 'none';
+        } else {
+            showAlert('离开失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('离开会话失败:', error);
+        showAlert('离开失败', 'error');
+    }
+}
+
+// 进入会话（从会话管理页面）
+async function enterSession(sessionId) {
+    try {
+        // 先加入会话
+        const user = getCurrentUser();
+        const response = await fetch(`/api/classroom/sessions/${sessionId}/join`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: user.teacherId,
+                userName: user.realName || user.username,
+                userType: 'teacher'
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            // 获取会话详情
+            const sessionResponse = await fetch(`/api/classroom/sessions/${sessionId}`);
+            const sessionResult = await sessionResponse.json();
+            
+            if (sessionResult.success) {
+                currentSession = sessionResult.data;
+                currentUserId = user.teacherId;
+                currentUserName = user.realName || user.username;
+                
+                // 切换到加入课堂页面并显示会话室
+                showSection('classroom-join');
+                showSessionRoom(currentSession);
+            }
+        } else {
+            showAlert('进入失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('进入会话失败:', error);
+        showAlert('进入失败', 'error');
+    }
+}
+
+// 结束会话
+async function endSession(sessionId) {
+    try {
+        if (!confirm('确定要结束这个会话吗？')) {
+            return;
+        }
+        
+        const user = getCurrentUser();
+        const response = await fetch(`/api/classroom/sessions/${sessionId}/end`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                teacherId: user.teacherId
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showAlert('会话已结束', 'success');
+            await refreshSessions();
+        } else {
+            showAlert('结束失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('结束会话失败:', error);
+        showAlert('结束失败', 'error');
+    }
+}
+
+// 查看会话统计
+async function viewSessionStats(sessionId) {
+    try {
+        const response = await fetch(`/api/classroom/sessions/${sessionId}/stats`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const stats = result.data;
+            showAlert(`会话统计：
+                参与者数量：${stats.participantCount}
+                消息数量：${stats.messageCount}
+                举手人数：${stats.handRaisedCount}`, 'info');
+        } else {
+            showAlert('获取统计失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('获取统计失败:', error);
+        showAlert('获取统计失败', 'error');
+    }
+}
+
+// 刷新历史记录
+async function refreshHistory() {
+    try {
+        const user = getCurrentUser();
+        if (!user || !user.teacherId) {
+            showAlert('请先登录', 'error');
+            return;
+        }
+        
+        const response = await fetch(`/api/classroom/sessions/teacher/${user.teacherId}?isActive=false`);
+        const result = await response.json();
+        
+        if (result.success) {
+            displayHistoryList(result.data);
+        } else {
+            showAlert('获取历史记录失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('刷新历史记录失败:', error);
+        showAlert('刷新失败，请检查网络连接', 'error');
+    }
+}
+
+// 显示历史记录列表
+function displayHistoryList(sessions) {
+    const container = document.getElementById('history-list');
+    
+    if (!sessions || sessions.length === 0) {
+        container.innerHTML = '<div class="empty-state">暂无历史记录</div>';
+        return;
+    }
+    
+    container.innerHTML = sessions.map(session => `
+        <div class="history-item" style="margin-bottom: 16px; padding: 16px; border: 1px solid #e9ecef; border-radius: 8px; background: white;">
+            <div class="history-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 16px; color: #2c3e50;">${session.sessionName}</h3>
+                <span class="session-code" style="background: #95a5a6; color: white; padding: 4px 8px; border-radius: 4px; font-family: monospace;">
+                    ${session.sessionCode}
+                </span>
+            </div>
+            <div class="history-info" style="font-size: 14px; color: #7f8c8d; margin-bottom: 8px;">
+                <span>类型: ${getSessionTypeText(session.sessionType)}</span>
+                <span style="margin-left: 16px;">持续时间: ${calculateDuration(session.startTime, session.endTime)}</span>
+            </div>
+            <div class="history-time" style="font-size: 14px; color: #7f8c8d; margin-bottom: 12px;">
+                开始: ${formatDateTime(session.startTime)} | 结束: ${formatDateTime(session.endTime)}
+            </div>
+            <div class="history-actions">
+                <button class="btn btn-sm btn-secondary" onclick="viewSessionHistory(${session.id})">
+                    <i class="fas fa-eye"></i> 查看详情
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// 计算持续时间
+function calculateDuration(startTime, endTime) {
+    if (!endTime) return '进行中';
+    
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const duration = Math.floor((end - start) / (1000 * 60)); // 分钟
+    
+    if (duration < 60) {
+        return duration + ' 分钟';
+    } else {
+        const hours = Math.floor(duration / 60);
+        const minutes = duration % 60;
+        return hours + ' 小时 ' + minutes + ' 分钟';
+    }
+}
+
+// 查看会话历史详情
+async function viewSessionHistory(sessionId) {
+    try {
+        const [sessionResponse, messagesResponse] = await Promise.all([
+            fetch(`/api/classroom/sessions/${sessionId}`),
+            fetch(`/api/classroom/sessions/${sessionId}/messages`)
+        ]);
+        
+        const sessionResult = await sessionResponse.json();
+        const messagesResult = await messagesResponse.json();
+        
+        if (sessionResult.success && messagesResult.success) {
+            const session = sessionResult.data;
+            const messages = messagesResult.data;
+            
+            showModal(`
+                <div class="modal-header">
+                    <h3>会话详情 - ${session.sessionName}</h3>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="session-info" style="margin-bottom: 20px; padding: 16px; background: #f8f9fa; border-radius: 6px;">
+                        <div><strong>会话代码:</strong> ${session.sessionCode}</div>
+                        <div><strong>类型:</strong> ${getSessionTypeText(session.sessionType)}</div>
+                        <div><strong>开始时间:</strong> ${formatDateTime(session.startTime)}</div>
+                        <div><strong>结束时间:</strong> ${formatDateTime(session.endTime)}</div>
+                        <div><strong>描述:</strong> ${session.description || '无'}</div>
+                    </div>
+                    <div class="messages-history" style="max-height: 400px; overflow-y: auto; border: 1px solid #e9ecef; border-radius: 6px; padding: 16px;">
+                        <h4 style="margin: 0 0 16px 0;">聊天记录 (${messages.length} 条消息)</h4>
+                        ${messages.length > 0 ? messages.map(message => `
+                            <div class="message-item" style="margin-bottom: 12px; padding: 8px; border-radius: 4px; background: ${message.isSystemMessage ? '#ecf0f1' : '#ffffff'}; border-left: 3px solid ${message.senderType === 'teacher' ? '#3498db' : '#27ae60'};">
+                                <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 4px;">
+                                    <strong>${message.senderName}</strong> - ${formatDateTime(message.createdAt)}
+                                    ${message.isSystemMessage ? ' (系统消息)' : ''}
+                                </div>
+                                <div>${message.content}</div>
+                            </div>
+                        `).join('') : '<div style="text-align: center; color: #7f8c8d;">暂无消息记录</div>'}
+                    </div>
+                </div>
+            `);
+        } else {
+            showAlert('获取会话详情失败', 'error');
+        }
+    } catch (error) {
+        console.error('获取会话详情失败:', error);
+        showAlert('获取详情失败', 'error');
+    }
+}
+
+// 导出历史记录
+async function exportHistory() {
+    try {
+        const user = getCurrentUser();
+        const response = await fetch(`/api/classroom/sessions/teacher/${user.teacherId}?isActive=false`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const sessions = result.data;
+            let content = `课堂协同历史记录\n生成时间: ${new Date().toLocaleString()}\n\n`;
+            
+            sessions.forEach((session, index) => {
+                content += `${index + 1}. ${session.sessionName}\n`;
+                content += `   会话代码: ${session.sessionCode}\n`;
+                content += `   类型: ${getSessionTypeText(session.sessionType)}\n`;
+                content += `   开始时间: ${formatDateTime(session.startTime)}\n`;
+                content += `   结束时间: ${formatDateTime(session.endTime)}\n`;
+                content += `   持续时间: ${calculateDuration(session.startTime, session.endTime)}\n`;
+                content += `   描述: ${session.description || '无'}\n\n`;
+            });
+            
+            downloadTextFile(content, 'classroom_collaboration_history.txt');
+        } else {
+            showAlert('导出失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        console.error('导出失败:', error);
+        showAlert('导出失败', 'error');
     }
 }
 

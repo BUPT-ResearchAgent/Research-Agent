@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生端消息API测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .result { margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 3px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+    </style>
+</head>
+<body>
+    <h1>学生端消息功能测试</h1>
+    
+    <div class="test-section">
+        <h3>1. 用户登录状态检查</h3>
+        <button onclick="checkAuthStatus()">检查登录状态</button>
+        <div id="auth-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. 获取用户课程列表</h3>
+        <label>用户ID: <input type="number" id="userId" value="5" placeholder="输入学生用户ID"></label>
+        <button onclick="testUserCourses()">测试课程API</button>
+        <div id="courses-result" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. 获取课程用户列表</h3>
+        <label>课程ID: <input type="number" id="courseId" value="5" placeholder="输入课程ID"></label>
+        <button onclick="testCourseUsers()">测试用户列表API</button>
+        <div id="users-result" class="result"></div>
+    </div>
+
+    <script>
+        async function checkAuthStatus() {
+            const resultDiv = document.getElementById('auth-result');
+            try {
+                const response = await fetch('/api/auth/check', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 登录成功</strong><br>
+                        用户ID: ${result.data.id}<br>
+                        用户名: ${result.data.username}<br>
+                        角色: ${result.data.role}<br>
+                        真实姓名: ${result.data.realName || 'N/A'}
+                    `;
+                    
+                    // 自动设置用户ID
+                    document.getElementById('userId').value = result.data.id;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ 未登录: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ 错误: ${error.message}`;
+            }
+        }
+        
+        async function testUserCourses() {
+            const resultDiv = document.getElementById('courses-result');
+            const userId = document.getElementById('userId').value;
+            
+            if (!userId) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ 请输入用户ID';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/messages/user-courses?userId=${userId}&userType=STUDENT`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 课程列表获取成功</strong><br>
+                        课程数量: ${result.data.length}<br>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ 失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ 错误: ${error.message}`;
+            }
+        }
+        
+        async function testCourseUsers() {
+            const resultDiv = document.getElementById('users-result');
+            const userId = document.getElementById('userId').value;
+            const courseId = document.getElementById('courseId').value;
+            
+            if (!userId || !courseId) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ 请输入用户ID和课程ID';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/messages/course/${courseId}/users?userId=${userId}&userType=STUDENT`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 用户列表获取成功</strong><br>
+                        用户数量: ${result.data.length}<br>
+                        <pre>${JSON.stringify(result.data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ 失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ 错误: ${error.message}`;
+            }
+        }
+        
+        // 页面加载时自动检查登录状态
+        window.onload = function() {
+            checkAuthStatus();
+        };
+    </script>
+</body>
+</html> 
