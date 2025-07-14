@@ -2850,8 +2850,11 @@ function getQuestionTypeInfo(question) {
     let actualType = '';
     let displayName = '';
     
-    // 统一映射到标准题型
-    if (questionType.includes('choice') || questionType.includes('选择') || questionType.includes('单选') || questionType.includes('多选') || hasOptions) {
+    // 统一映射到标准题型 - 将大作业判断放在更前面，避免被其他类型误匹配
+    if (questionType.includes('assignment') || questionType.includes('大作业') || questionType.includes('作业')) {
+        actualType = 'assignment';
+        displayName = '大作业题目';
+    } else if (questionType.includes('choice') || questionType.includes('选择') || questionType.includes('单选') || questionType.includes('多选') || hasOptions) {
         actualType = 'choice';
         displayName = '选择题';
     } else if (questionType.includes('true_false') || questionType.includes('判断') || questionType.includes('true') || questionType.includes('false') || questionType.includes('对错')) {
@@ -2876,9 +2879,6 @@ function getQuestionTypeInfo(question) {
     } else if (questionType.includes('essay') || questionType.includes('解答') || questionType.includes('论述') || questionType.includes('answer')) {
         actualType = 'essay';
         displayName = '解答题';
-    } else if (questionType.includes('assignment') || questionType.includes('大作业') || questionType.includes('作业')) {
-        actualType = 'assignment';
-        displayName = '大作业题目';
     } else {
         // 默认判断
         actualType = 'essay';
