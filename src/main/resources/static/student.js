@@ -6760,34 +6760,7 @@ document.addEventListener('visibilitychange', function() {
 /**
  * 获取当前学生用户信息 - 适配messaging-functions.js
  */
-function getCurrentUserInfo() {
-    console.log('学生端获取当前用户信息');
-    console.log('currentUser:', currentUser);
-    
-    if (!currentUser) {
-        console.warn('当前用户信息不存在，尝试从全局获取');
-        // 尝试从全局窗口对象获取
-        if (window.currentUser) {
-            currentUser = window.currentUser;
-        } else {
-            console.error('无法获取用户信息');
-            return null;
-        }
-    }
-    
-    // 确保有有效的用户ID
-    const userId = currentUser.userId || currentUser.id;
-    if (!userId || userId === 'unknown') {
-        console.error('用户ID无效:', userId);
-        return null;
-    }
-    
-    return {
-        id: userId,
-        name: currentUser.realName || currentUser.username || currentUser.name,
-        type: 'STUDENT'
-    };
-}
+// 删除自定义的getCurrentUserInfo函数，使用messaging-functions.js中的函数
 
 /**
  * 加载学生的课程列表
@@ -7069,21 +7042,19 @@ function filterUsers() {
  */
 async function startStudentChat(userId, userType, userName, courseId) {
     try {
-        console.log('🚀 学生端开始聊天:', {userId, userType, userName, courseId});
+        console.log('🚀 学生端开始聊天 - 使用messaging-functions.js:', {userId, userType, userName, courseId});
         
         // 跳转到对话页面
         showSection('message-conversations');
         
-        // 等待页面加载完成后打开对话
+        // 等待页面加载完成后打开对话 - 使用messaging-functions.js中的openConversation
         setTimeout(async () => {
-            // 检查messaging-functions.js是否已加载
             if (typeof openConversation === 'function') {
-                console.log('✅ 调用openConversation函数');
+                console.log('✅ 调用messaging-functions.js中的openConversation函数');
                 await openConversation(userId, userType, userName, courseId);
             } else {
-                console.error('❌ openConversation函数不存在');
+                console.error('❌ messaging-functions.js中的openConversation函数不存在');
                 showNotification('聊天功能尚未加载完成，请刷新页面重试', 'error');
-                return;
             }
         }, 300);
         
@@ -7189,7 +7160,7 @@ async function refreshStudentConversations() {
             return;
         }
         
-        const response = await fetch(`/api/messages/conversations?userId=${userInfo.id}&userType=${userInfo.type}`, {
+        const response = await fetch(`/api/messages/conversations?userId=${userInfo.userId}&userType=${userInfo.userType}`, {
             method: 'GET',
             credentials: 'include'
         });
@@ -7390,90 +7361,7 @@ function displayConversationsList(conversations) {
     `).join('');
 }
 
-/**
- * 学生端专用的打开对话函数
- */
-async function openConversation(partnerId, partnerType, partnerName, courseId = null) {
-    console.log('🗨️ 学生端打开对话:', { partnerId, partnerType, partnerName, courseId });
-    
-    try {
-        // 显示聊天窗口
-        const chatWindow = document.getElementById('chat-window');
-        if (chatWindow) {
-            chatWindow.style.display = 'block';
-            
-            // 设置聊天对象信息到dataset中，供发送消息使用
-            chatWindow.dataset.receiverId = partnerId;
-            chatWindow.dataset.receiverType = partnerType;
-            chatWindow.dataset.courseId = courseId || '';
-        }
-        
-        // 更新聊天界面标题（学生端结构）
-        const chatUserName = document.getElementById('chat-user-name');
-        const chatUserType = document.getElementById('chat-user-type');
-        
-        if (chatUserName) {
-            chatUserName.textContent = partnerName;
-        }
-        if (chatUserType) {
-            chatUserType.textContent = partnerType === 'TEACHER' ? '教师' : '学生';
-        }
-        
-        // 清空并准备消息区域
-        const chatMessages = document.getElementById('chat-messages');
-        if (chatMessages) {
-            chatMessages.innerHTML = '<div style="text-align: center; padding: 20px; color: #6c757d;"><i class="fas fa-spinner fa-spin"></i> 加载对话历史...</div>';
-        }
-        
-        // 获取当前学生用户信息
-        const currentUserInfo = getCurrentUserInfo();
-        if (!currentUserInfo) {
-            console.error('无法获取当前用户信息');
-            showNotification('无法获取用户信息，请重新登录', 'error');
-            return;
-        }
-        
-        console.log('当前用户:', currentUserInfo);
-        console.log('聊天对象:', { partnerId, partnerType });
-        
-        // 加载对话历史 - 使用学生端的参数格式
-        await loadConversationMessages(
-            currentUserInfo.userId, 
-            currentUserInfo.userType || 'STUDENT',
-            parseInt(partnerId), 
-            partnerType
-        );
-        
-        // 标记消息为已读
-        try {
-            await markMessagesAsRead(
-                parseInt(partnerId), 
-                partnerType,
-                currentUserInfo.userId,
-                currentUserInfo.userType || 'STUDENT'
-            );
-        } catch (error) {
-            console.log('标记已读失败:', error.message);
-        }
-        
-        // 初始化并聚焦到输入框
-        initializeStudentMessageInput();
-        const messageInput = document.getElementById('message-input');
-        if (messageInput) {
-            setTimeout(() => messageInput.focus(), 300);
-        }
-        
-        // 启动消息自动刷新
-        startStudentMessageRefresh();
-        
-        console.log('✅ 学生端对话界面已打开');
-        showNotification(`已打开与${partnerName}的对话`, 'success');
-        
-    } catch (error) {
-        console.error('打开对话失败:', error);
-        showNotification('打开对话失败: ' + error.message, 'error');
-    }
-}
+// 删除自定义的openConversation函数，使用messaging-functions.js中的函数
 
 /**
  * 学生端关闭对话函数
@@ -7482,6 +7370,7 @@ function closeConversation() {
     const chatWindow = document.getElementById('chat-window');
     if (chatWindow) {
         chatWindow.style.display = 'none';
+        console.log('✅ 聊天窗口已关闭');
         // 清除dataset
         delete chatWindow.dataset.receiverId;
         delete chatWindow.dataset.receiverType;
@@ -7512,15 +7401,8 @@ async function openConversationFromList(userId, userName, userType, courseId) {
  * 关闭聊天窗口
  */
 function closeChatWindow() {
-    if (typeof closeConversation === 'function') {
-        closeConversation();
-    } else {
-        // 简单的关闭逻辑
-        const chatWindow = document.getElementById('chat-window');
-        if (chatWindow) {
-            chatWindow.style.display = 'none';
-        }
-    }
+    console.log('🔒 学生端关闭聊天窗口');
+    closeConversation();
 }
 
 /**
@@ -7634,6 +7516,21 @@ window.sendMessage = sendStudentMessage;
 window.startChat = startStudentChat; // 提供通用的开始聊天函数
 window.displayConversationsList = displayConversationsList;
 window.refreshUnreadCount = refreshUnreadCount;
+
+/**
+ * 直接测试聊天窗口显示
+ */
+function testChatWindow() {
+    console.log('🔧 直接测试聊天窗口');
+    
+    // 直接调用openConversation函数
+    openConversation(4, 'TEACHER', '张教授', 1);
+    
+    showNotification('正在测试聊天窗口显示...', 'info');
+}
+
+// 将测试函数暴露到全局
+window.testChatWindow = testChatWindow;
 
 // ==================== DOMContentLoaded 事件监听器 ====================
 

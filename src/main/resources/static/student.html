@@ -924,55 +924,102 @@
                     <button class="btn btn-primary" onclick="refreshConversations()">
                         <i class="fas fa-sync-alt"></i> 刷新
                     </button>
+                    <button class="btn btn-accent" onclick="startStudentChat(4, 'TEACHER', '张教授', 1)" style="margin-left: 10px;">
+                        <i class="fas fa-comments"></i> 测试聊天
+                    </button>
+                    <button class="btn btn-success" onclick="testChatWindow()" style="margin-left: 10px;">
+                        <i class="fas fa-bug"></i> 直接测试窗口
+                    </button>
                     <span id="unread-messages-badge" class="notification-badge" style="display: none;">0</span>
                 </div>
             </div>
             
-            <div class="main-content">
-                <div class="content-card">
+            <div class="main-content" style="display: flex; height: 600px;">
+                <!-- 对话列表 -->
+                <div class="content-card" style="width: 30%; margin-right: 16px; overflow-y: auto;">
                     <div class="card-header">
-                        <i class="fas fa-comment-dots"></i> 我的对话
+                        <i class="fas fa-list"></i> 对话列表
                     </div>
-                    
-                    <!-- 对话列表 -->
-                    <div id="conversations-list" class="conversations-container">
-                        <!-- 对话项将在这里动态生成 -->
+                    <div id="conversations-list" style="padding: 0;">
+                        <!-- 动态加载的对话列表 -->
                     </div>
-                    
-                    <!-- 空状态 -->
-                    <div id="conversations-empty" style="display: none;">
-                        <div style="text-align: center; padding: 48px 0; color: #7f8c8d;">
-                            <i class="fas fa-comments" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                            <p>暂无对话</p>
-                            <p>开始与老师和同学交流吧</p>
-                        </div>
+                    <div id="conversations-empty" style="display: none; text-align: center; padding: 40px; color: #6c757d;">
+                        <i class="fas fa-comments" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                        <p>暂无对话</p>
+                        <p>开始与老师和同学交流吧</p>
                     </div>
                 </div>
                 
                 <!-- 聊天窗口 -->
-                <div id="chat-window" class="chat-window" style="display: none;">
-                    <div class="chat-header">
-                        <div class="chat-user-info">
-                            <i class="fas fa-user-circle chat-avatar"></i>
-                            <div class="chat-user-details">
-                                <div class="chat-user-name" id="chat-user-name"></div>
-                                <div class="chat-user-type" id="chat-user-type"></div>
-                            </div>
+                <div class="content-card" style="width: 70%; display: flex; flex-direction: column;">
+                    <div class="card-header" id="chat-header" style="display: none;">
+                        <i class="fas fa-user"></i> 
+                        <span id="chat-partner-name">请选择对话</span>
+                        <div style="float: right;">
+                            <button class="btn btn-sm btn-secondary" onclick="markCurrentChatAsRead()">
+                                <i class="fas fa-check"></i> 标记已读
+                            </button>
                         </div>
-                        <button class="btn btn-text" onclick="closeChatWindow()">
-                            <i class="fas fa-times"></i>
-                        </button>
                     </div>
-                    
-                    <div class="chat-messages" id="chat-messages">
-                        <!-- 消息将在这里显示 -->
+                    <div id="chat-messages" style="
+                        flex: 1; 
+                        padding: 12px 0; 
+                        overflow-y: auto; 
+                        background: #f5f5f5;
+                        display: flex; 
+                        align-items: center; 
+                        justify-content: center; 
+                        color: #6c757d;
+                        scroll-behavior: smooth;
+                    ">
+                        <div style="text-align: center;">
+                            <i class="fas fa-comments" style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                            <p>选择一个对话开始聊天</p>
+                        </div>
                     </div>
-                    
-                    <div class="chat-input-area">
-                        <div class="chat-input-container">
-                            <textarea id="message-input" class="chat-input" placeholder="输入消息..." rows="1"></textarea>
-                            <button class="btn btn-primary send-btn" onclick="sendStudentMessage()">
-                                <i class="fas fa-paper-plane"></i>
+                    <div id="chat-input-area" style="
+                        display: none; 
+                        padding: 12px 16px; 
+                        border-top: 1px solid #e9ecef; 
+                        background: white;
+                        box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+                    ">
+                        <div style="display: flex; gap: 8px; align-items: end;">
+                            <input type="text" id="message-input" 
+                                   style="
+                                       flex: 1; 
+                                       padding: 10px 16px; 
+                                       border: 1px solid #ddd; 
+                                       border-radius: 20px; 
+                                       font-size: 14px; 
+                                       outline: none; 
+                                       resize: none;
+                                       min-height: 20px;
+                                       max-height: 100px;
+                                   " 
+                                   placeholder="输入消息..." 
+                                   onkeypress="handleMessageKeyPress(event)"
+                                   onfocus="this.style.borderColor='#007bff'"
+                                   onblur="this.style.borderColor='#ddd'">
+                            <button onclick="sendMessage()" 
+                                    style="
+                                        width: 44px; 
+                                        height: 44px; 
+                                        border: none; 
+                                        border-radius: 50%; 
+                                        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); 
+                                        color: white; 
+                                        cursor: pointer; 
+                                        display: flex; 
+                                        align-items: center; 
+                                        justify-content: center;
+                                        transition: all 0.2s ease;
+                                        box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+                                    "
+                                    onmouseover="this.style.transform='scale(1.05)'"
+                                    onmouseout="this.style.transform='scale(1)'"
+                                    title="发送消息 (Enter)">
+                                <i class="fas fa-paper-plane" style="font-size: 16px;"></i>
                             </button>
                         </div>
                     </div>
