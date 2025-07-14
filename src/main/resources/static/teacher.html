@@ -591,15 +591,7 @@
             <div class="submenu-item" data-section="improve-suggest"><i class="fas fa-lightbulb"></i> 教学改进建议</div>
         </div>
         
-        <div class="menu-item">
-            <i class="fas fa-newspaper"></i>
-            <span>教学产业信息</span>
-            <i class="fas fa-chevron-down arrow"></i>
-        </div>
-        <div class="submenu">
-            <div class="submenu-item" data-section="industry-info"><i class="fas fa-info-circle"></i> 信息推送</div>
-            <div class="submenu-item" data-section="industry-trends"><i class="fas fa-chart-line"></i> 行业趋势</div>
-        </div>
+
         
         <div class="menu-item">
             <i class="fas fa-comments"></i>
@@ -1972,126 +1964,7 @@
                 </div>
             </div>
         </section>
-        
-        <!-- 教学产业信息推送 -->
-        <section id="industry-info" class="main-section hidden-section">
-            <div class="content-header">
-                <h1 class="page-title">教学产业信息推送</h1>
-                <div class="header-actions">
-                    <button class="btn btn-primary" onclick="refreshIndustryInfo()">
-                        <i class="fas fa-sync-alt"></i> 刷新信息
-                    </button>
-                    <button class="btn btn-accent" onclick="crawlIndustryInfo()">
-                        <i class="fas fa-spider"></i> 手动抓取
-                    </button>
-                    <button class="btn btn-secondary" onclick="showInfoStatistics()">
-                        <i class="fas fa-chart-pie"></i> 统计数据
-                    </button>
-                </div>
-            </div>
-            
-            <div class="main-content">
-                <!-- 搜索和筛选 -->
-                <div class="content-card">
-                    <div class="card-header">
-                        <i class="fas fa-search"></i> 搜索与筛选
-                    </div>
-                    <div style="padding: 16px;">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    <label>关键词搜索:</label>
-                                    <input type="text" id="info-search-keyword" class="form-control" placeholder="输入关键词...">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label>信息类型:</label>
-                                    <select id="info-type-filter" class="form-select">
-                                        <option value="">全部类型</option>
-                                        <option value="hot_topic">学科热点</option>
-                                        <option value="industry_trend">行业趋势</option>
-                                        <option value="policy_update">政策更新</option>
-                                        <option value="research_report">研究报告</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="form-group">
-                                    <label>学科分类:</label>
-                                    <select id="subject-filter" class="form-select">
-                                        <option value="">全部学科</option>
-                                        <option value="计算机科学">计算机科学</option>
-                                        <option value="教育学">教育学</option>
-                                        <option value="教育政策">教育政策</option>
-                                        <option value="工学">工学</option>
-                                        <option value="理学">理学</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="form-group">
-                                    <label>&nbsp;</label>
-                                    <button class="btn btn-primary" onclick="searchIndustryInfo()" style="display: block; width: 100%;">
-                                        <i class="fas fa-search"></i> 搜索
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- 信息列表 -->
-                <div class="content-card">
-                    <div class="card-header">
-                        <i class="fas fa-list"></i> 最新信息
-                    </div>
-                    <div id="industry-info-list" style="padding: 16px;">
-                        <!-- 动态加载的信息列表 -->
-                    </div>
-                </div>
-            </div>
-        </section>
-        
-        <!-- 行业趋势与学科热点页面 -->
-        <section id="industry-trends" class="main-section hidden-section">
-            <div class="content-header">
-                <h1 class="page-title">行业趋势与学科热点</h1>
-                <div class="header-actions">
-                    <button class="btn btn-primary" onclick="refreshTrends()">
-                        <i class="fas fa-sync-alt"></i> 刷新趋势
-                    </button>
-                    <button class="btn btn-primary" onclick="refreshHotTopics()">
-                        <i class="fas fa-fire"></i> 刷新热点
-                    </button>
-                    <button class="btn btn-accent" onclick="exportTrendReport()">
-                        <i class="fas fa-download"></i> 导出报告
-                    </button>
-                </div>
-            </div>
-            
-            <div class="main-content" style="max-height: 80vh; overflow-y: auto;">
-                <!-- 行业趋势区域 -->
-                <div class="content-card" style="margin-bottom: 24px;">
-                    <div class="card-header">
-                        <i class="fas fa-chart-line"></i> 教育行业发展趋势
-                    </div>
-                    <div id="trends-content" style="padding: 24px; min-height: 400px;">
-                        <!-- 动态加载的趋势分析内容 -->
-                    </div>
-                </div>
-                
-                <!-- 学科热点区域 -->
-                <div class="content-card">
-                    <div class="card-header">
-                        <i class="fas fa-fire"></i> 热门学科话题
-                    </div>
-                    <div id="hot-topics-content" style="padding: 24px; min-height: 400px;">
-                        <!-- 动态加载的热点内容 -->
-                    </div>
-                </div>
-            </div>
-        </section>
+
 
         
         <!-- 互动交流 - 对话列表 -->
