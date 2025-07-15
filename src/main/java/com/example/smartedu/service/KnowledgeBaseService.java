@@ -178,9 +178,16 @@ public class KnowledgeBaseService {
     }
     
     /**
-     * 搜索知识库
+     * 搜索知识库（包含基础知识库和课程知识库）
      */
     public List<VectorDatabaseService.SearchResult> searchKnowledge(Long courseId, String query, int topK) {
+        return vectorDatabaseService.searchWithBaseKnowledge(courseId, query, topK);
+    }
+    
+    /**
+     * 仅搜索课程特定知识库
+     */
+    public List<VectorDatabaseService.SearchResult> searchCourseOnlyKnowledge(Long courseId, String query, int topK) {
         return vectorDatabaseService.search(courseId, query, topK);
     }
     

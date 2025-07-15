@@ -22,5 +22,7 @@ public interface KnowledgeRepository extends JpaRepository<Knowledge, Long> {
     
     void deleteByCourseIdAndFileName(Long courseId, String fileName);
     
+    void deleteByCourseId(Long courseId);
+    
     Knowledge findByChunkId(String chunkId);
 } 

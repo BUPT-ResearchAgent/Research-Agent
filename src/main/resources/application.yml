@@ -48,6 +48,25 @@ knowledge:
     chunk-overlap: 50
     batch-size: 10
 
+# AI安全配置
+security:
+  api:
+    encryption:
+      key: ${ENCRYPTION_KEY:#{null}}
+      salt: ${ENCRYPTION_SALT:#{null}}
+  
+  deepseek:
+    api:
+      key: ${DEEPSEEK_API_KEY:sk-your-api-key-here}
+      rate-limit: ${API_RATE_LIMIT:100}
+      timeout: ${API_TIMEOUT:30}
+  
+  # 用户安全设置
+  user:
+    max-suspicious-activities: 5
+    ban-duration-minutes: 30
+    content-max-length: 10000
+
 # 日志配置
 logging:
   level:

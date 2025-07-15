@@ -449,6 +449,54 @@ public class VectorDatabaseService {
     }
     
     /**
+     * 同时搜索课程知识库和基础知识库
+     */
+    public List<SearchResult> searchWithBaseKnowledge(Long courseId, String queryText, int topK) {
+        List<SearchResult> allResults = new ArrayList<>();
+        
+        // 计算每个集合的搜索数量，基础知识库占30%，课程知识库占70%
+        int baseKnowledgeTopK = Math.max(1, topK * 3 / 10);  // 至少1个
+        int courseTopK = topK - baseKnowledgeTopK;
+        
+        System.out.println("开始联合搜索 - 基础知识库: " + baseKnowledgeTopK + "个, 课程知识库: " + courseTopK + "个");
+        
+        try {
+            // 1. 搜索基础知识库 (courseId = 0)
+            List<SearchResult> baseResults = search(0L, queryText, baseKnowledgeTopK);
+            System.out.println("基础知识库搜索结果: " + baseResults.size() + " 个");
+            
+            // 2. 搜索课程特定知识库
+            List<SearchResult> courseResults = search(courseId, queryText, courseTopK);
+            System.out.println("课程知识库搜索结果: " + courseResults.size() + " 个");
+            
+            // 3. 合并结果并按相似度排序
+            allResults.addAll(baseResults);
+            allResults.addAll(courseResults);
+            
+            // 按相似度降序排序
+            allResults.sort((a, b) -> Float.compare(b.getScore(), a.getScore()));
+            
+            // 限制返回数量
+            if (allResults.size() > topK) {
+                allResults = allResults.subList(0, topK);
+            }
+            
+            System.out.println("联合搜索完成，总共返回 " + allResults.size() + " 个结果");
+            
+            // 打印结果来源统计
+            long baseCount = allResults.stream().mapToLong(r -> r.getCourseId() == 0L ? 1 : 0).sum();
+            long courseCount = allResults.size() - baseCount;
+            System.out.println("结果来源分布 - 基础知识库: " + baseCount + "个, 课程知识库: " + courseCount + "个");
+            
+        } catch (Exception e) {
+            System.err.println("联合搜索异常: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return allResults;
+    }
+    
+    /**
      * 测试向量数据库连接和集合状态
      */
     public void testConnectionAndCollection(Long courseId) {

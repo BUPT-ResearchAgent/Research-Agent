@@ -58,4 +58,9 @@ public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocu
      * 根据课程ID删除知识库文档
      */
     void deleteByCourseId(Long courseId);
+    
+    /**
+     * 检查是否存在包含指定文件名的文档
+     */
+    boolean existsByOriginalNameContaining(String fileName);
 } 
