@@ -449,32 +449,42 @@ public class VectorDatabaseService {
     }
     
     /**
-     * 同时搜索课程知识库和基础知识库
+     * 同时搜索课程知识库和基础知识库（政策文档作为附加指导）
      */
     public List<SearchResult> searchWithBaseKnowledge(Long courseId, String queryText, int topK) {
         List<SearchResult> allResults = new ArrayList<>();
         
-        // 计算每个集合的搜索数量，基础知识库占30%，课程知识库占70%
-        int baseKnowledgeTopK = Math.max(1, topK * 3 / 10);  // 至少1个
-        int courseTopK = topK - baseKnowledgeTopK;
+        // 调整搜索策略：课程知识库为主（85%），政策文档为辅助指导（15%）
+        int courseTopK = Math.max(1, topK * 85 / 100);  // 课程内容占主导
+        int baseKnowledgeTopK = Math.max(1, topK - courseTopK);  // 政策文档作为补充
         
-        System.out.println("开始联合搜索 - 基础知识库: " + baseKnowledgeTopK + "个, 课程知识库: " + courseTopK + "个");
+        System.out.println("开始联合搜索 - 课程知识库: " + courseTopK + "个（主要内容）, 政策指导: " + baseKnowledgeTopK + "个（附加考虑）");
         
         try {
-            // 1. 搜索基础知识库 (courseId = 0)
-            List<SearchResult> baseResults = search(0L, queryText, baseKnowledgeTopK);
-            System.out.println("基础知识库搜索结果: " + baseResults.size() + " 个");
-            
-            // 2. 搜索课程特定知识库
+            // 1. 首先搜索课程特定知识库（主要内容）
             List<SearchResult> courseResults = search(courseId, queryText, courseTopK);
             System.out.println("课程知识库搜索结果: " + courseResults.size() + " 个");
             
-            // 3. 合并结果并按相似度排序
-            allResults.addAll(baseResults);
-            allResults.addAll(courseResults);
+            // 2. 搜索政策文档作为指导补充
+            List<SearchResult> policyResults = searchPolicyGuidance(queryText, baseKnowledgeTopK);
+            System.out.println("政策指导搜索结果: " + policyResults.size() + " 个");
             
-            // 按相似度降序排序
-            allResults.sort((a, b) -> Float.compare(b.getScore(), a.getScore()));
+            // 3. 优先添加课程内容，然后添加政策指导
+            allResults.addAll(courseResults);
+            allResults.addAll(policyResults);
+            
+            // 按相似度排序，但保持课程内容的优先级
+            allResults.sort((a, b) -> {
+                // 如果一个是课程内容，一个是政策文档，优先课程内容
+                if (a.getCourseId() != 0L && b.getCourseId() == 0L) {
+                    return -1;
+                } else if (a.getCourseId() == 0L && b.getCourseId() != 0L) {
+                    return 1;
+                } else {
+                    // 同类型的按相似度排序
+                    return Float.compare(b.getScore(), a.getScore());
+                }
+            });
             
             // 限制返回数量
             if (allResults.size() > topK) {
@@ -484,9 +494,9 @@ public class VectorDatabaseService {
             System.out.println("联合搜索完成，总共返回 " + allResults.size() + " 个结果");
             
             // 打印结果来源统计
-            long baseCount = allResults.stream().mapToLong(r -> r.getCourseId() == 0L ? 1 : 0).sum();
-            long courseCount = allResults.size() - baseCount;
-            System.out.println("结果来源分布 - 基础知识库: " + baseCount + "个, 课程知识库: " + courseCount + "个");
+            long courseCount = allResults.stream().mapToLong(r -> r.getCourseId() != 0L ? 1 : 0).sum();
+            long policyCount = allResults.size() - courseCount;
+            System.out.println("结果来源分布 - 课程内容: " + courseCount + "个（主要）, 政策指导: " + policyCount + "个（附加）");
             
         } catch (Exception e) {
             System.err.println("联合搜索异常: " + e.getMessage());
@@ -494,6 +504,23 @@ public class VectorDatabaseService {
         }
         
         return allResults;
+    }
+    
+    /**
+     * 专门搜索政策指导内容
+     */
+    public List<SearchResult> searchPolicyGuidance(String queryText, int topK) {
+        // 为政策搜索添加特定的查询前缀，聚焦于教育目标和培养方向
+        String policyQuery = "教育目标 培养方向 教学理念 " + queryText;
+        
+        List<SearchResult> policyResults = search(0L, policyQuery, topK);
+        
+        // 标记这些结果为政策指导
+        for (SearchResult result : policyResults) {
+            result.setPolicyGuidance(true);
+        }
+        
+        return policyResults;
     }
     
     /**
@@ -579,6 +606,7 @@ public class VectorDatabaseService {
         private String content;
         private Long courseId;
         private float score;
+        private boolean policyGuidance = false; // 是否为政策指导内容
         
         // Getters and Setters
         public String getChunkId() { return chunkId; }
@@ -592,5 +620,8 @@ public class VectorDatabaseService {
         
         public float getScore() { return score; }
         public void setScore(float score) { this.score = score; }
+        
+        public boolean isPolicyGuidance() { return policyGuidance; }
+        public void setPolicyGuidance(boolean policyGuidance) { this.policyGuidance = policyGuidance; }
     }
 } 

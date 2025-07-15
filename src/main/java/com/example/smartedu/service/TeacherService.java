@@ -618,9 +618,9 @@ public class TeacherService {
             relevantContent.append(result.getContent()).append("\n\n");
         }
         
-        // 调用DeepSeek生成教学大纲（使用RAG结果）
-        String outlineContent = deepSeekService.generateTeachingOutlineWithRAG(
-            course.getName(), relevantContent.toString(), requirements, hours, searchResults.size());
+        // 调用DeepSeek生成教学大纲（区分课程内容和政策指导）
+        String outlineContent = deepSeekService.generateTeachingOutlineWithPolicyGuidance(
+            course.getName(), searchResults, requirements, hours);
         
         // 总是创建新的教学大纲，不覆盖现有记录
         TeachingOutline outline = new TeachingOutline();
@@ -800,9 +800,9 @@ public class TeacherService {
             relevantContent.append(result.getContent()).append("\n\n");
         }
         
-        // 调用DeepSeek重新生成教学大纲（使用RAG结果）
-        String outlineContent = deepSeekService.generateTeachingOutlineWithRAG(
-            course.getName(), relevantContent.toString(), requirements, hours, searchResults.size());
+        // 调用DeepSeek重新生成教学大纲（区分课程内容和政策指导）
+        String outlineContent = deepSeekService.generateTeachingOutlineWithPolicyGuidance(
+            course.getName(), searchResults, requirements, hours);
         
         System.out.println("开始更新教学大纲（基于知识库RAG），ID: " + outlineId + ", 课程: " + course.getName());
         

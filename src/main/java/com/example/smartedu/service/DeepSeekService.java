@@ -121,7 +121,7 @@ public class DeepSeekService {
     }
     
     /**
-     * 基于RAG搜索结果生成教学大纲
+     * 基于RAG搜索结果生成教学大纲（区分课程内容和政策指导）
      */
     public String generateTeachingOutlineWithRAG(String courseName, String ragContent, String requirements, Integer hours, int matchCount) {
         int totalMinutes = hours * 45; // 1学时 = 45分钟
@@ -2350,6 +2350,150 @@ public class DeepSeekService {
         
         System.out.println("生成大作业的Prompt长度: " + prompt.length());
         System.out.println("大作业数量: " + totalAssignments);
+        
+        return callDeepSeekAPI(prompt);
+    }
+
+    /**
+     * 基于RAG搜索结果生成教学大纲（支持政策指导分离）
+     */
+    public String generateTeachingOutlineWithPolicyGuidance(String courseName, 
+                                                           List<VectorDatabaseService.SearchResult> searchResults, 
+                                                           String requirements, Integer hours) {
+        int totalMinutes = hours * 45; // 1学时 = 45分钟
+        
+        // 分离课程内容和政策指导
+        StringBuilder courseContent = new StringBuilder();
+        StringBuilder policyGuidance = new StringBuilder();
+        int courseCount = 0;
+        int policyCount = 0;
+        
+        for (VectorDatabaseService.SearchResult result : searchResults) {
+            if (result.isPolicyGuidance() || result.getCourseId() == 0L) {
+                // 政策指导内容
+                policyGuidance.append("【政策指导 ").append(++policyCount).append("】");
+                if (result.getScore() > 0) {
+                    policyGuidance.append(" (相关度: ").append(String.format("%.3f", result.getScore())).append(")");
+                }
+                policyGuidance.append("\n");
+                policyGuidance.append(result.getContent()).append("\n\n");
+            } else {
+                // 课程专业内容
+                courseContent.append("【课程内容 ").append(++courseCount).append("】");
+                if (result.getScore() > 0) {
+                    courseContent.append(" (相关度: ").append(String.format("%.3f", result.getScore())).append(")");
+                }
+                courseContent.append("\n");
+                courseContent.append(result.getContent()).append("\n\n");
+            }
+        }
+        
+        // 构建HTML表格模板
+        String tableTemplate = "<table border='1' style='border-collapse: collapse; width: 100%;'>\n" +
+            "  <tr style='background-color: #f0f8ff;'>\n" +
+            "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>教学内容</th>\n" +
+            "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>教学手段</th>\n" +
+            "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>针对不同学生的策略</th>\n" +
+            "    <th style='padding: 10px; text-align: center; border: 1px solid #ddd;'>时间分配（分钟）</th>\n" +
+            "  </tr>\n" +
+            "  <tr>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>课程导入与回顾</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>提问互动、知识回顾</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：提出开放性问题；中等水平型：引导式提问；基础薄弱型：简单回顾；学习困难型：个别询问</td>\n" +
+            "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>5</td>\n" +
+            "  </tr>\n" +
+            "  <tr>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>核心概念讲解</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>理论讲授、实例分析</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：深入讲解原理；中等水平型：重点突出应用；基础薄弱型：放慢节奏，多举例；学习困难型：简化内容，重复解释</td>\n" +
+            "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>20</td>\n" +
+            "  </tr>\n" +
+            "  <tr>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>实践操作</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>动手实验、案例演示</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：挑战性任务；中等水平型：标准练习；基础薄弱型：基础题目，同伴协助；学习困难型：一对一指导</td>\n" +
+            "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>15</td>\n" +
+            "  </tr>\n" +
+            "  <tr>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>总结提升</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>知识梳理、作业布置</td>\n" +
+            "    <td style='padding: 8px; border: 1px solid #ddd;'>基础扎实型：拓展作业；中等水平型：巩固作业；基础薄弱型：基础作业，提供答案参考；学习困难型：简化作业，课后单独辅导</td>\n" +
+            "    <td style='padding: 8px; text-align: center; border: 1px solid #ddd;'>5</td>\n" +
+            "  </tr>\n" +
+            "</table>\n\n";
+        
+        // 构建特殊要求部分
+        String specialRequirements = (requirements != null && !requirements.trim().isEmpty()) ? 
+            ("**特殊教学要求：**\n" + requirements + "\n\n") : "";
+        
+        // 使用字符串拼接构建完整的prompt
+        StringBuilder promptBuilder = new StringBuilder();
+        promptBuilder.append("**基于知识库检索结果生成教学大纲（融入政策指导）**\n\n");
+        promptBuilder.append("课程名称：《").append(courseName).append("》\n");
+        promptBuilder.append("教学学时：").append(hours).append("学时（共").append(totalMinutes).append("分钟）\n");
+        promptBuilder.append("检索到课程内容：").append(courseCount).append("个\n");
+        promptBuilder.append("检索到政策指导：").append(policyCount).append("个\n\n");
+        
+        promptBuilder.append("**重要说明：**\n");
+        promptBuilder.append("1. **课程内容**：提供具体的专业知识和技能要求，是教学大纲的主体部分\n");
+        promptBuilder.append("2. **政策指导**：提供教育理念、培养目标、教学方向等宏观指导，用于完善教学大纲的育人目标\n");
+        promptBuilder.append("3. **融合要求**：请在原有课程内容基础上，**附加考虑**政策指导中的教育理念和培养要求\n\n");
+        
+        promptBuilder.append("**教学大纲生成要求：**\n\n");
+        promptBuilder.append("1. **以课程内容为主体**：教学重点、难点、具体知识点主要基于课程专业内容\n");
+        promptBuilder.append("2. **融入政策指导**：在教学目标、培养方向、价值观教育等方面体现政策要求\n");
+        promptBuilder.append("3. **明确标注融合点**：在相关部分明确标注哪些内容体现了政策指导要求\n\n");
+        
+        promptBuilder.append("**教学大纲结构要求：**\n");
+        promptBuilder.append("- **教学目标**：基于课程内容制定专业目标，**附加**政策指导中的育人目标\n");
+        promptBuilder.append("- **培养方向**：结合政策指导，明确人才培养的价值导向\n");
+        promptBuilder.append("- **教学思路**：以课程内容为主线，融入政策指导的教育理念\n");
+        promptBuilder.append("- **教学重点**：主要从课程内容中提炼\n");
+        promptBuilder.append("- **教学难点**：基于课程内容识别\n");
+        promptBuilder.append("- **思政融入点**：结合政策指导和课程内容的价值观教育\n");
+        promptBuilder.append("- **教学设计**：详细的时间安排和教学活动（必须用表格呈现）\n\n");
+        
+        promptBuilder.append("**政策指导应用建议：**\n");
+        promptBuilder.append("- 在教学目标中体现政策要求的人才培养方向\n");
+        promptBuilder.append("- 在思政融入点中结合政策指导的价值观要求\n");
+        promptBuilder.append("- 在教学方法中体现政策倡导的教育理念\n");
+        promptBuilder.append("- 在评价方式中融入政策要求的多元化评价理念\n\n");
+        
+        promptBuilder.append("**教学设计表格要求：**\n");
+        promptBuilder.append("- 时间分配必须精确到分钟，总计必须等于").append(totalMinutes).append("分钟\n");
+        promptBuilder.append("- 必须使用HTML表格格式\n");
+        promptBuilder.append("- 内容安排主要基于课程专业内容\n");
+        promptBuilder.append("- 在适当环节体现政策指导的教育理念\n\n");
+        
+        promptBuilder.append("**教学设计表格格式：**\n");
+        promptBuilder.append(tableTemplate);
+        promptBuilder.append(specialRequirements);
+        
+        // 分别展示课程内容和政策指导
+        promptBuilder.append("**=== 课程专业内容（教学主体） ===**\n");
+        if (courseContent.length() > 0) {
+            promptBuilder.append(courseContent.toString()).append("\n");
+        } else {
+            promptBuilder.append("暂无课程专业内容，请基于课程名称进行教学设计。\n\n");
+        }
+        
+        promptBuilder.append("**=== 政策指导内容（附加考虑） ===**\n");
+        if (policyGuidance.length() > 0) {
+            promptBuilder.append(policyGuidance.toString()).append("\n");
+        } else {
+            promptBuilder.append("暂无政策指导内容。\n\n");
+        }
+        
+        promptBuilder.append("**生成说明：**\n");
+        promptBuilder.append("请基于上述课程内容生成教学大纲主体，并在教学目标、培养方向、思政融入等环节**附加考虑**政策指导的要求。");
+        promptBuilder.append("确保课程的专业性不被稀释，政策指导主要体现在教育理念和育人目标层面。\n");
+        promptBuilder.append("在教学大纲的相关部分，请明确标注【政策指导融入】来说明哪些内容体现了政策要求。");
+        
+        String prompt = promptBuilder.toString();
+        
+        System.out.println("生成融合政策指导的教学大纲Prompt长度: " + prompt.length());
+        System.out.println("使用的课程内容数量: " + courseCount);
+        System.out.println("使用的政策指导数量: " + policyCount);
         
         return callDeepSeekAPI(prompt);
     }
