@@ -32,6 +32,9 @@ public class DeepSeekService {
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
     
+    @Autowired
+    private WebSearchService webSearchService;
+    
     public DeepSeekService() {
         this.webClient = WebClient.builder()
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -128,10 +131,23 @@ public class DeepSeekService {
     }
     
     /**
-     * 基于RAG搜索结果生成教学大纲（区分课程内容和政策指导）
+     * 基于RAG搜索结果生成教学大纲（区分课程内容和政策指导，集成行业调研）
      */
     public String generateTeachingOutlineWithRAG(String courseName, String ragContent, String requirements, Integer hours, int matchCount) {
         int totalMinutes = hours * 45; // 1学时 = 45分钟
+        
+        // 获取行业招聘和需求信息
+        String industryInfo = "";
+        try {
+            String industryKeywords = extractIndustryKeywords(courseName);
+            String searchResults = webSearchService.searchIndustryRecruitmentInfo(courseName, industryKeywords);
+            if (searchResults != null && !searchResults.trim().isEmpty()) {
+                industryInfo = "\n\n" + searchResults + "\n" + webSearchService.extractKeyInsights(searchResults);
+            }
+        } catch (Exception e) {
+            // 如果搜索失败，不影响主要功能
+            System.err.println("行业信息搜索失败: " + e.getMessage());
+        }
         
         // 构建HTML表格模板
         String tableTemplate = "<table border='1' style='border-collapse: collapse; width: 100%;'>\n" +
@@ -225,6 +241,32 @@ public class DeepSeekService {
         promptBuilder.append("   - 在'针对不同学生的策略'列中，明确说明如何照顾不同类型的学生\n\n");
         promptBuilder.append("**教学设计表格格式（必须严格遵循）：**\n");
         promptBuilder.append(tableTemplate);
+        
+        // 添加行业信息指导（如果有的话）
+        if (!industryInfo.trim().isEmpty()) {
+            promptBuilder.append("**🎯 行业导向与就业指导（重要）：**\n");
+            promptBuilder.append("请结合以下行业调研信息，在教学目标和教学内容设计中融入就业导向和行业需求：\n");
+            promptBuilder.append(industryInfo);
+            promptBuilder.append("\n**集成要求：**\n");
+            promptBuilder.append("- 在教学目标中明确体现行业能力要求和薪资标准\n");
+            promptBuilder.append("- 在教学内容中融入实际企业项目和工作场景\n");
+            promptBuilder.append("- 在能力培养中精准对接岗位技能需求\n");
+            promptBuilder.append("- 为学生提供清晰的就业前景和职业发展路径\n");
+            promptBuilder.append("- 在教学难点分析中结合行业实际应用挑战\n\n");
+        }
+        
+        // 添加格式规范要求
+        promptBuilder.append("**📝 格式规范要求（必须严格遵守）：**\n");
+        promptBuilder.append("1. **标题层次**：使用标准的Markdown格式\n");
+        promptBuilder.append("   - 主标题：# 《课程名》具体内容主题教学大纲\n");
+        promptBuilder.append("   - 二级标题：## 教学目标、## 教学思路等\n");
+        promptBuilder.append("   - 三级标题：### 分类详述\n");
+        promptBuilder.append("2. **段落结构**：各部分之间用空行分隔，内容条理清晰\n");
+        promptBuilder.append("3. **列表格式**：统一使用数字编号或项目符号，保持一致性\n");
+        promptBuilder.append("4. **强调标记**：重要内容用**粗体**标记\n");
+        promptBuilder.append("5. **表格规范**：必须使用完整的HTML表格，不使用Markdown表格\n");
+        promptBuilder.append("6. **字体要求**：正文14px，标题适当增大，行间距1.6-1.8\n");
+        promptBuilder.append("7. **专业术语**：统一使用规范的教育教学术语\n\n");
         promptBuilder.append(specialRequirements);
         promptBuilder.append("**从知识库检索到的相关内容：**\n");
         promptBuilder.append(ragContent).append("\n\n");
@@ -274,11 +316,32 @@ public class DeepSeekService {
     }
     
     /**
-     * 根据用户详细设置生成考试题目
+     * 根据用户详细设置生成考试题目（集成行业调研）
      */
     public String generateExamQuestionsWithSettings(String courseName, String chapter, 
             Map<String, Object> questionTypes, Map<String, Object> difficulty, 
             int totalScore, int duration, String materialContent, String specialRequirements) {
+        
+        // 获取行业招聘和需求信息
+        String industryInfo = "";
+        try {
+            String industryKeywords = extractIndustryKeywords(courseName);
+            String searchResults = webSearchService.searchIndustryRecruitmentInfo(courseName, industryKeywords);
+            if (searchResults != null && !searchResults.trim().isEmpty()) {
+                industryInfo = "\n\n## 行业需求导向（出题参考）\n" + 
+                              "请结合以下行业信息在题目设计中融入实际应用场景和岗位技能要求：\n" +
+                              searchResults + "\n" + 
+                              webSearchService.extractKeyInsights(searchResults) + "\n" +
+                              "**出题要求：**\n" +
+                              "- 在解答题中融入实际工作场景\n" +
+                              "- 在编程题中体现行业常用技术栈\n" +
+                              "- 在案例分析题中使用真实业务需求\n" +
+                              "- 题目难度和技能要求对标行业标准\n\n";
+            }
+        } catch (Exception e) {
+            // 如果搜索失败，不影响主要功能
+            System.err.println("行业信息搜索失败: " + e.getMessage());
+        }
         
         // 构建题型要求字符串
         StringBuilder typesRequirement = new StringBuilder();
@@ -430,6 +493,7 @@ public class DeepSeekService {
             "4. **所有题型的答案都必须完整**，不能只提供框架或部分内容\n" +
             "5. **答案长度要求**：编程题答案不少于10行代码，案例分析题答案不少于200字\n\n" +
             "## 课程资料内容：\n" +
+            "%s" +
             "%s\n\n" +
             "**重要提醒（必须严格遵守）：**\n" +
             "1. 必须严格按照上述题目数量和类型要求生成\n" +
@@ -457,6 +521,7 @@ public class DeepSeekService {
             totalScore,
             duration,
             materialContent,
+            industryInfo,
             totalScore,
             totalQuestions,
             totalQuestions,
@@ -2665,5 +2730,45 @@ public class DeepSeekService {
         System.out.println("使用的政策指导数量: " + policyCount);
         
         return callDeepSeekAPI(prompt);
+    }
+    
+    /**
+     * 从课程名称提取行业关键词
+     */
+    private String extractIndustryKeywords(String courseName) {
+        if (courseName == null || courseName.trim().isEmpty()) {
+            return "";
+        }
+        
+        String name = courseName.toLowerCase();
+        
+        // 根据课程名称匹配行业关键词
+        if (name.contains("java") || name.contains("spring")) {
+            return "Java开发 后端开发 企业级应用开发";
+        } else if (name.contains("python")) {
+            return "Python开发 人工智能 数据科学 机器学习";
+        } else if (name.contains("前端") || name.contains("javascript") || name.contains("html") || name.contains("css")) {
+            return "前端开发 Web开发 用户界面设计";
+        } else if (name.contains("数据库") || name.contains("mysql") || name.contains("sql")) {
+            return "数据库管理 数据分析 后端开发";
+        } else if (name.contains("数据结构") || name.contains("算法")) {
+            return "算法工程师 后端开发 系统架构";
+        } else if (name.contains("网络") || name.contains("计算机网络")) {
+            return "网络工程师 系统运维 网络安全";
+        } else if (name.contains("操作系统") || name.contains("linux")) {
+            return "系统管理员 运维工程师 嵌入式开发";
+        } else if (name.contains("软件工程") || name.contains("项目管理")) {
+            return "软件工程师 项目经理 系统分析师";
+        } else if (name.contains("人工智能") || name.contains("机器学习") || name.contains("深度学习")) {
+            return "AI工程师 算法工程师 数据科学家";
+        } else if (name.contains("大数据") || name.contains("数据分析")) {
+            return "大数据工程师 数据分析师 商业智能";
+        } else if (name.contains("云计算") || name.contains("分布式")) {
+            return "云计算工程师 系统架构师 DevOps工程师";
+        } else if (name.contains("移动") || name.contains("android") || name.contains("ios")) {
+            return "移动应用开发 安卓开发 iOS开发";
+        } else {
+            return "软件开发 信息技术 计算机应用";
+        }
     }
 } 

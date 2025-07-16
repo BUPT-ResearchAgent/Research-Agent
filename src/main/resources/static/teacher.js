@@ -2780,41 +2780,142 @@ function parseTableContent(html) {
     });
 }
 
-// 格式化教学大纲内容 (使用Markdown解析)
+// 格式化教学大纲内容 (优化版，增强格式规范和联网搜索信息显示)
 function formatOutlineContent(content) {
-    if (!content) return '暂无内容';
+    if (!content) return '<div style="text-align: center; color: #7f8c8d; padding: 40px; font-style: italic;">暂无内容</div>';
     
-    console.log('开始格式化内容，内容长度:', content.length);
-    console.log('内容前100字符:', content.substring(0, 100));
+    console.log('🎨 开始格式化教学大纲内容，长度:', content.length);
+    console.log('📄 内容预览:', content.substring(0, 100));
     
-    // 检查内容是否包含HTML表格
+    // 检测并优化HTML表格
     if (content.includes('<table') && content.includes('</table>')) {
-        console.log('检测到HTML表格内容，直接返回');
-        // 如果是HTML表格内容，直接返回，不进行Markdown解析
-        return content;
+        console.log('📊 检测到HTML表格，进行样式优化');
+        let optimizedHtml = content;
+        
+        // 优化表格样式
+        optimizedHtml = optimizedHtml.replace(/<table([^>]*)>/gi, 
+            '<table$1 style="border-collapse: collapse !important; width: 100% !important; margin: 24px 0 !important; font-size: 14px !important; box-shadow: 0 6px 20px rgba(0,0,0,0.12) !important; border-radius: 12px !important; overflow: hidden !important; background: white !important; font-family: \'Segoe UI\', \'PingFang SC\', sans-serif;">');
+        
+        // 优化表头样式
+        optimizedHtml = optimizedHtml.replace(/<tr([^>]*?)style=['"][^'"]*['"]([^>]*)>/gi, 
+            '<tr$1 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; color: white !important; height: 55px !important;"$2>');
+        
+        // 优化表头单元格
+        optimizedHtml = optimizedHtml.replace(/<th([^>]*)>/gi, 
+            '<th$1 style="padding: 16px 20px !important; text-align: center !important; font-weight: 700 !important; border: none !important; font-size: 15px !important; letter-spacing: 0.8px !important; text-shadow: 0 1px 2px rgba(0,0,0,0.2) !important;">');
+        
+        // 优化表格数据单元格
+        optimizedHtml = optimizedHtml.replace(/<td([^>]*)>/gi, 
+            '<td$1 style="padding: 16px 20px !important; border: 1px solid #e0e6ed !important; vertical-align: middle !important; line-height: 1.7 !important; transition: all 0.2s ease !important; min-height: 60px !important;">');
+        
+        // 添加行间颜色交替和悬停效果
+        optimizedHtml = optimizedHtml.replace(/<tbody>/gi, '<tbody>');
+        
+        // 检测行业搜索信息关键词并高亮显示
+        const industryKeywords = ['招聘', '岗位', '薪资', '技能要求', '就业', '行业', '发展趋势', '能力要求', 'Java开发', 'Python开发', '前端开发', '算法工程师', '数据分析'];
+        industryKeywords.forEach(keyword => {
+            const regex = new RegExp(`(${keyword})`, 'gi');
+            optimizedHtml = optimizedHtml.replace(regex, '<span style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); color: #2d3436; padding: 2px 6px; border-radius: 4px; font-weight: 600; box-shadow: 0 2px 4px rgba(253, 203, 110, 0.3);">$1</span>');
+        });
+        
+        return optimizedHtml;
     }
     
-    // 检查是否包含HTML标签
+    // 检查并优化其他HTML内容
     if (content.includes('<') && content.includes('>')) {
-        console.log('检测到HTML标签，进行基本清理');
-        // 如果包含HTML标签但不是表格，进行基本的HTML清理和格式化
+        console.log('🏷️ 检测到HTML标签，进行格式优化');
         let html = content;
         
-        // 确保段落有适当的样式
-        html = html.replace(/<p>/g, '<p style="margin: 12px 0; line-height: 1.7; color: #2c3e50;">');
+        // 优化标题样式
+        html = html.replace(/<h1([^>]*)>/gi, '<h1$1 style="color: #2c3e50; margin: 0 0 32px 0; font-size: 28px; font-weight: 800; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); line-height: 1.4;">');
+        html = html.replace(/<h2([^>]*)>/gi, '<h2$1 style="color: #2c3e50; margin: 32px 0 20px 0; font-size: 22px; font-weight: 700; border-bottom: 3px solid #3498db; padding-bottom: 12px; position: relative; background: linear-gradient(135deg, #3498db, #2980b9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">');
+        html = html.replace(/<h3([^>]*)>/gi, '<h3$1 style="color: #2c3e50; margin: 24px 0 16px 0; font-size: 18px; font-weight: 600; border-left: 4px solid #3498db; padding-left: 12px; background: linear-gradient(90deg, rgba(52, 152, 219, 0.1) 0%, transparent 100%); padding: 8px 12px; border-radius: 4px;">');
+        html = html.replace(/<h4([^>]*)>/gi, '<h4$1 style="color: #34495e; margin: 20px 0 12px 0; font-size: 16px; font-weight: 600; padding-left: 8px; border-left: 3px solid #95a5a6;">');
         
-        // 确保标题有适当的样式
-        html = html.replace(/<h1>/g, '<h1 style="color: #e74c3c; margin: 32px 0 20px 0; font-size: 24px; border-bottom: 3px solid #e74c3c; padding-bottom: 10px;">');
-        html = html.replace(/<h2>/g, '<h2 style="color: #2980b9; margin: 24px 0 16px 0; font-size: 20px; border-bottom: 2px solid #3498db; padding-bottom: 8px;">');
-        html = html.replace(/<h3>/g, '<h3 style="color: #2c3e50; margin: 20px 0 12px 0; font-size: 18px;">');
-        html = html.replace(/<h4>/g, '<h4 style="color: #7f8c8d; margin: 16px 0 8px 0; font-size: 16px;">');
+        // 优化段落样式
+        html = html.replace(/<p([^>]*)>/gi, '<p$1 style="margin: 16px 0; line-height: 1.8; color: #2c3e50; text-align: justify; padding: 12px; background: rgba(248, 249, 250, 0.5); border-radius: 6px; border-left: 3px solid #ecf0f1; font-size: 15px;">');
+        
+        // 检测并高亮行业信息
+        const industryKeywords = ['招聘', '岗位', '薪资', '技能要求', '就业', '行业', '发展趋势', '能力要求', 'Java开发', 'Python开发', '前端开发', '算法工程师', '数据分析', '企业级', '工作场景', '实际应用'];
+        industryKeywords.forEach(keyword => {
+            const regex = new RegExp(`(${keyword})`, 'gi');
+            html = html.replace(regex, '<span style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); color: #2d3436; padding: 2px 6px; border-radius: 4px; font-weight: 600; box-shadow: 0 2px 4px rgba(253, 203, 110, 0.3); margin: 0 2px;">💼 $1</span>');
+        });
+        
+        // 添加整体容器样式
+        html = `<div style="font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; line-height: 1.7; color: #2c3e50; max-width: 100%; overflow-x: auto; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 20px; border-radius: 12px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">${html}</div>`;
         
         return html;
     }
     
-    console.log('使用Markdown解析器');
-    // 如果是纯文本或Markdown内容，使用Markdown解析器
-    return parseMarkdown(content);
+    console.log('📝 使用增强Markdown解析器');
+    // 如果是纯文本或Markdown内容，使用增强的Markdown解析器
+    return parseEnhancedMarkdown(content);
+}
+
+// 增强的Markdown解析器（专门优化教学大纲显示）
+function parseEnhancedMarkdown(markdown) {
+    let html = markdown;
+    
+    // 转义HTML特殊字符（保护现有HTML）
+    const htmlBlocks = [];
+    html = html.replace(/<[^>]+>/g, (match) => {
+        htmlBlocks.push(match);
+        return `__HTML_BLOCK_${htmlBlocks.length - 1}__`;
+    });
+    
+    html = html.replace(/&/g, '&amp;')
+               .replace(/</g, '&lt;')
+               .replace(/>/g, '&gt;');
+    
+    // 恢复HTML块
+    htmlBlocks.forEach((block, index) => {
+        html = html.replace(`__HTML_BLOCK_${index}__`, block);
+    });
+    
+    // 解析Markdown标题
+    html = html.replace(/^# (.*$)/gim, '<h1 style="color: #2c3e50; margin: 0 0 32px 0; font-size: 28px; font-weight: 800; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); line-height: 1.4;">$1</h1>');
+    html = html.replace(/^## (.*$)/gim, '<h2 style="color: #2c3e50; margin: 32px 0 20px 0; font-size: 22px; font-weight: 700; border-bottom: 3px solid #3498db; padding-bottom: 12px;">$1</h2>');
+    html = html.replace(/^### (.*$)/gim, '<h3 style="color: #2c3e50; margin: 24px 0 16px 0; font-size: 18px; font-weight: 600; border-left: 4px solid #3498db; padding-left: 12px; background: linear-gradient(90deg, rgba(52, 152, 219, 0.1) 0%, transparent 100%); padding: 8px 12px; border-radius: 4px;">$1</h3>');
+    
+    // 解析强调和格式
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #2c3e50; font-weight: 700; background: linear-gradient(135deg, rgba(52, 152, 219, 0.1) 0%, rgba(52, 152, 219, 0.05) 100%); padding: 2px 6px; border-radius: 4px;">$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em style="color: #34495e; font-style: italic; font-weight: 500;">$1</em>');
+    
+    // 解析列表
+    html = html.replace(/^[\s]*[-*+]\s+(.*)$/gim, '<li style="margin: 8px 0; color: #2c3e50; padding: 6px 0; position: relative; padding-left: 20px;"><span style="position: absolute; left: 0; color: #3498db; font-weight: bold;">•</span>$1</li>');
+    html = html.replace(/^[\s]*\d+\.\s+(.*)$/gim, '<li style="margin: 8px 0; color: #2c3e50; padding: 6px 0; list-style-type: decimal;">$1</li>');
+    
+    // 包装列表
+    html = html.replace(/(<li[^>]*>.*?<\/li>[\s]*)+/g, function(match) {
+        if (match.includes('list-style-type: decimal')) {
+            return '<ol style="margin: 16px 0; padding-left: 32px; background: rgba(52, 152, 219, 0.02); border-radius: 8px; padding: 16px; border-left: 4px solid #3498db;">' + match + '</ol>';
+        } else {
+            return '<ul style="margin: 16px 0; padding-left: 32px; background: rgba(46, 204, 113, 0.02); border-radius: 8px; padding: 16px; border-left: 4px solid #2ecc71; list-style: none;">' + match + '</ul>';
+        }
+    });
+    
+    // 处理段落
+    const paragraphs = html.split(/\n\s*\n/);
+    html = paragraphs.map(p => {
+        const trimmedP = p.trim();
+        if (trimmedP === '' || trimmedP.match(/^<[h1-6]|^<ul|^<ol/)) {
+            return trimmedP;
+        }
+        return `<p style="margin: 16px 0; line-height: 1.8; color: #2c3e50; text-align: justify; padding: 12px; background: rgba(248, 249, 250, 0.5); border-radius: 6px; border-left: 3px solid #ecf0f1; font-size: 15px;">${trimmedP}</p>`;
+    }).join('\n');
+    
+    // 检测并高亮行业相关信息
+    const industryKeywords = ['招聘', '岗位', '薪资', '技能要求', '就业', '行业', '发展趋势', '能力要求', 'Java开发', 'Python开发', '前端开发', '算法工程师', '数据分析', '企业级', '工作场景', '实际应用'];
+    industryKeywords.forEach(keyword => {
+        const regex = new RegExp(`(${keyword})`, 'gi');
+        html = html.replace(regex, '<span style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); color: #2d3436; padding: 2px 6px; border-radius: 4px; font-weight: 600; box-shadow: 0 2px 4px rgba(253, 203, 110, 0.3); margin: 0 2px;">💼 $1</span>');
+    });
+    
+    // 添加整体容器
+    html = `<div style="font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; line-height: 1.7; color: #2c3e50; max-width: 100%; overflow-x: auto; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 20px; border-radius: 12px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);">${html}</div>`;
+    
+    return html;
 }
 
 // 提取教学大纲标题（显示用）

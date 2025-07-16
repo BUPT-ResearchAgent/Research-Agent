@@ -48,6 +48,12 @@ knowledge:
     chunk-overlap: 50
     batch-size: 10
 
+# Web搜索配置
+web:
+  search:
+    enabled: true  # 是否启用联网搜索功能
+    timeout: 10    # 搜索超时时间（秒）
+
 # AI安全配置
 security:
   api:
