@@ -7,6 +7,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -24,6 +25,12 @@ public class DeepSeekService {
     
     private final WebClient webClient;
     private final ObjectMapper objectMapper;
+    
+    @Autowired
+    private KnowledgeBaseService knowledgeBaseService;
+    
+    @Autowired
+    private VectorDatabaseService vectorDatabaseService;
     
     public DeepSeekService() {
         this.webClient = WebClient.builder()
@@ -1352,7 +1359,7 @@ public class DeepSeekService {
     }
 
     /**
-     * 生成教学改进建议（包含详细错题分析）
+     * 生成教学改进建议（包含详细错题分析和政策指导）
      */
     public String generateTeachingImprovementsWithDetailedAnalysis(String scope, String analysisData, 
                                                                  int totalExams, int totalStudents, 
@@ -1366,25 +1373,31 @@ public class DeepSeekService {
         }
         
         try {
+            // 获取政策指导内容
+            String policyGuidance = getPolicyGuidanceForTeachingImprovement(scope);
+            
             // 构建多轮对话
             List<Map<String, Object>> messages = new ArrayList<>();
             
-            // 第一轮：发送系统角色和基础分析数据
+            // 第一轮：发送系统角色和基础分析数据（包含政策指导）
             messages.add(Map.of(
                 "role", "system",
-                "content", "您是一位资深的教育专家，擅长分析学生学习情况并提供教学改进建议。我将为您提供详细的考试数据和错题分析，请您仔细记录这些信息，在我发送完所有数据后，您将基于这些信息生成专业的教学改进建议。"
+                "content", "您是一位资深的教育专家，擅长分析学生学习情况并提供教学改进建议。我将为您提供详细的考试数据、错题分析以及国家教育政策指导，请您仔细记录这些信息，在我发送完所有数据后，您将基于这些信息生成专业的教学改进建议。建议应体现新时代教育理念和政策要求。"
             ));
             
-            // 第二轮：发送基础统计数据
+            // 第二轮：发送基础统计数据和政策指导
             StringBuilder summary = buildAnalysisSummary(scope, totalExams, totalStudents, courseScores, difficultyStats);
+            String contentWithPolicy = "**基础教学数据分析**\n\n" + summary.toString() + "\n\n" + analysisData + 
+                "\n\n" + policyGuidance + "\n\n请记录这些基础数据和政策指导，我接下来将发送详细的错题分析。";
+            
             messages.add(Map.of(
                 "role", "user",
-                "content", "**基础教学数据分析**\n\n" + summary.toString() + "\n\n" + analysisData + "\n\n请记录这些基础数据，我接下来将发送详细的错题分析。"
+                "content", contentWithPolicy
             ));
             
             messages.add(Map.of(
                 "role", "assistant",
-                "content", "我已经记录了基础教学数据。请继续发送详细的错题分析数据。"
+                "content", "我已经记录了基础教学数据和国家教育政策指导。请继续发送详细的错题分析数据。"
             ));
             
             // 第三轮及后续：逐个发送考试的详细错题分析
@@ -1406,8 +1419,8 @@ public class DeepSeekService {
                 }
             }
             
-            // 最后一轮：要求生成综合分析报告
-            String finalPrompt = buildFinalAnalysisPrompt(scope, examAnalysisData.size());
+            // 最后一轮：要求生成综合分析报告（包含政策指导要求）
+            String finalPrompt = buildFinalAnalysisPromptWithPolicy(scope, examAnalysisData.size());
             messages.add(Map.of(
                 "role", "user",
                 "content", finalPrompt
@@ -1421,6 +1434,99 @@ public class DeepSeekService {
             // 如果详细分析失败，回退到基础分析
             return generateTeachingImprovements(scope, analysisData, totalExams, totalStudents, courseScores, difficultyStats);
         }
+    }
+    
+    /**
+     * 获取教学改进的政策指导内容
+     */
+    private String getPolicyGuidanceForTeachingImprovement(String scope) {
+        try {
+            System.out.println("=== 开始获取教学改进政策指导 ===");
+            System.out.println("获取教学改进政策指导，分析范围: " + scope);
+            
+            // 构建政策指导查询
+            String policyQuery = "教学改进 教学质量提升 教育评价改革 因材施教 个性化教学";
+            System.out.println("政策指导查询关键词: " + policyQuery);
+            
+            // 检查向量数据库连接
+            try {
+                System.out.println("检查向量数据库连接...");
+                // 尝试搜索政策文档中的相关指导
+                System.out.println("开始搜索政策文档...");
+                List<VectorDatabaseService.SearchResult> policyResults = 
+                    vectorDatabaseService.searchPolicyGuidance(policyQuery, 3);
+                
+                System.out.println("政策文档搜索完成，结果数量: " + (policyResults != null ? policyResults.size() : "null"));
+                
+                if (policyResults != null && !policyResults.isEmpty()) {
+                    StringBuilder policyContent = new StringBuilder();
+                    policyContent.append("**【政策指导】教学改进相关政策要求**\n\n");
+                    
+                    for (int i = 0; i < policyResults.size(); i++) {
+                        VectorDatabaseService.SearchResult result = policyResults.get(i);
+                        System.out.println("政策要点 " + (i + 1) + " (相似度: " + result.getScore() + "): " + 
+                            result.getContent().substring(0, Math.min(100, result.getContent().length())) + "...");
+                        
+                        policyContent.append("**政策要点").append(i + 1).append("：**\n");
+                        policyContent.append(result.getContent()).append("\n\n");
+                    }
+                    
+                    policyContent.append("**政策指导说明：**\n");
+                    policyContent.append("请在教学改进建议中体现上述政策要求，特别关注：\n");
+                    policyContent.append("1. 新时代教育评价改革理念\n");
+                    policyContent.append("2. 因材施教和个性化教学策略\n");
+                    policyContent.append("3. 德智体美劳全面发展的教育目标\n");
+                    policyContent.append("4. 数字化教育转型要求\n");
+                    policyContent.append("5. 立德树人根本任务的落实\n");
+                    
+                    System.out.println("政策指导内容生成完成，总长度: " + policyContent.length());
+                    return policyContent.toString();
+                }
+            } catch (Exception vectorException) {
+                System.err.println("向量数据库搜索失败: " + vectorException.getMessage());
+            }
+            
+            // 如果向量搜索失败，提供备用的政策指导内容
+            System.out.println("使用备用政策指导内容");
+            return generateFallbackPolicyGuidance();
+            
+        } catch (Exception e) {
+            System.err.println("获取政策指导失败: " + e.getMessage());
+            e.printStackTrace();
+            return generateFallbackPolicyGuidance();
+        }
+    }
+    
+    /**
+     * 生成备用的政策指导内容
+     */
+    private String generateFallbackPolicyGuidance() {
+        StringBuilder policyContent = new StringBuilder();
+        policyContent.append("**【政策指导】教学改进相关政策要求**\n\n");
+        
+        policyContent.append("**政策要点1：新时代教育评价改革**\n");
+        policyContent.append("深化教育评价改革，建立科学的、符合时代要求的教育评价制度和机制。");
+        policyContent.append("坚持科学有效，改进结果评价，强化过程评价，探索增值评价，健全综合评价。\n\n");
+        
+        policyContent.append("**政策要点2：因材施教和个性化教学**\n");
+        policyContent.append("尊重学生个体差异，实施个性化教学，让每个学生都能获得适合的教育。");
+        policyContent.append("创新教学方式，推进信息技术与教育教学深度融合。\n\n");
+        
+        policyContent.append("**政策要点3：立德树人根本任务**\n");
+        policyContent.append("全面贯彻党的教育方针，坚持社会主义办学方向，落实立德树人根本任务。");
+        policyContent.append("培养德智体美劳全面发展的社会主义建设者和接班人。\n\n");
+        
+        policyContent.append("**政策指导说明：**\n");
+        policyContent.append("请在教学改进建议中体现上述政策要求，特别关注：\n");
+        policyContent.append("1. 新时代教育评价改革理念\n");
+        policyContent.append("2. 因材施教和个性化教学策略\n");
+        policyContent.append("3. 德智体美劳全面发展的教育目标\n");
+        policyContent.append("4. 数字化教育转型要求\n");
+        policyContent.append("5. 立德树人根本任务的落实\n\n");
+        
+        policyContent.append("**注意：** 以上为系统内置的政策指导内容，建议结合最新的教育政策文件进行教学改进。\n");
+        
+        return policyContent.toString();
     }
     
     /**
@@ -1555,6 +1661,58 @@ public class DeepSeekService {
     }
     
     /**
+     * 构建包含政策指导的最终分析要求的prompt
+     */
+    private String buildFinalAnalysisPromptWithPolicy(String scope, int examCount) {
+        return String.format(
+            "现在我已经为您提供了完整的教学数据，包括：\n" +
+            "1. 基础统计数据（分析范围：%s）\n" +
+            "2. %d个考试的详细错题分析\n" +
+            "3. 国家教育政策指导要求\n\n" +
+            "请您基于以上所有信息，生成一份专业、全面的教学改进建议报告。要求：\n\n" +
+            "**分析维度：**\n" +
+            "1. **教学效果评估**\n" +
+            "   - 基于成绩数据和错题分析，评估整体教学成效\n" +
+            "   - 识别教学优势和薄弱环节\n" +
+            "   - 分析学生学习状况和知识掌握情况\n\n" +
+            "2. **具体问题诊断**\n" +
+            "   - 分析高错误率题目的共同特征\n" +
+            "   - 识别学生的典型错误模式和思维误区\n" +
+            "   - 找出知识点掌握的薄弱环节\n" +
+            "   - 分析不同题型的答题情况\n\n" +
+            "3. **针对性教学改进建议**\n" +
+            "   - 针对具体错题和错误模式提出教学策略\n" +
+            "   - 建议重点讲解的知识点和教学方法\n" +
+            "   - 提出课堂练习和作业的改进方案\n" +
+            "   - 建议学生个性化辅导重点\n\n" +
+            "4. **考试命题优化建议**\n" +
+            "   - 基于答题情况分析题目设计的合理性\n" +
+            "   - 建议题目难度和类型的调整\n" +
+            "   - 提出更好的题目表达方式\n\n" +
+            "5. **政策指导融入**\n" +
+            "   - 结合国家教育政策要求制定改进措施\n" +
+            "   - 体现新时代教育评价改革理念\n" +
+            "   - 强化立德树人根本任务\n" +
+            "   - 落实因材施教和个性化教学要求\n\n" +
+            "6. **实施计划**\n" +
+            "   - 短期改进措施（1-2周内可实施）\n" +
+            "   - 中期改进计划（1个月内的教学调整）\n" +
+            "   - 长期发展目标（一学期的教学优化）\n\n" +
+            "**输出要求：**\n" +
+            "- 建议要具体可操作，避免空泛理论\n" +
+            "- 要引用具体的错题和数据进行分析\n" +
+            "- 提供多种可选的改进方案\n" +
+            "- 建议要符合实际教学条件和政策要求\n" +
+            "- 使用清晰的结构化格式\n" +
+            "- 重点关注错误率高的题目和知识点\n" +
+            "- 【重要】在相关建议中加入【政策指导融入】标记，体现政策要求的落实\n\n" +
+            "请开始生成详细的教学改进建议报告。",
+            getScopeDisplayName(scope),
+            examCount
+        );
+    }
+    
+    /**
      * 构建最终分析要求的prompt
      */
     private String buildFinalAnalysisPrompt(String scope, int examCount) {
@@ -1659,11 +1817,14 @@ public class DeepSeekService {
     }
     
     /**
-     * 生成教学改进建议
+     * 生成教学改进建议（包含政策指导）
      */
     public String generateTeachingImprovements(String scope, String analysisData, int totalExams, 
                                              int totalStudents, Map<String, List<Double>> courseScores, 
                                              Map<String, Map<String, Integer>> difficultyStats) {
+        
+        // 获取政策指导内容
+        String policyGuidance = getPolicyGuidanceForTeachingImprovement(scope);
         
         // 构建分析摘要
         StringBuilder summary = new StringBuilder();
@@ -1718,10 +1879,11 @@ public class DeepSeekService {
         }
         
         String prompt = String.format(
-            "**智能教学改进建议生成**\n\n" +
-            "您是一位资深的教育专家，请基于以下教学数据分析，为教师提供专业、实用的教学改进建议。\n\n" +
+            "**智能教学改进建议生成（融合政策指导）**\n\n" +
+            "您是一位资深的教育专家，请基于以下教学数据分析和国家教育政策指导，为教师提供专业、实用的教学改进建议。\n\n" +
             "%s\n" +
             "**详细数据**\n" +
+            "%s\n\n" +
             "%s\n\n" +
             "**任务要求：**\n" +
             "请从以下维度进行深度分析并提出具体可行的改进建议：\n\n" +
@@ -1744,7 +1906,12 @@ public class DeepSeekService {
             "   - 考试类型多样化\n" +
             "   - 评价方式改进\n" +
             "   - 反馈机制完善\n\n" +
-            "5. **具体实施方案**\n" +
+            "5. **政策指导融入**\n" +
+            "   - 结合国家教育政策要求制定改进措施\n" +
+            "   - 体现新时代教育评价改革理念\n" +
+            "   - 强化立德树人根本任务\n" +
+            "   - 落实因材施教和个性化教学要求\n\n" +
+            "6. **具体实施方案**\n" +
             "   - 短期改进措施（1-2周内）\n" +
             "   - 中期改进计划（1个月内）\n" +
             "   - 长期发展目标（一学期内）\n" +
@@ -1753,12 +1920,14 @@ public class DeepSeekService {
             "- 建议要具体可操作，避免空泛的理论\n" +
             "- 要针对数据中反映的实际问题\n" +
             "- 提供多种可选的改进方案\n" +
-            "- 建议要符合实际教学条件\n" +
+            "- 建议要符合实际教学条件和政策要求\n" +
             "- 使用清晰的结构化格式\n" +
-            "- 适当使用图标和强调格式提高可读性\n\n" +
+            "- 适当使用图标和强调格式提高可读性\n" +
+            "- 【重要】在相关建议中加入【政策指导融入】标记，体现政策要求的落实\n\n" +
             "请生成一份专业、全面、实用的教学改进建议报告。",
             summary.toString(), 
-            analysisData
+            analysisData,
+            policyGuidance
         );
         
         return callDeepSeekAPI(prompt);
