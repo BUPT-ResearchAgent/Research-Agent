@@ -49,6 +49,9 @@ public class TeacherService {
     private FileService fileService;
     
     @Autowired
+    private PriorityPolicyService priorityPolicyService;
+    
+    @Autowired
     private DeepSeekService deepSeekService;
     
     @Autowired
@@ -370,7 +373,19 @@ public class TeacherService {
         course.setClassLocation(classLocation);
         course.setMaxStudents(maxStudents);
         
-        return courseRepository.save(course);
+        // 保存课程
+        course = courseRepository.save(course);
+        
+        // 异步添加重点政策文档到新课程
+        try {
+            priorityPolicyService.addPriorityPolicyDocumentsToCourse(course.getId());
+            System.out.println("✅ 新课程 " + course.getName() + " (ID: " + course.getId() + ") 已自动添加重点政策文档");
+        } catch (Exception e) {
+            System.err.println("⚠️ 为新课程添加重点政策文档失败: " + e.getMessage());
+            // 不影响课程创建，继续执行
+        }
+        
+        return course;
     }
     
     /**

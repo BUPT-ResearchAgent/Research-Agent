@@ -63,4 +63,9 @@ public interface KnowledgeDocumentRepository extends JpaRepository<KnowledgeDocu
      * 检查是否存在包含指定文件名的文档
      */
     boolean existsByOriginalNameContaining(String fileName);
+    
+    /**
+     * 检查指定课程是否已经存在相同的原始文件名
+     */
+    boolean existsByCourseIdAndOriginalName(Long courseId, String originalName);
 } 
