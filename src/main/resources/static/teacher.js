@@ -10410,7 +10410,7 @@ ${questionsMarkdown}
 
 ---
 
-*本试卷由智教SmartEdu系统生成*
+*本试卷由智囊SmartEdu系统生成*
 `;
 }
 
