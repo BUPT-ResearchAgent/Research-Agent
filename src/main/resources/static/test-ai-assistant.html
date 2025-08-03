@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI学习助手测试页面</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .chat-history {
+            height: 400px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            overflow-y: auto;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+        
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        
+        #chat-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            resize: none;
+            font-size: 14px;
+        }
+        
+        .send-btn {
+            padding: 10px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .send-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .send-btn:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        .chat-message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .user-message {
+            background: #e3f2fd;
+            margin-left: 20px;
+        }
+        
+        .ai-message {
+            background: #f1f8e9;
+            margin-right: 20px;
+        }
+        
+        .system-message {
+            background: #fff3e0;
+            text-align: center;
+            font-style: italic;
+        }
+        
+        .status {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.thinking {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-robot"></i> AI学习助手测试</h1>
+        
+        <div id="status" class="status ready">请选择课程开始对话</div>
+        
+        <div class="form-group">
+            <label for="helper-course-select">选择课程 <span style="color: red;">*</span></label>
+            <select id="helper-course-select" class="form-select" onchange="onCourseChange()">
+                <option value="">请选择课程</option>
+            </select>
+        </div>
+        
+        <div id="chat-history" class="chat-history">
+            <div class="chat-message system-message">
+                <h4>👋 欢迎使用AI学习助手！</h4>
+                <p>我是您的专属学习伙伴，可以帮助您：</p>
+                <ul style="text-align: left; display: inline-block;">
+                    <li>📚 解答课程相关问题</li>
+                    <li>📖 分析学习资料内容</li>
+                    <li>💡 提供学习建议和指导</li>
+                    <li>🔍 深入解释复杂概念</li>
+                </ul>
+                <p>请先选择课程，然后开始提问吧！</p>
+            </div>
+        </div>
+        
+        <div class="chat-input-area">
+            <textarea id="chat-input" placeholder="请输入您的问题..." rows="2" disabled></textarea>
+            <button id="send-button" class="send-btn" onclick="sendMessage()" disabled>
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+        
+        <div style="margin-top: 10px; font-size: 12px; color: #666;">
+            💡 提示：按Enter发送消息，Shift+Enter换行
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let helperCourses = [];
+        let isAIResponding = false;
+        
+        // 页面加载时初始化
+        window.onload = async function() {
+            await checkUserLogin();
+            await loadCourses();
+            setupChatInput();
+        };
+        
+        // 检查用户登录状态
+        async function checkUserLogin() {
+            try {
+                const response = await fetch('/api/auth/check', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentUser = {
+                        userId: result.data.id,
+                        username: result.data.username,
+                        role: result.data.role,
+                        realName: result.data.realName
+                    };
+                    console.log('用户登录状态:', currentUser);
+                } else {
+                    updateStatus('error', '用户未登录，请先登录');
+                    return false;
+                }
+            } catch (error) {
+                console.error('检查登录状态失败:', error);
+                updateStatus('error', '检查登录状态失败');
+                return false;
+            }
+            return true;
+        }
+        
+        // 加载课程列表
+        async function loadCourses() {
+            if (!currentUser) return;
+            
+            try {
+                const response = await fetch(`/api/student/my-courses?userId=${currentUser.userId}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    helperCourses = result.data || [];
+                    updateCourseSelect();
+                    console.log('课程列表:', helperCourses);
+                } else {
+                    console.error('加载课程列表失败:', result.message);
+                    updateStatus('error', '加载课程列表失败: ' + result.message);
+                }
+            } catch (error) {
+                console.error('加载课程列表失败:', error);
+                updateStatus('error', '加载课程列表失败，请检查网络连接');
+            }
+        }
+        
+        // 更新课程选择下拉框
+        function updateCourseSelect() {
+            const courseSelect = document.getElementById('helper-course-select');
+            courseSelect.innerHTML = '<option value="">请选择课程</option>';
+            
+            helperCourses.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = `${course.name} (${course.courseCode})`;
+                courseSelect.appendChild(option);
+            });
+        }
+        
+        // 课程选择变化事件
+        function onCourseChange() {
+            const courseSelect = document.getElementById('helper-course-select');
+            const chatInput = document.getElementById('chat-input');
+            const sendButton = document.getElementById('send-button');
+            
+            const courseId = courseSelect.value;
+            
+            if (courseId) {
+                chatInput.disabled = false;
+                sendButton.disabled = false;
+                updateStatus('ready', '准备就绪，可以开始提问了');
+                
+                const selectedCourse = helperCourses.find(c => c.id == courseId);
+                if (selectedCourse) {
+                    addSystemMessage(`已选择课程：${selectedCourse.name} (${selectedCourse.courseCode})`);
+                }
+            } else {
+                chatInput.disabled = true;
+                sendButton.disabled = true;
+                updateStatus('ready', '请选择课程');
+            }
+        }
+        
+        // 设置聊天输入框
+        function setupChatInput() {
+            const chatInput = document.getElementById('chat-input');
+            
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    if (e.shiftKey) {
+                        return; // 允许换行
+                    } else {
+                        e.preventDefault();
+                        const message = this.value.trim();
+                        if (message) {
+                            sendMessage();
+                        }
+                    }
+                }
+            });
+            
+            chatInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+        }
+        
+        // 发送消息
+        async function sendMessage() {
+            const chatInput = document.getElementById('chat-input');
+            const courseSelect = document.getElementById('helper-course-select');
+            
+            const message = chatInput.value.trim();
+            const courseId = courseSelect.value;
+            
+            if (!message) {
+                alert('请输入您的问题');
+                return;
+            }
+            
+            if (!courseId) {
+                alert('请先选择课程');
+                return;
+            }
+            
+            if (!currentUser) {
+                alert('用户信息不存在，请重新登录');
+                return;
+            }
+            
+            if (isAIResponding) {
+                alert('AI正在思考中，请稍候...');
+                return;
+            }
+            
+            // 添加用户消息
+            addUserMessage(message);
+            
+            // 清空输入框
+            chatInput.value = '';
+            chatInput.style.height = 'auto';
+            
+            // 显示AI正在思考
+            updateStatus('thinking', 'AI正在思考...');
+            isAIResponding = true;
+            
+            try {
+                const response = await fetch('/api/student/learning-assistant/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        userId: currentUser.userId,
+                        courseId: courseId,
+                        question: message,
+                        topK: 5
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    addAIMessage(result.data.answer);
+                    updateStatus('ready', '准备就绪');
+                } else {
+                    addAIMessage('抱歉，我暂时无法回答您的问题。错误信息：' + result.message);
+                    updateStatus('error', '响应失败');
+                }
+            } catch (error) {
+                console.error('发送消息失败:', error);
+                addAIMessage('抱歉，网络连接出现问题，请稍后再试。');
+                updateStatus('error', '网络错误');
+            } finally {
+                isAIResponding = false;
+            }
+        }
+        
+        // 添加用户消息
+        function addUserMessage(message) {
+            const chatHistory = document.getElementById('chat-history');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message user-message';
+            messageDiv.innerHTML = `<strong>您:</strong> ${message}`;
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        
+        // 添加AI消息
+        function addAIMessage(message) {
+            const chatHistory = document.getElementById('chat-history');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message ai-message';
+            messageDiv.innerHTML = `<strong>AI助手:</strong> ${message}`;
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        
+        // 添加系统消息
+        function addSystemMessage(message) {
+            const chatHistory = document.getElementById('chat-history');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message system-message';
+            messageDiv.innerHTML = message;
+            chatHistory.appendChild(messageDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        
+        // 更新状态
+        function updateStatus(type, message) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+    </script>
+</body>
+</html>

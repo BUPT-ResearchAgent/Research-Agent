@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI学习助手诊断工具</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .diagnostic-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .result { margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 3px; }
+        .error { background: #ffebee; color: #c62828; }
+        .success { background: #e8f5e8; color: #2e7d32; }
+        .warning { background: #fff3e0; color: #f57c00; }
+        .info { background: #e3f2fd; color: #1976d2; }
+        button { margin: 5px; padding: 8px 16px; }
+    </style>
+</head>
+<body>
+    <h1>🔧 AI学习助手诊断工具</h1>
+    <p>此工具用于诊断学生端AI学习助手发送按钮无响应的问题</p>
+    
+    <div class="diagnostic-section">
+        <h3>1. 用户登录状态检查</h3>
+        <button onclick="checkUserStatus()">检查用户状态</button>
+        <div id="user-status-result" class="result"></div>
+    </div>
+    
+    <div class="diagnostic-section">
+        <h3>2. 页面元素检查</h3>
+        <button onclick="checkPageElements()">检查页面元素</button>
+        <div id="elements-result" class="result"></div>
+    </div>
+    
+    <div class="diagnostic-section">
+        <h3>3. 课程数据检查</h3>
+        <button onclick="checkCourseData()">检查课程数据</button>
+        <div id="course-data-result" class="result"></div>
+    </div>
+    
+    <div class="diagnostic-section">
+        <h3>4. API端点测试</h3>
+        <button onclick="testAPIEndpoints()">测试API端点</button>
+        <div id="api-test-result" class="result"></div>
+    </div>
+    
+    <div class="diagnostic-section">
+        <h3>5. 发送按钮状态检查</h3>
+        <button onclick="checkSendButtonStatus()">检查发送按钮</button>
+        <div id="send-button-result" class="result"></div>
+    </div>
+    
+    <div class="diagnostic-section">
+        <h3>6. 模拟发送消息</h3>
+        <input type="text" id="test-message" placeholder="输入测试消息" value="你好，AI助手">
+        <button onclick="simulateSendMessage()">模拟发送</button>
+        <div id="simulate-result" class="result"></div>
+    </div>
+
+    <script>
+        // 检查用户登录状态
+        async function checkUserStatus() {
+            const resultDiv = document.getElementById('user-status-result');
+            try {
+                const response = await fetch('/api/auth/check', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 用户已登录</strong><br>
+                        用户ID: ${result.data.id}<br>
+                        用户名: ${result.data.username}<br>
+                        角色: ${result.data.role}<br>
+                        真实姓名: ${result.data.realName || 'N/A'}
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ 用户未登录: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ 检查用户状态失败: ${error.message}`;
+            }
+        }
+        
+        // 检查页面元素
+        function checkPageElements() {
+            const resultDiv = document.getElementById('elements-result');
+            const elements = [
+                'helper-course-select',
+                'chat-input', 
+                'send-button',
+                'chat-history'
+            ];
+            
+            let results = [];
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    results.push(`✅ ${id}: 存在`);
+                    if (element.disabled !== undefined) {
+                        results.push(`   - disabled: ${element.disabled}`);
+                    }
+                } else {
+                    results.push(`❌ ${id}: 不存在`);
+                }
+            });
+            
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = results.join('<br>');
+        }
+        
+        // 检查课程数据
+        async function checkCourseData() {
+            const resultDiv = document.getElementById('course-data-result');
+            try {
+                // 首先检查用户状态
+                const authResponse = await fetch('/api/auth/check', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const authResult = await authResponse.json();
+                
+                if (!authResult.success) {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = '❌ 用户未登录，无法获取课程数据';
+                    return;
+                }
+                
+                const userId = authResult.data.id;
+                const response = await fetch(`/api/student/my-courses?userId=${userId}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    const courses = result.data || [];
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 课程数据获取成功</strong><br>
+                        课程数量: ${courses.length}<br>
+                        ${courses.length > 0 ? 
+                            '课程列表:<br>' + courses.map(c => `- ${c.name} (ID: ${c.id})`).join('<br>') :
+                            '⚠️ 没有可用课程'
+                        }
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ 获取课程数据失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ 检查课程数据失败: ${error.message}`;
+            }
+        }
+        
+        // 测试API端点
+        async function testAPIEndpoints() {
+            const resultDiv = document.getElementById('api-test-result');
+            const endpoints = [
+                { url: '/api/auth/check', method: 'GET', name: '用户认证' },
+                { url: '/api/student/my-courses?userId=1', method: 'GET', name: '我的课程' }
+            ];
+            
+            let results = [];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint.url, {
+                        method: endpoint.method,
+                        credentials: 'include'
+                    });
+                    
+                    if (response.ok) {
+                        results.push(`✅ ${endpoint.name}: 响应正常 (${response.status})`);
+                    } else {
+                        results.push(`⚠️ ${endpoint.name}: HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    results.push(`❌ ${endpoint.name}: ${error.message}`);
+                }
+            }
+            
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = results.join('<br>');
+        }
+        
+        // 检查发送按钮状态
+        function checkSendButtonStatus() {
+            const resultDiv = document.getElementById('send-button-result');
+            const sendButton = document.getElementById('send-button');
+            const chatInput = document.getElementById('chat-input');
+            const courseSelect = document.getElementById('helper-course-select');
+            
+            let results = [];
+            
+            if (sendButton) {
+                results.push(`✅ 发送按钮存在`);
+                results.push(`   - disabled: ${sendButton.disabled}`);
+                results.push(`   - onclick: ${sendButton.onclick ? '已绑定' : '未绑定'}`);
+            } else {
+                results.push(`❌ 发送按钮不存在`);
+            }
+            
+            if (chatInput) {
+                results.push(`✅ 输入框存在`);
+                results.push(`   - disabled: ${chatInput.disabled}`);
+                results.push(`   - value: "${chatInput.value}"`);
+            } else {
+                results.push(`❌ 输入框不存在`);
+            }
+            
+            if (courseSelect) {
+                results.push(`✅ 课程选择框存在`);
+                results.push(`   - value: "${courseSelect.value}"`);
+                results.push(`   - options: ${courseSelect.options.length}`);
+            } else {
+                results.push(`❌ 课程选择框不存在`);
+            }
+            
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = results.join('<br>');
+        }
+        
+        // 模拟发送消息
+        async function simulateSendMessage() {
+            const resultDiv = document.getElementById('simulate-result');
+            const testMessage = document.getElementById('test-message').value;
+            
+            if (!testMessage.trim()) {
+                resultDiv.className = 'result warning';
+                resultDiv.innerHTML = '⚠️ 请输入测试消息';
+                return;
+            }
+            
+            try {
+                // 检查用户状态
+                const authResponse = await fetch('/api/auth/check', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                const authResult = await authResponse.json();
+                
+                if (!authResult.success) {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = '❌ 用户未登录';
+                    return;
+                }
+                
+                const userId = authResult.data.id;
+                
+                // 模拟发送消息到AI助手
+                const response = await fetch('/api/student/learning-assistant/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        userId: userId,
+                        courseId: 1, // 使用测试课程ID
+                        question: testMessage,
+                        topK: 5
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>✅ 消息发送成功</strong><br>
+                        AI回复: ${result.data.answer || '无回复内容'}
+                    `;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ 消息发送失败: ${result.message}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ 模拟发送失败: ${error.message}`;
+            }
+        }
+        
+        // 页面加载时自动运行基础检查
+        window.onload = function() {
+            checkUserStatus();
+            checkPageElements();
+        };
+    </script>
+</body>
+</html>

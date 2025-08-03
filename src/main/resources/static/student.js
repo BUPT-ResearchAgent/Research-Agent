@@ -4149,10 +4149,21 @@ let helperMaterials = [];
 let chatHistory = [];
 let isAIResponding = false;
 
-// 初始化学习助手
+// 简化的初始化学习助手
 function initializeHelper() {
+    console.log('初始化AI学习助手...');
     loadHelperCourses();
-    setupChatInput();
+    
+    // 简单的输入框回车事件
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+            }
+        });
+    }
 }
 
 // 加载学生课程列表
@@ -4198,11 +4209,15 @@ function updateCourseSelect() {
     });
 }
 
-// RAG课程选择变化事件
-async function onRAGCourseChange() {
+// 简化的课程选择变化事件
+function onRAGCourseChange() {
     const courseSelect = document.getElementById('helper-course-select');
     const chatInput = document.getElementById('chat-input');
     const sendButton = document.getElementById('send-button');
+    
+    if (!courseSelect || !chatInput || !sendButton) {
+        return;
+    }
     
     const courseId = courseSelect.value;
     
@@ -4211,20 +4226,25 @@ async function onRAGCourseChange() {
         chatInput.disabled = false;
         sendButton.disabled = false;
         
-        // 更新状态
-        updateHelperStatus('ready', '准备就绪');
-        
-        // 添加课程选择消息到聊天历史
-        const selectedCourse = helperCourses.find(c => c.id == courseId);
-        if (selectedCourse) {
-            addSystemMessage(`已选择课程：${selectedCourse.name} (${selectedCourse.courseCode})`);
+        // 添加课程选择消息
+        const chatHistory = document.getElementById('chat-history');
+        if (chatHistory) {
+            const selectedCourse = helperCourses.find(c => c.id == courseId);
+            if (selectedCourse) {
+                const systemMsg = document.createElement('div');
+                systemMsg.className = 'chat-message system-message';
+                systemMsg.innerHTML = `已选择课程：${selectedCourse.name} (${selectedCourse.courseCode})`;
+                systemMsg.style.textAlign = 'center';
+                systemMsg.style.fontStyle = 'italic';
+                systemMsg.style.color = '#666';
+                chatHistory.appendChild(systemMsg);
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
         }
     } else {
         // 禁用相关功能
         chatInput.disabled = true;
         sendButton.disabled = true;
-        
-        updateHelperStatus('ready', '请选择课程');
     }
 }
 
@@ -4279,7 +4299,26 @@ function updateMaterialSelect() {
 // 设置聊天输入框
 function setupChatInput() {
     const chatInput = document.getElementById('chat-input');
-    if (!chatInput) return;
+    const sendButton = document.getElementById('send-button');
+    
+    if (!chatInput) {
+        console.error('setupChatInput: 找不到聊天输入框');
+        return;
+    }
+    
+    if (!sendButton) {
+        console.error('setupChatInput: 找不到发送按钮');
+        return;
+    }
+    
+    console.log('setupChatInput: 开始设置聊天输入框和发送按钮');
+    
+    // 绑定发送按钮点击事件
+    sendButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('发送按钮被点击');
+        sendMessage();
+    });
     
     // 回车发送消息，Shift+Enter换行
     chatInput.addEventListener('keydown', function(e) {
@@ -4289,10 +4328,10 @@ function setupChatInput() {
                 return;
             } else {
                 // 单独Enter键发送消息
-            e.preventDefault();
+                e.preventDefault();
                 const message = this.value.trim();
                 if (message) {
-            sendMessage();
+                    sendMessage();
                 }
             }
         }
@@ -4303,48 +4342,138 @@ function setupChatInput() {
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 120) + 'px';
     });
+    
+    console.log('setupChatInput: 聊天输入框和发送按钮设置完成');
 }
 
-// 发送消息
-async function sendMessage() {
+// 快速访问AI学习助手
+function openAIAssistant() {
+    console.log('快速打开AI学习助手');
+    showSection('student-helper');
+    
+    // 激活菜单项
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    const helperMenuItem = document.querySelector('[data-section="student-helper"]');
+    if (helperMenuItem) {
+        helperMenuItem.classList.add('active');
+    }
+}
+
+// 全局调试函数 - 检查AI学习助手状态
+function debugAIAssistant() {
+    console.log('=== AI学习助手调试信息 ===');
+    
+    // 检查当前用户
+    console.log('当前用户:', currentUser);
+    
+    // 检查页面元素
+    const elements = {
+        'helper-course-select': document.getElementById('helper-course-select'),
+        'chat-input': document.getElementById('chat-input'),
+        'send-button': document.getElementById('send-button'),
+        'chat-history': document.getElementById('chat-history')
+    };
+    
+    console.log('页面元素状态:');
+    Object.entries(elements).forEach(([name, element]) => {
+        console.log(`- ${name}:`, element ? '存在' : '不存在');
+        if (element) {
+            console.log(`  - disabled: ${element.disabled}`);
+            console.log(`  - visible: ${element.offsetParent !== null}`);
+        }
+    });
+    
+    // 检查section状态
+    const helperSection = document.getElementById('student-helper');
+    console.log('AI学习助手section:');
+    console.log('- 存在:', helperSection ? '是' : '否');
+    if (helperSection) {
+        console.log('- 类名:', helperSection.className);
+        console.log('- 是否隐藏:', helperSection.classList.contains('hidden-section'));
+    }
+    
+    // 检查课程数据
+    console.log('课程数据:', helperCourses);
+    console.log('AI响应状态:', isAIResponding);
+    
+    console.log('=== 调试信息结束 ===');
+}
+
+// 快速访问AI学习助手
+function openAIAssistant() {
+    console.log('快速打开AI学习助手');
+    showSection('student-helper');
+    
+    // 激活菜单项
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    const helperMenuItem = document.querySelector('[data-section="student-helper"]');
+    if (helperMenuItem) {
+        helperMenuItem.classList.add('active');
+    }
+    
+    // 延迟执行调试检查，确保DOM更新完成
+    setTimeout(() => {
+        debugAIAssistant();
+    }, 100);
+}
+
+// 简单的发送消息处理函数
+function handleSendMessage() {
     const chatInput = document.getElementById('chat-input');
     const courseSelect = document.getElementById('helper-course-select');
     
+    if (!chatInput || !courseSelect) {
+        alert('页面元素未找到');
+        return;
+    }
+    
     const message = chatInput.value.trim();
     const courseId = courseSelect.value;
-    const topK = 5; // 固定使用5个检索结果
     
     if (!message) {
-        showNotification('请输入您的问题', 'warning');
+        alert('请输入消息');
         return;
     }
     
     if (!courseId) {
-        showNotification('请先选择课程', 'warning');
+        alert('请选择课程');
         return;
     }
     
-    if (!currentUser || !currentUser.userId) {
-        showNotification('用户信息不存在，请重新登录', 'error');
-        return;
-    }
-    
-    if (isAIResponding) {
-        showNotification('AI正在思考中，请稍候...', 'info');
-        return;
-    }
+    // 调用实际的发送函数
+    sendMessageToAI(message, courseId);
+}
+
+// 实际的发送消息函数
+async function sendMessageToAI(message, courseId) {
+    const chatInput = document.getElementById('chat-input');
+    const chatHistory = document.getElementById('chat-history');
     
     // 添加用户消息到聊天历史
-    addUserMessage(message);
+    if (chatHistory) {
+        const userMsg = document.createElement('div');
+        userMsg.className = 'chat-message user-message';
+        userMsg.innerHTML = `<strong>您:</strong> ${message}`;
+        chatHistory.appendChild(userMsg);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
     
     // 清空输入框
     chatInput.value = '';
-    chatInput.style.height = 'auto';
     
     // 显示AI正在思考
-    showTypingIndicator();
-    updateHelperStatus('thinking', 'AI正在思考...');
-    isAIResponding = true;
+    if (chatHistory) {
+        const thinkingMsg = document.createElement('div');
+        thinkingMsg.className = 'chat-message ai-message';
+        thinkingMsg.id = 'thinking-indicator';
+        thinkingMsg.innerHTML = '<strong>AI助手:</strong> 正在思考...';
+        chatHistory.appendChild(thinkingMsg);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
     
     try {
         const response = await fetch('/api/student/learning-assistant/ask', {
@@ -4357,33 +4486,48 @@ async function sendMessage() {
                 userId: currentUser.userId,
                 courseId: courseId,
                 question: message,
-                topK: topK
+                topK: 5
             })
         });
         
         const result = await response.json();
         
-        // 隐藏打字指示器
-        hideTypingIndicator();
-        
-        if (result.success && result.data) {
-            const ragData = result.data;
-            
-            // 添加AI回答
-            addAIMessage(ragData.answer);
-            
-            updateHelperStatus('ready', '准备就绪');
-        } else {
-            addAIMessage('抱歉，我暂时无法回答您的问题。错误信息：' + result.message);
-            updateHelperStatus('error', '响应失败');
+        // 移除思考指示器
+        const thinkingIndicator = document.getElementById('thinking-indicator');
+        if (thinkingIndicator) {
+            thinkingIndicator.remove();
         }
+        
+        // 添加AI回复
+        if (chatHistory) {
+            const aiMsg = document.createElement('div');
+            aiMsg.className = 'chat-message ai-message';
+            if (result.success && result.data) {
+                aiMsg.innerHTML = `<strong>AI助手:</strong> ${result.data.answer}`;
+            } else {
+                aiMsg.innerHTML = `<strong>AI助手:</strong> 抱歉，我暂时无法回答您的问题。错误信息：${result.message}`;
+            }
+            chatHistory.appendChild(aiMsg);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        
     } catch (error) {
         console.error('发送消息失败:', error);
-        hideTypingIndicator();
-        addAIMessage('抱歉，网络连接出现问题，请稍后再试。');
-        updateHelperStatus('error', '网络错误');
-    } finally {
-        isAIResponding = false;
+        
+        // 移除思考指示器
+        const thinkingIndicator = document.getElementById('thinking-indicator');
+        if (thinkingIndicator) {
+            thinkingIndicator.remove();
+        }
+        
+        // 显示错误消息
+        if (chatHistory) {
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'chat-message ai-message';
+            errorMsg.innerHTML = '<strong>AI助手:</strong> 抱歉，网络连接出现问题，请稍后再试。';
+            chatHistory.appendChild(errorMsg);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
     }
 }
 
@@ -6653,7 +6797,7 @@ function displayGradeAnalysis(gradeData) {
                 <div class="chart-bar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <div class="course-info">
                         <span class="course-name" style="font-weight: 500; color: var(--secondary-color);">${course.courseName}</span>
-                        <span class="course-code" style="font-size: 12px; color: #7f8c8d; margin-left: 8px;">${course.courseCode}</span>
+                        <span class="course-code" style="font-size: 12px; color: white; margin-left: 8px;">${course.courseCode}</span>
                     </div>
                     <div class="score-info" style="text-align: right;">
                         <span class="average-score" style="font-weight: 600; color: var(--primary-color);">${averageScore}分</span>
@@ -7590,4 +7734,19 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('检查登录状态失败:', error);
         window.location.href = '/login.html';
     });
+});
+
+// 确保关键函数在全局作用域中可用
+window.handleSendMessage = handleSendMessage;
+window.sendMessageToAI = sendMessageToAI;
+window.openAIAssistant = openAIAssistant;
+window.onRAGCourseChange = onRAGCourseChange;
+window.debugAIAssistant = debugAIAssistant;
+
+console.log('全局函数已暴露:', {
+    handleSendMessage: typeof window.handleSendMessage,
+    sendMessageToAI: typeof window.sendMessageToAI,
+    openAIAssistant: typeof window.openAIAssistant,
+    onRAGCourseChange: typeof window.onRAGCourseChange,
+    debugAIAssistant: typeof window.debugAIAssistant
 });
