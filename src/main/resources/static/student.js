@@ -4420,6 +4420,67 @@ function openAIAssistant() {
     }, 100);
 }
 
+// 格式化AI回复内容，支持Markdown
+function formatAIResponse(text) {
+    if (!text) return '';
+    
+    // 使用marked.js解析Markdown（如果可用）
+    if (typeof marked !== 'undefined') {
+        try {
+            return marked.parse(text);
+        } catch (error) {
+            console.warn('Markdown解析失败，使用简单格式化:', error);
+        }
+    }
+    
+    // 简单的格式化处理
+    let formatted = text;
+    
+    // 处理标题
+    formatted = formatted.replace(/^### (.*$)/gm, '<h3 style="color: #2c3e50; margin: 12px 0 8px 0; font-size: 16px;">$1</h3>');
+    formatted = formatted.replace(/^## (.*$)/gm, '<h2 style="color: #2c3e50; margin: 16px 0 10px 0; font-size: 18px;">$1</h2>');
+    formatted = formatted.replace(/^# (.*$)/gm, '<h1 style="color: #2c3e50; margin: 20px 0 12px 0; font-size: 20px;">$1</h1>');
+    
+    // 处理粗体
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #2c3e50;">$1</strong>');
+    
+    // 处理斜体
+    formatted = formatted.replace(/\*(.*?)\*/g, '<em style="color: #34495e;">$1</em>');
+    
+    // 处理代码块
+    formatted = formatted.replace(/```([\s\S]*?)```/g, '<pre style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin: 8px 0; border-left: 4px solid #007bff; overflow-x: auto;"><code>$1</code></pre>');
+    
+    // 处理行内代码
+    formatted = formatted.replace(/`([^`]+)`/g, '<code style="background: #f8f9fa; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #e83e8c;">$1</code>');
+    
+    // 处理列表项
+    formatted = formatted.replace(/^[\s]*[-*+]\s+(.*$)/gm, '<li style="margin: 4px 0; padding-left: 8px;">$1</li>');
+    
+    // 包装连续的列表项
+    formatted = formatted.replace(/(<li[^>]*>.*<\/li>\s*)+/gs, '<ul style="margin: 8px 0; padding-left: 20px;">$&</ul>');
+    
+    // 处理数字列表
+    formatted = formatted.replace(/^[\s]*\d+\.\s+(.*$)/gm, '<li class="numbered-item" style="margin: 4px 0; padding-left: 8px;">$1</li>');
+    
+    // 分别处理无序列表和有序列表
+    formatted = formatted.replace(/(<li style="margin: 4px 0; padding-left: 8px;">.*?<\/li>\s*)+/gs, '<ul style="margin: 8px 0; padding-left: 20px;">$&</ul>');
+    formatted = formatted.replace(/(<li class="numbered-item"[^>]*>.*?<\/li>\s*)+/gs, '<ol style="margin: 8px 0; padding-left: 20px;">$&</ol>');
+    
+    // 处理换行 - 先处理双换行（段落分隔），再处理单换行
+    formatted = formatted.replace(/\n\s*\n/g, '</p><p>');
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // 包装段落
+    if (!formatted.includes('<h') && !formatted.includes('<ul') && !formatted.includes('<ol') && !formatted.includes('<pre') && !formatted.includes('<blockquote')) {
+        formatted = '<p>' + formatted + '</p>';
+    }
+    
+    // 处理引用
+    formatted = formatted.replace(/^>\s+(.*$)/gm, '<blockquote style="border-left: 4px solid #ddd; margin: 8px 0; padding: 8px 16px; background: #f9f9f9; font-style: italic;">$1</blockquote>');
+    
+    return formatted;
+}
+
 // 简单的发送消息处理函数
 function handleSendMessage() {
     const chatInput = document.getElementById('chat-input');
@@ -4516,16 +4577,17 @@ async function sendMessageToAI(message, courseId) {
             thinkingIndicator.remove();
         }
         
-        // 添加AI回复（带头像和气泡）
+        // 添加AI回复（带头像和气泡，支持Markdown）
         if (chatHistory) {
             const aiMsg = document.createElement('div');
             aiMsg.className = 'chat-message ai-message';
             if (result.success && result.data) {
+                const formattedAnswer = formatAIResponse(result.data.answer);
                 aiMsg.innerHTML = `
                     <div class="chat-avatar ai-avatar">
                         <i class="fas fa-robot"></i>
                     </div>
-                    <div class="chat-bubble">${result.data.answer}</div>
+                    <div class="chat-bubble ai-response">${formattedAnswer}</div>
                 `;
             } else {
                 aiMsg.innerHTML = `
@@ -7772,6 +7834,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // 确保关键函数在全局作用域中可用
 window.handleSendMessage = handleSendMessage;
 window.sendMessageToAI = sendMessageToAI;
+window.formatAIResponse = formatAIResponse;
 window.openAIAssistant = openAIAssistant;
 window.onRAGCourseChange = onRAGCourseChange;
 window.debugAIAssistant = debugAIAssistant;
@@ -7779,6 +7842,7 @@ window.debugAIAssistant = debugAIAssistant;
 console.log('全局函数已暴露:', {
     handleSendMessage: typeof window.handleSendMessage,
     sendMessageToAI: typeof window.sendMessageToAI,
+    formatAIResponse: typeof window.formatAIResponse,
     openAIAssistant: typeof window.openAIAssistant,
     onRAGCourseChange: typeof window.onRAGCourseChange,
     debugAIAssistant: typeof window.debugAIAssistant
