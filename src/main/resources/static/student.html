@@ -42,6 +42,141 @@
             font-size: 16px;
         }
         
+        /* AI学习助手聊天气泡样式 */
+        .chat-message {
+            display: flex;
+            margin-bottom: 16px;
+            align-items: flex-start;
+            animation: fadeInUp 0.3s ease-out;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .chat-message.user-message {
+            flex-direction: row-reverse;
+        }
+        
+        .chat-message.system-message {
+            justify-content: center;
+            margin: 12px 0;
+        }
+        
+        .chat-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            flex-shrink: 0;
+            margin: 0 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chat-avatar.user-avatar {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .chat-avatar.ai-avatar {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+        
+        .chat-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+            line-height: 1.4;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .chat-message.user-message .chat-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 6px;
+        }
+        
+        .chat-message.ai-message .chat-bubble {
+            background: #f1f3f4;
+            color: #333;
+            border-bottom-left-radius: 6px;
+        }
+        
+        .chat-message.system-message .chat-bubble {
+            background: rgba(0,0,0,0.05);
+            color: #666;
+            font-size: 12px;
+            padding: 6px 12px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .chat-bubble::before {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            bottom: 0;
+        }
+        
+        .chat-message.user-message .chat-bubble::before {
+            right: -8px;
+            border-left: 8px solid #764ba2;
+            border-bottom: 8px solid transparent;
+        }
+        
+        .chat-message.ai-message .chat-bubble::before {
+            left: -8px;
+            border-right: 8px solid #f1f3f4;
+            border-bottom: 8px solid transparent;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #666;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 2px;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #999;
+            animation: typingDot 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typingDot {
+            0%, 80%, 100% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
         /* 课程网格布局 */
         .available-courses-grid, .my-courses-grid {
             display: grid;

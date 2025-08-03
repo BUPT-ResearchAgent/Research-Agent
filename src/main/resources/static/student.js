@@ -4226,17 +4226,16 @@ function onRAGCourseChange() {
         chatInput.disabled = false;
         sendButton.disabled = false;
         
-        // 添加课程选择消息
+        // 添加课程选择消息（系统消息样式）
         const chatHistory = document.getElementById('chat-history');
         if (chatHistory) {
             const selectedCourse = helperCourses.find(c => c.id == courseId);
             if (selectedCourse) {
                 const systemMsg = document.createElement('div');
                 systemMsg.className = 'chat-message system-message';
-                systemMsg.innerHTML = `已选择课程：${selectedCourse.name} (${selectedCourse.courseCode})`;
-                systemMsg.style.textAlign = 'center';
-                systemMsg.style.fontStyle = 'italic';
-                systemMsg.style.color = '#666';
+                systemMsg.innerHTML = `
+                    <div class="chat-bubble">已选择课程：${selectedCourse.name} (${selectedCourse.courseCode})</div>
+                `;
                 chatHistory.appendChild(systemMsg);
                 chatHistory.scrollTop = chatHistory.scrollHeight;
             }
@@ -4453,11 +4452,16 @@ async function sendMessageToAI(message, courseId) {
     const chatInput = document.getElementById('chat-input');
     const chatHistory = document.getElementById('chat-history');
     
-    // 添加用户消息到聊天历史
+    // 添加用户消息到聊天历史（带头像和气泡）
     if (chatHistory) {
         const userMsg = document.createElement('div');
         userMsg.className = 'chat-message user-message';
-        userMsg.innerHTML = `<strong>您:</strong> ${message}`;
+        userMsg.innerHTML = `
+            <div class="chat-avatar user-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+            <div class="chat-bubble">${message}</div>
+        `;
         chatHistory.appendChild(userMsg);
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }
@@ -4465,12 +4469,26 @@ async function sendMessageToAI(message, courseId) {
     // 清空输入框
     chatInput.value = '';
     
-    // 显示AI正在思考
+    // 显示AI正在思考（带头像和气泡）
     if (chatHistory) {
         const thinkingMsg = document.createElement('div');
         thinkingMsg.className = 'chat-message ai-message';
         thinkingMsg.id = 'thinking-indicator';
-        thinkingMsg.innerHTML = '<strong>AI助手:</strong> 正在思考...';
+        thinkingMsg.innerHTML = `
+            <div class="chat-avatar ai-avatar">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="chat-bubble">
+                <div class="typing-indicator">
+                    <span>AI助手正在思考</span>
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            </div>
+        `;
         chatHistory.appendChild(thinkingMsg);
         chatHistory.scrollTop = chatHistory.scrollHeight;
     }
@@ -4498,14 +4516,24 @@ async function sendMessageToAI(message, courseId) {
             thinkingIndicator.remove();
         }
         
-        // 添加AI回复
+        // 添加AI回复（带头像和气泡）
         if (chatHistory) {
             const aiMsg = document.createElement('div');
             aiMsg.className = 'chat-message ai-message';
             if (result.success && result.data) {
-                aiMsg.innerHTML = `<strong>AI助手:</strong> ${result.data.answer}`;
+                aiMsg.innerHTML = `
+                    <div class="chat-avatar ai-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="chat-bubble">${result.data.answer}</div>
+                `;
             } else {
-                aiMsg.innerHTML = `<strong>AI助手:</strong> 抱歉，我暂时无法回答您的问题。错误信息：${result.message}`;
+                aiMsg.innerHTML = `
+                    <div class="chat-avatar ai-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div class="chat-bubble">抱歉，我暂时无法回答您的问题。错误信息：${result.message}</div>
+                `;
             }
             chatHistory.appendChild(aiMsg);
             chatHistory.scrollTop = chatHistory.scrollHeight;
@@ -4520,11 +4548,16 @@ async function sendMessageToAI(message, courseId) {
             thinkingIndicator.remove();
         }
         
-        // 显示错误消息
+        // 显示错误消息（带头像和气泡）
         if (chatHistory) {
             const errorMsg = document.createElement('div');
             errorMsg.className = 'chat-message ai-message';
-            errorMsg.innerHTML = '<strong>AI助手:</strong> 抱歉，网络连接出现问题，请稍后再试。';
+            errorMsg.innerHTML = `
+                <div class="chat-avatar ai-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="chat-bubble">抱歉，网络连接出现问题，请稍后再试。</div>
+            `;
             chatHistory.appendChild(errorMsg);
             chatHistory.scrollTop = chatHistory.scrollHeight;
         }
