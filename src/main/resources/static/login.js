@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 window.location.href = 'admin.html';
                                 break;
                             default:
-                                window.location.href = 'SmartEdu.html';
+                                window.location.href = 'index.html';
                         }
                     }, 1000);
                     
@@ -376,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 返回主页按钮
         backHomeBtn.addEventListener('click', function() {
-            window.location.href = 'SmartEdu.html';
+            window.location.href = 'index.html';
         });
     }
 
@@ -476,7 +476,7 @@ async function checkLoginStatus() {
                         window.location.href = 'admin.html';
                         break;
                     default:
-                        window.location.href = 'SmartEdu.html';
+                        window.location.href = 'index.html';
                 }
             }, 1500);
         }

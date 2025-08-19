@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.example</groupId>
-    <artifactId>SmartEdu</artifactId>
+    <artifactId>China-National-Smart-Education-Platform</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>SmartEdu</name>
-    <description>SmartEdu</description>
+    <name>WisdomEdu</name>
+    <description>WisdomEdu</description>
     <url/>
     <licenses>
         <license/>

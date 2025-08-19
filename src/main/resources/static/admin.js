@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         localStorage.removeItem('smartedu_current_user');
         logoutModal.style.display = 'none';
         // 跳转到首页
-        window.location.href = 'SmartEdu.html';
+        window.location.href = 'index.html';
     });
 
     // 初始化用户下拉菜单功能

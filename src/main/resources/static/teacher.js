@@ -1,4 +1,4 @@
-// SmartEdu教师端交互逻辑
+// 智囊WisdomEdu 教师端交互逻辑
 let currentCourses = [];
 let currentExams = [];
 let currentMaterials = [];
@@ -57,7 +57,7 @@ async function initializeTeacherPage() {
         console.log('教师端页面初始化完成');
         console.log('最终课程数据:', currentCourses);
         console.log('currentCourses是否为数组:', Array.isArray(currentCourses));
-        
+
         // 添加测试学生按钮功能的调试
         if (currentCourses.length > 0) {
             console.log('第一个课程数据:', currentCourses[0]);
@@ -65,6 +65,11 @@ async function initializeTeacherPage() {
         } else {
             console.warn('没有课程数据，学生按钮功能可能无法正常工作');
         }
+
+        // 延迟初始化热点推送，确保页面其他部分已加载完成
+        setTimeout(() => {
+            initializeHotTopics();
+        }, 2000);
         
     } catch (error) {
         console.error('页面初始化失败:', error);
@@ -3966,7 +3971,7 @@ async function confirmLogout() {
     }
     
     // 无论服务器端登出是否成功，都跳转到主页
-    window.location.href = 'SmartEdu.html';
+    window.location.href = 'index.html';
 }
 
 function cancelLogout() {
@@ -8262,7 +8267,7 @@ async function loadCurrentUser() {
         
         if (!result.success) {
             // 未登录，跳转到主页
-        window.location.href = 'SmartEdu.html';
+        window.location.href = 'index.html';
             return;
         }
         
@@ -8275,7 +8280,7 @@ async function loadCurrentUser() {
             } else if (userData.role === 'student') {
                 window.location.href = 'student.html';
             } else {
-                window.location.href = 'SmartEdu.html';
+                window.location.href = 'index.html';
             }
             return;
         }
@@ -8329,7 +8334,7 @@ async function loadCurrentUser() {
         console.log('当前用户（基础信息）:', userData);
     } catch (error) {
         console.error('加载用户信息失败:', error);
-        window.location.href = 'SmartEdu.html';
+        window.location.href = 'index.html';
     }
 }
 
@@ -10410,7 +10415,7 @@ ${questionsMarkdown}
 
 ---
 
-*本试卷由智囊SmartEdu系统生成*
+*本试卷由智囊WisdomEdu系统生成*
 `;
 }
 
@@ -12934,7 +12939,7 @@ function copyImprovements() {
 ${window.currentImprovements.content}
 
 ---
-本报告由SmartEdu智能教学系统基于DeepSeek AI模型生成
+本报告由智囊WisdomEdu智能教学系统基于DeepSeek AI模型生成
 `;
     
     navigator.clipboard.writeText(textContent).then(() => {
@@ -13072,7 +13077,7 @@ function generateReportHTML() {
             
             <!-- 报告尾部 -->
             <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; font-size: 12px; color: #7f8c8d;">
-                <div>本报告由SmartEdu智能教学系统基于DeepSeek AI模型生成</div>
+                <div>本报告由智囊WisdomEdu智能教学系统基于DeepSeek AI模型生成</div>
                 <div style="margin-top: 5px;">报告生成时间：${window.currentImprovements.generatedAt}</div>
             </div>
         </div>
@@ -17811,4 +17816,301 @@ async function exportHistory() {
         showAlert('导出失败', 'error');
     }
 }
+
+// ==================== 热点推送功能 ====================
+
+// 热点推送相关变量
+let currentHotTopics = [];
+let hotTopicFilter = 'today';
+
+// 初始化热点推送
+async function initializeHotTopics() {
+    console.log('初始化热点推送...');
+    try {
+        // 初始化示例数据
+        await initializeHotTopicData();
+        // 加载热点数据
+        await loadTeacherHotTopics();
+    } catch (error) {
+        console.error('初始化热点推送失败:', error);
+    }
+}
+
+// 初始化热点示例数据
+async function initializeHotTopicData() {
+    try {
+        const response = await fetch('/api/hot-topics/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log('热点示例数据初始化成功:', result.message);
+        }
+    } catch (error) {
+        console.error('初始化热点示例数据失败:', error);
+    }
+}
+
+// 加载教师热点数据
+async function loadTeacherHotTopics() {
+    try {
+        console.log('加载教师热点数据...');
+        const response = await fetch('/api/hot-topics/latest?limit=10');
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                currentHotTopics = result.data;
+                displayTeacherHotTopics(currentHotTopics);
+                console.log('热点数据加载成功:', currentHotTopics.length, '条');
+            } else {
+                console.error('获取热点数据失败:', result.message);
+                showHotTopicError('获取热点数据失败');
+            }
+        } else {
+            console.error('热点API请求失败:', response.status);
+            showHotTopicError('网络请求失败');
+        }
+    } catch (error) {
+        console.error('加载热点数据失败:', error);
+        showHotTopicError('加载热点数据时发生错误');
+    }
+}
+
+// 显示教师热点列表
+function displayTeacherHotTopics(topics) {
+    const container = document.getElementById('teacher-hotspot-list');
+    if (!container) {
+        console.error('找不到热点容器元素');
+        return;
+    }
+
+    if (!topics || topics.length === 0) {
+        container.innerHTML = `
+            <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-fire" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
+                <p>暂无热点内容</p>
+                <p>请稍后刷新或联系管理员</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    topics.forEach(topic => {
+        const timeAgo = getTimeAgo(topic.publishTime);
+        const badgeClass = getBadgeClass(topic.publishTime);
+        const badgeText = getBadgeText(topic.publishTime);
+
+        html += `
+            <div class="hotspot-item" onclick="openHotTopicDetail(${topic.id})">
+                <div class="hotspot-header">
+                    <h4 class="hotspot-title">${escapeHtml(topic.title)}</h4>
+                    <span class="hotspot-badge ${badgeClass}">${badgeText}</span>
+                </div>
+                <p class="hotspot-summary">${escapeHtml(topic.summary || '暂无摘要')}</p>
+                <div class="hotspot-meta">
+                    <div class="hotspot-source">
+                        <i class="fas fa-globe"></i>
+                        <span>${escapeHtml(topic.sourceWebsite || '未知来源')}</span>
+                    </div>
+                    <div class="hotspot-time">${timeAgo}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// 刷新教师热点
+async function refreshTeacherHotspots() {
+    console.log('刷新教师热点...');
+    const container = document.getElementById('teacher-hotspot-list');
+    if (container) {
+        container.innerHTML = `
+            <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-sync-alt fa-spin" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
+                <p>正在刷新热点数据...</p>
+            </div>
+        `;
+    }
+
+    try {
+        // 手动触发爬取
+        await fetch('/api/hot-topics/refresh', { method: 'POST' });
+        // 重新加载数据
+        await loadTeacherHotTopics();
+        showAlert('热点数据刷新成功', 'success');
+    } catch (error) {
+        console.error('刷新热点失败:', error);
+        showHotTopicError('刷新失败，请稍后重试');
+        showAlert('刷新热点数据失败', 'error');
+    }
+}
+
+// 筛选教师热点
+async function filterTeacherHotspots() {
+    const filterSelect = document.getElementById('teacher-hotspot-filter');
+    if (!filterSelect) return;
+
+    hotTopicFilter = filterSelect.value;
+    console.log('筛选热点:', hotTopicFilter);
+
+    const container = document.getElementById('teacher-hotspot-list');
+    if (container) {
+        container.innerHTML = `
+            <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-filter" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
+                <p>正在筛选热点...</p>
+            </div>
+        `;
+    }
+
+    try {
+        let url = '/api/hot-topics/latest?limit=20';
+
+        // 根据筛选条件调整API请求
+        if (hotTopicFilter === 'popular') {
+            url = '/api/hot-topics/popular?limit=10';
+        }
+
+        const response = await fetch(url);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                let filteredTopics = result.data;
+
+                // 客户端时间筛选
+                if (hotTopicFilter === 'today') {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    filteredTopics = filteredTopics.filter(topic => {
+                        const publishDate = new Date(topic.publishTime);
+                        return publishDate >= today;
+                    });
+                } else if (hotTopicFilter === 'week') {
+                    const weekAgo = new Date();
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    filteredTopics = filteredTopics.filter(topic => {
+                        const publishDate = new Date(topic.publishTime);
+                        return publishDate >= weekAgo;
+                    });
+                } else if (hotTopicFilter === 'month') {
+                    const monthAgo = new Date();
+                    monthAgo.setMonth(monthAgo.getMonth() - 1);
+                    filteredTopics = filteredTopics.filter(topic => {
+                        const publishDate = new Date(topic.publishTime);
+                        return publishDate >= monthAgo;
+                    });
+                }
+
+                currentHotTopics = filteredTopics;
+                displayTeacherHotTopics(filteredTopics);
+            } else {
+                showHotTopicError('筛选失败: ' + result.message);
+            }
+        } else {
+            showHotTopicError('筛选请求失败');
+        }
+    } catch (error) {
+        console.error('筛选热点失败:', error);
+        showHotTopicError('筛选时发生错误');
+    }
+}
+
+// 打开热点详情
+function openHotTopicDetail(topicId) {
+    console.log('打开热点详情:', topicId);
+
+    // 跳转到热点详情页面
+    window.open(`hotspot-detail.html?id=${topicId}`, '_blank');
+}
+
+// 显示热点错误信息
+function showHotTopicError(message) {
+    const container = document.getElementById('teacher-hotspot-list');
+    if (container) {
+        container.innerHTML = `
+            <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
+                <p>${escapeHtml(message)}</p>
+                <button class="btn btn-sm btn-primary" onclick="refreshTeacherHotspots()" style="margin-top: 12px;">
+                    <i class="fas fa-sync-alt"></i> 重试
+                </button>
+            </div>
+        `;
+    }
+}
+
+// 获取时间差显示文本
+function getTimeAgo(publishTime) {
+    if (!publishTime) return '未知时间';
+
+    const now = new Date();
+    const publishDate = new Date(publishTime);
+    const diffMs = now - publishDate;
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMinutes < 1) {
+        return '刚刚';
+    } else if (diffMinutes < 60) {
+        return `${diffMinutes}分钟前`;
+    } else if (diffHours < 24) {
+        return `${diffHours}小时前`;
+    } else if (diffDays < 7) {
+        return `${diffDays}天前`;
+    } else {
+        return publishDate.toLocaleDateString('zh-CN');
+    }
+}
+
+// 获取徽章样式类
+function getBadgeClass(publishTime) {
+    if (!publishTime) return '';
+
+    const now = new Date();
+    const publishDate = new Date(publishTime);
+    const diffHours = (now - publishDate) / (1000 * 60 * 60);
+
+    if (diffHours <= 24) {
+        return 'today';
+    } else if (diffHours <= 168) { // 7天
+        return 'week';
+    } else {
+        return 'month';
+    }
+}
+
+// 获取徽章文本
+function getBadgeText(publishTime) {
+    if (!publishTime) return '热点';
+
+    const now = new Date();
+    const publishDate = new Date(publishTime);
+    const diffHours = (now - publishDate) / (1000 * 60 * 60);
+
+    if (diffHours <= 24) {
+        return '今日';
+    } else if (diffHours <= 168) { // 7天
+        return '本周';
+    } else {
+        return '热点';
+    }
+}
+
+// HTML转义函数
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 

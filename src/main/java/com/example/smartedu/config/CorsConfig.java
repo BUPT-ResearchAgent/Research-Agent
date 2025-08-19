@@ -1,5 +1,7 @@
 package com.example.smartedu.config;
 
+import java.util.Arrays;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -7,8 +9,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-import java.util.Arrays;
 
 /**
  * CORS 跨域配置
@@ -23,7 +23,7 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns("*")  // 允许所有来源模式
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")  // 允许的HTTP方法
                 .allowedHeaders("*")  // 允许所有请求头
-                .allowCredentials(true)  // 允许发送Cookie和认证信息，支持会话
+                .allowCredentials(false)  // 禁用认证信息，避免CORS冲突
                 .maxAge(3600);  // 预检请求的缓存时间
         
         // 也允许静态资源路径
@@ -31,7 +31,7 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                .allowCredentials(true)
+                .allowCredentials(false)
                 .maxAge(3600);
     }
     
@@ -53,8 +53,8 @@ public class CorsConfig implements WebMvcConfigurer {
         // 允许的请求头
         configuration.setAllowedHeaders(Arrays.asList("*"));
         
-        // 允许发送认证信息，支持会话认证
-        configuration.setAllowCredentials(true);
+        // 禁用认证信息，避免CORS冲突
+        configuration.setAllowCredentials(false);
         
         // 预检请求的缓存时间（秒）
         configuration.setMaxAge(3600L);

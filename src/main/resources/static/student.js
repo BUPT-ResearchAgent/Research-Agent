@@ -29,6 +29,10 @@ async function showSection(sectionId) {
     switch(sectionId) {
         case 'student-dashboard':
             updateDashboardStats();
+            // 加载热点推送
+            setTimeout(() => {
+                initializeStudentHotTopics();
+            }, 500);
             break;
         case 'join-course':
             refreshAvailableCourses();
@@ -352,7 +356,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         logoutModal.style.display = 'none';
         // 跳转到首页
         setTimeout(() => {
-            window.location.href = 'SmartEdu.html';
+            window.location.href = 'index.html';
         }, 1000);
     });
 
@@ -905,7 +909,7 @@ async function handleDeleteAccount(e) {
             
             // 延迟2秒后跳转到首页
             setTimeout(() => {
-                window.location.href = 'SmartEdu.html';
+                window.location.href = 'index.html';
             }, 2000);
         } else {
             showNotification(deleteResult.message || '账户注销失败', 'error');
@@ -7831,6 +7835,402 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// ==================== 热点推送功能 ====================
+
+// 热点推送相关变量
+let currentStudentHotTopics = [];
+let studentHotTopicFilter = 'today';
+
+// 初始化学生热点推送
+async function initializeStudentHotTopics() {
+    console.log('初始化学生热点推送...');
+    try {
+        // 初始化示例数据
+        await initializeHotTopicData();
+        // 加载热点数据
+        await loadStudentHotTopics();
+    } catch (error) {
+        console.error('初始化学生热点推送失败:', error);
+    }
+}
+
+// 初始化热点示例数据
+async function initializeHotTopicData() {
+    try {
+        const response = await fetch('/api/hot-topics/init', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log('热点示例数据初始化成功:', result.message);
+        }
+    } catch (error) {
+        console.error('初始化热点示例数据失败:', error);
+    }
+}
+
+// 加载学生热点数据
+async function loadStudentHotTopics() {
+    try {
+        console.log('加载学生热点数据...');
+        const response = await fetch('/api/hot-topics/latest?limit=10');
+
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                currentStudentHotTopics = result.data;
+                displayStudentHotTopics(currentStudentHotTopics);
+                console.log('学生热点数据加载成功:', currentStudentHotTopics.length, '条');
+            } else {
+                console.error('获取学生热点数据失败:', result.message);
+                showStudentHotTopicError('获取热点数据失败');
+            }
+        } else {
+            console.error('学生热点API请求失败:', response.status);
+            showStudentHotTopicError('网络请求失败');
+        }
+    } catch (error) {
+        console.error('加载学生热点数据失败:', error);
+        showStudentHotTopicError('加载热点数据时发生错误');
+    }
+}
+
+// 显示学生热点列表
+function displayStudentHotTopics(topics) {
+    const container = document.getElementById('student-hotspot-list');
+    if (!container) {
+        console.error('找不到学生热点容器元素');
+        return;
+    }
+
+    if (!topics || topics.length === 0) {
+        container.innerHTML = `
+            <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-fire" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
+                <p>暂无热点内容</p>
+                <p>请稍后刷新或联系管理员</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    topics.forEach(topic => {
+        const timeAgo = getStudentTimeAgo(topic.publishTime);
+        const badgeClass = getStudentBadgeClass(topic.publishTime);
+        const badgeText = getStudentBadgeText(topic.publishTime);
+
+        html += `
+            <div class="hotspot-item" onclick="openStudentHotTopicDetail(${topic.id})">
+                <div class="hotspot-header">
+                    <h4 class="hotspot-title">${escapeStudentHtml(topic.title)}</h4>
+                    <span class="hotspot-badge ${badgeClass}">${badgeText}</span>
+                </div>
+                <p class="hotspot-summary">${escapeStudentHtml(topic.summary || '暂无摘要')}</p>
+                <div class="hotspot-meta">
+                    <div class="hotspot-source">
+                        <i class="fas fa-globe" style="font-size: 10px;"></i>
+                        <span>${escapeStudentHtml(topic.sourceWebsite || '未知来源')}</span>
+                    </div>
+                    <div class="hotspot-time">${timeAgo}</div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// 模拟热点数据（保留作为备用）
+const mockHotspots = {
+    today: [
+        {
+            id: 1,
+            title: "教育部发布2024年高等教育质量报告",
+            summary: "报告显示，我国高等教育毛入学率达到60.2%，教育质量持续提升，在线教育成为重要补充...",
+            source: "教育部官网",
+            time: "2小时前",
+            type: "today",
+            url: "#"
+        },
+        {
+            id: 2,
+            title: "人工智能在教育领域的应用前景广阔",
+            summary: "专家指出，AI技术正在深刻改变传统教育模式，个性化学习、智能评估等应用日趋成熟...",
+            source: "中国教育报",
+            time: "4小时前",
+            type: "today",
+            url: "#"
+        },
+        {
+            id: 3,
+            title: "在线学习平台用户突破5亿人次",
+            summary: "最新统计显示，国内主要在线学习平台累计用户数突破5亿，疫情推动了在线教育的快速发展...",
+            source: "新华网",
+            time: "6小时前",
+            type: "today",
+            url: "#"
+        }
+    ],
+    week: [
+        {
+            id: 4,
+            title: "全国职业教育改革发展现场会召开",
+            summary: "会议强调要深化产教融合，推进校企合作，培养更多高素质技术技能人才...",
+            source: "人民日报",
+            time: "2天前",
+            type: "week",
+            url: "#"
+        },
+        {
+            id: 5,
+            title: "数字化转型助力教育公平发展",
+            summary: "通过数字技术，优质教育资源得以更广泛传播，缩小城乡教育差距成效显著...",
+            source: "光明日报",
+            time: "3天前",
+            type: "week",
+            url: "#"
+        },
+        {
+            id: 6,
+            title: "大学生创新创业大赛圆满落幕",
+            summary: "本届大赛共有来自全国2000多所高校的40万个项目参赛，创历史新高...",
+            source: "中青网",
+            time: "5天前",
+            type: "week",
+            url: "#"
+        }
+    ],
+    month: [
+        {
+            id: 7,
+            title: "新版义务教育课程标准正式实施",
+            summary: "新课标更加注重学生核心素养的培养，强调跨学科学习和实践能力...",
+            source: "教育部",
+            time: "2周前",
+            type: "month",
+            url: "#"
+        },
+        {
+            id: 8,
+            title: "师范教育振兴行动计划成效显著",
+            summary: "通过实施师范教育振兴行动，教师队伍建设取得重要进展，教师素质明显提升...",
+            source: "中国教育新闻网",
+            time: "3周前",
+            type: "month",
+            url: "#"
+        }
+    ]
+};
+
+// 加载热点推送内容（保持兼容性，调用新的API函数）
+function loadHotspots(filter = 'today') {
+    studentHotTopicFilter = filter;
+    filterStudentHotspots();
+}
+
+// 筛选热点
+function filterHotspots() {
+    const filter = document.getElementById('hotspot-filter').value;
+    studentHotTopicFilter = filter;
+    filterStudentHotspots();
+}
+
+// 筛选学生热点
+async function filterStudentHotspots() {
+    console.log('筛选学生热点:', studentHotTopicFilter);
+
+    const container = document.getElementById('student-hotspot-list');
+    if (container) {
+        container.innerHTML = `
+            <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-filter" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
+                <p>正在筛选热点...</p>
+            </div>
+        `;
+    }
+
+    try {
+        let url = '/api/hot-topics/latest?limit=20';
+
+        // 根据筛选条件调整API请求
+        if (studentHotTopicFilter === 'popular') {
+            url = '/api/hot-topics/popular?limit=10';
+        }
+
+        const response = await fetch(url);
+        if (response.ok) {
+            const result = await response.json();
+            if (result.success) {
+                let filteredTopics = result.data;
+
+                // 客户端时间筛选
+                if (studentHotTopicFilter === 'today') {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    filteredTopics = filteredTopics.filter(topic => {
+                        const publishDate = new Date(topic.publishTime);
+                        return publishDate >= today;
+                    });
+                } else if (studentHotTopicFilter === 'week') {
+                    const weekAgo = new Date();
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    filteredTopics = filteredTopics.filter(topic => {
+                        const publishDate = new Date(topic.publishTime);
+                        return publishDate >= weekAgo;
+                    });
+                } else if (studentHotTopicFilter === 'month') {
+                    const monthAgo = new Date();
+                    monthAgo.setMonth(monthAgo.getMonth() - 1);
+                    filteredTopics = filteredTopics.filter(topic => {
+                        const publishDate = new Date(topic.publishTime);
+                        return publishDate >= monthAgo;
+                    });
+                }
+
+                currentStudentHotTopics = filteredTopics;
+                displayStudentHotTopics(filteredTopics);
+            } else {
+                showStudentHotTopicError('筛选失败: ' + result.message);
+            }
+        } else {
+            showStudentHotTopicError('筛选请求失败');
+        }
+    } catch (error) {
+        console.error('筛选学生热点失败:', error);
+        showStudentHotTopicError('筛选时发生错误');
+    }
+}
+
+// 刷新热点
+async function refreshHotspots() {
+    console.log('刷新学生热点...');
+    const container = document.getElementById('student-hotspot-list');
+    if (container) {
+        container.innerHTML = `
+            <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-sync-alt fa-spin" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
+                <p>正在刷新热点内容...</p>
+            </div>
+        `;
+    }
+
+    try {
+        // 手动触发爬取
+        await fetch('/api/hot-topics/refresh', { method: 'POST' });
+        // 重新加载数据
+        await loadStudentHotTopics();
+        showAlert('热点数据刷新成功', 'success');
+    } catch (error) {
+        console.error('刷新学生热点失败:', error);
+        showStudentHotTopicError('刷新失败，请稍后重试');
+        showAlert('刷新热点数据失败', 'error');
+    }
+}
+
+// 打开热点详情（保持兼容性）
+function openHotspot(url) {
+    if (url && url !== '#') {
+        window.open(url, '_blank');
+    } else {
+        alert('热点详情功能开发中...');
+    }
+}
+
+// 打开学生热点详情
+function openStudentHotTopicDetail(topicId) {
+    console.log('打开学生热点详情:', topicId);
+
+    // 跳转到热点详情页面
+    window.open(`hotspot-detail.html?id=${topicId}`, '_blank');
+}
+
+// 显示学生热点错误信息
+function showStudentHotTopicError(message) {
+    const container = document.getElementById('student-hotspot-list');
+    if (container) {
+        container.innerHTML = `
+            <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
+                <p>${escapeStudentHtml(message)}</p>
+                <button class="btn btn-sm btn-primary" onclick="refreshHotspots()" style="margin-top: 12px;">
+                    <i class="fas fa-sync-alt"></i> 重试
+                </button>
+            </div>
+        `;
+    }
+}
+
+// 获取学生时间差显示文本
+function getStudentTimeAgo(publishTime) {
+    if (!publishTime) return '未知时间';
+
+    const now = new Date();
+    const publishDate = new Date(publishTime);
+    const diffMs = now - publishDate;
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMinutes < 1) {
+        return '刚刚';
+    } else if (diffMinutes < 60) {
+        return `${diffMinutes}分钟前`;
+    } else if (diffHours < 24) {
+        return `${diffHours}小时前`;
+    } else if (diffDays < 7) {
+        return `${diffDays}天前`;
+    } else {
+        return publishDate.toLocaleDateString('zh-CN');
+    }
+}
+
+// 获取学生徽章样式类
+function getStudentBadgeClass(publishTime) {
+    if (!publishTime) return '';
+
+    const now = new Date();
+    const publishDate = new Date(publishTime);
+    const diffHours = (now - publishDate) / (1000 * 60 * 60);
+
+    if (diffHours <= 24) {
+        return 'today';
+    } else if (diffHours <= 168) { // 7天
+        return 'week';
+    } else {
+        return 'month';
+    }
+}
+
+// 获取学生徽章文本
+function getStudentBadgeText(publishTime) {
+    if (!publishTime) return '热点';
+
+    const now = new Date();
+    const publishDate = new Date(publishTime);
+    const diffHours = (now - publishDate) / (1000 * 60 * 60);
+
+    if (diffHours <= 24) {
+        return '今日';
+    } else if (diffHours <= 168) { // 7天
+        return '本周';
+    } else {
+        return '热点';
+    }
+}
+
+// 学生HTML转义函数
+function escapeStudentHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // 确保关键函数在全局作用域中可用
 window.handleSendMessage = handleSendMessage;
 window.sendMessageToAI = sendMessageToAI;
@@ -7838,6 +8238,10 @@ window.formatAIResponse = formatAIResponse;
 window.openAIAssistant = openAIAssistant;
 window.onRAGCourseChange = onRAGCourseChange;
 window.debugAIAssistant = debugAIAssistant;
+window.loadHotspots = loadHotspots;
+window.filterHotspots = filterHotspots;
+window.refreshHotspots = refreshHotspots;
+window.openHotspot = openHotspot;
 
 console.log('全局函数已暴露:', {
     handleSendMessage: typeof window.handleSendMessage,
@@ -7845,5 +8249,9 @@ console.log('全局函数已暴露:', {
     formatAIResponse: typeof window.formatAIResponse,
     openAIAssistant: typeof window.openAIAssistant,
     onRAGCourseChange: typeof window.onRAGCourseChange,
-    debugAIAssistant: typeof window.debugAIAssistant
+    debugAIAssistant: typeof window.debugAIAssistant,
+    loadHotspots: typeof window.loadHotspots,
+    filterHotspots: typeof window.filterHotspots,
+    refreshHotspots: typeof window.refreshHotspots,
+    openHotspot: typeof window.openHotspot
 });
