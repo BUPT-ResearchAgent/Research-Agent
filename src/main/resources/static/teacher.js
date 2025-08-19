@@ -18091,18 +18091,36 @@ function displayTeacherHotTopics(topics) {
         const badgeText = getBadgeText(topic.publishTime);
 
         html += `
-            <div class="hotspot-item" onclick="openHotTopicDetail(${topic.id})">
+            <div class="hotspot-item">
                 <div class="hotspot-header">
                     <h4 class="hotspot-title">${escapeHtml(topic.title)}</h4>
                     <span class="hotspot-badge ${badgeClass}">${badgeText}</span>
                 </div>
                 <p class="hotspot-summary">${escapeHtml(topic.summary || '暂无摘要')}</p>
+                ${topic.content ? `
+                    <div class="hotspot-content" style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+                        <h5 style="margin: 0 0 10px 0; color: #2c3e50; font-size: 14px;">📰 新闻详情</h5>
+                        <div style="color: #34495e; line-height: 1.6; font-size: 14px; max-height: 200px; overflow-y: auto;">
+                            ${formatNewsContent(topic.content)}
+                        </div>
+                    </div>
+                ` : ''}
                 <div class="hotspot-meta">
                     <div class="hotspot-source">
                         <i class="fas fa-globe"></i>
                         <span>${escapeHtml(topic.sourceWebsite || '未知来源')}</span>
                     </div>
                     <div class="hotspot-time">${timeAgo}</div>
+                    <div class="hotspot-actions">
+                        <button onclick="openHotTopicDetail(${topic.id})" class="btn-link" style="margin-right: 10px;">
+                            <i class="fas fa-eye"></i> 查看详情
+                        </button>
+                        ${topic.url && topic.url !== '#' ? `
+                            <a href="${topic.url}" target="_blank" class="btn-link">
+                                <i class="fas fa-external-link-alt"></i> 原文链接
+                            </a>
+                        ` : ''}
+                    </div>
                 </div>
             </div>
         `;
@@ -19519,5 +19537,266 @@ function generateMockImprovementData(courseName, searchQuery) {
             { title: "数字化教学资源平台", url: "https://www.smartedu.cn/" }
         ]
     };
+}
+
+/**
+ * 格式化新闻内容
+ */
+function formatNewsContent(content) {
+    if (!content) return '';
+
+    // 清理和格式化内容
+    let formatted = content
+        .replace(/\n\n+/g, '</p><p>')  // 段落分隔
+        .replace(/\n/g, '<br>')        // 换行
+        .trim();
+
+    // 添加段落标签
+    if (formatted && !formatted.startsWith('<p>')) {
+        formatted = '<p>' + formatted + '</p>';
+    }
+
+    // 处理链接
+    formatted = makeLinksClickable(formatted);
+
+    return formatted;
+}
+
+/**
+ * 打开热点详情模态框
+ */
+async function openHotTopicDetail(topicId) {
+    try {
+        console.log('打开热点详情，ID:', topicId);
+
+        // 从当前热点列表中找到对应的热点
+        const topic = currentHotTopics.find(t => t.id === topicId);
+
+        if (!topic) {
+            console.error('找不到热点数据，ID:', topicId);
+            showNotification('热点数据不存在', 'error');
+            return;
+        }
+
+        // 填充模态框内容
+        document.getElementById('hotspot-detail-title').textContent = topic.title || '无标题';
+        document.getElementById('hotspot-detail-source-text').textContent = topic.sourceWebsite || '未知来源';
+        document.getElementById('hotspot-detail-time').textContent = getTimeAgo(topic.publishTime);
+        document.getElementById('hotspot-summary-content').innerHTML = formatNewsContent(topic.summary || '暂无摘要');
+        document.getElementById('hotspot-view-count').textContent = topic.viewCount || 0;
+        document.getElementById('hotspot-category').textContent = topic.category || '未分类';
+
+        // 显示完整内容
+        const fullContentElement = document.getElementById('hotspot-full-content');
+        if (topic.content && topic.content.trim()) {
+            fullContentElement.innerHTML = formatNewsContent(topic.content);
+        } else {
+            fullContentElement.innerHTML = `
+                <div style="text-align: center; padding: 40px 0; color: #7f8c8d;">
+                    <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                    <p>暂无详细内容</p>
+                    <p style="font-size: 14px; margin-top: 8px;">该新闻的详细内容正在获取中，请稍后重试</p>
+                </div>
+            `;
+        }
+
+        // 显示模态框
+        const modal = document.getElementById('hotspot-detail-modal');
+        modal.style.display = 'flex';
+
+        // 增加浏览次数
+        try {
+            await fetch(`/api/hot-topics/${topicId}/view`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch (error) {
+            console.warn('更新浏览次数失败:', error);
+        }
+
+    } catch (error) {
+        console.error('打开热点详情失败:', error);
+        showNotification('打开详情失败', 'error');
+    }
+}
+
+/**
+ * 关闭热点详情模态框
+ */
+function closeHotTopicDetail() {
+    const modal = document.getElementById('hotspot-detail-modal');
+    modal.style.display = 'none';
+}
+
+/**
+ * 分享热点
+ */
+function shareHotTopic() {
+    const title = document.getElementById('hotspot-detail-title').textContent;
+    const url = window.location.href;
+
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            text: '分享一个教育热点新闻',
+            url: url
+        }).catch(err => console.log('分享失败:', err));
+    } else {
+        // 复制到剪贴板
+        const textToCopy = `${title}\n${url}`;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showNotification('链接已复制到剪贴板', 'success');
+        }).catch(() => {
+            showNotification('分享功能不可用', 'warning');
+        });
+    }
+}
+
+/**
+ * 打开热点详情模态框
+ */
+async function openHotTopicDetail(topicId) {
+    try {
+        console.log('打开热点详情，ID:', topicId);
+
+        // 从当前热点列表中找到对应的热点
+        const topic = currentHotTopics.find(t => t.id === topicId);
+
+        if (!topic) {
+            console.error('找不到热点数据，ID:', topicId);
+            showNotification('热点数据不存在', 'error');
+            return;
+        }
+
+        // 填充模态框内容
+        document.getElementById('hotspot-detail-title').textContent = topic.title || '无标题';
+        document.getElementById('hotspot-detail-source-text').textContent = topic.sourceWebsite || '未知来源';
+        document.getElementById('hotspot-detail-time').textContent = getTimeAgo(topic.publishTime);
+        document.getElementById('hotspot-summary-content').innerHTML = formatNewsContent(topic.summary || '暂无摘要');
+        document.getElementById('hotspot-view-count').textContent = topic.viewCount || 0;
+        document.getElementById('hotspot-category').textContent = topic.category || '未分类';
+
+        // 显示完整内容
+        const fullContentElement = document.getElementById('hotspot-full-content');
+        if (topic.content && topic.content.trim()) {
+            fullContentElement.innerHTML = formatNewsContent(topic.content);
+        } else {
+            fullContentElement.innerHTML = `
+                <div style="text-align: center; padding: 40px 0; color: #7f8c8d;">
+                    <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                    <p>暂无详细内容</p>
+                    <p style="font-size: 14px; margin-top: 8px;">该新闻的详细内容正在获取中，请稍后重试</p>
+                </div>
+            `;
+        }
+
+        // 显示模态框
+        const modal = document.getElementById('hotspot-detail-modal');
+        modal.style.display = 'flex';
+
+        // 增加浏览次数
+        try {
+            await fetch(`/api/hot-topics/${topicId}/view`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch (error) {
+            console.warn('更新浏览次数失败:', error);
+        }
+
+    } catch (error) {
+        console.error('打开热点详情失败:', error);
+        showNotification('打开详情失败', 'error');
+    }
+}
+
+/**
+ * 打开热点详情模态框
+ */
+async function openHotTopicDetail(topicId) {
+    try {
+        console.log('打开热点详情，ID:', topicId);
+
+        // 从当前热点列表中找到对应的热点
+        const topic = currentHotTopics.find(t => t.id === topicId);
+
+        if (!topic) {
+            console.error('找不到热点数据，ID:', topicId);
+            showNotification('热点数据不存在', 'error');
+            return;
+        }
+
+        // 填充模态框内容
+        document.getElementById('hotspot-detail-title').textContent = topic.title || '无标题';
+        document.getElementById('hotspot-detail-source-text').textContent = topic.sourceWebsite || '未知来源';
+        document.getElementById('hotspot-detail-time').textContent = getTimeAgo(topic.publishTime);
+        document.getElementById('hotspot-summary-content').innerHTML = formatNewsContent(topic.summary || '暂无摘要');
+        document.getElementById('hotspot-view-count').textContent = topic.viewCount || 0;
+        document.getElementById('hotspot-category').textContent = topic.category || '未分类';
+
+        // 显示完整内容
+        const fullContentElement = document.getElementById('hotspot-full-content');
+        if (topic.content && topic.content.trim()) {
+            fullContentElement.innerHTML = formatNewsContent(topic.content);
+        } else {
+            fullContentElement.innerHTML = `
+                <div style="text-align: center; padding: 40px 0; color: #7f8c8d;">
+                    <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
+                    <p>暂无详细内容</p>
+                    <p style="font-size: 14px; margin-top: 8px;">该新闻的详细内容正在获取中，请稍后重试</p>
+                </div>
+            `;
+        }
+
+        // 显示模态框
+        const modal = document.getElementById('hotspot-detail-modal');
+        modal.style.display = 'flex';
+
+        // 增加浏览次数
+        try {
+            await fetch(`/api/hot-topics/${topicId}/view`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch (error) {
+            console.warn('更新浏览次数失败:', error);
+        }
+
+    } catch (error) {
+        console.error('打开热点详情失败:', error);
+        showNotification('打开详情失败', 'error');
+    }
+}
+
+/**
+ * 关闭热点详情模态框
+ */
+function closeHotTopicDetail() {
+    const modal = document.getElementById('hotspot-detail-modal');
+    modal.style.display = 'none';
+}
+
+/**
+ * 分享热点
+ */
+function shareHotTopic() {
+    const title = document.getElementById('hotspot-detail-title').textContent;
+    const url = window.location.href;
+
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            text: '分享一个教育热点新闻',
+            url: url
+        }).catch(err => console.log('分享失败:', err));
+    } else {
+        // 复制到剪贴板
+        const textToCopy = `${title}\n${url}`;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showNotification('链接已复制到剪贴板', 'success');
+        }).catch(() => {
+            showNotification('分享功能不可用', 'warning');
+        });
+    }
 }
 

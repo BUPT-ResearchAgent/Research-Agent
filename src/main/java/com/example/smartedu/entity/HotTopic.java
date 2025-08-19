@@ -15,7 +15,10 @@ public class HotTopic {
     
     @Column(columnDefinition = "TEXT")
     private String summary;
-    
+
+    @Column(columnDefinition = "LONGTEXT")
+    private String content;
+
     @Column(nullable = false, length = 1000)
     private String url;
     
@@ -78,7 +81,15 @@ public class HotTopic {
     public void setSummary(String summary) {
         this.summary = summary;
     }
-    
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+
     public String getUrl() {
         return url;
     }
