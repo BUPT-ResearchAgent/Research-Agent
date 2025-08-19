@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API测试</title>
+</head>
+<body>
+    <h1>测试教学改进建议API</h1>
+    <button onclick="testAPI()">测试API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            try {
+                const response = await fetch('/api/web-search/improvements', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        courseId: "1",
+                        courseName: "Java程序设计",
+                        searchQuery: "Java 2024年教学改进 教学方法创新"
+                    })
+                });
+                
+                const data = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<p style="color: red;">错误: ' + error.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

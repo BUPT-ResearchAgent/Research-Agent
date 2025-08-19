@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>表格格式化测试</title>
+    <script src="teacher.js"></script>
+</head>
+<body>
+    <h1>表格格式化测试</h1>
+    
+    <h2>测试内容1：Markdown表格</h2>
+    <div id="test1"></div>
+    
+    <h2>测试内容2：HTML表格</h2>
+    <div id="test2"></div>
+    
+    <h2>测试内容3：混合内容</h2>
+    <div id="test3"></div>
+
+    <script>
+        // 测试1：Markdown表格
+        const markdownTable = `
+# 课程大纲
+
+## 课程信息表
+
+| 项目 | 内容 | 备注 |
+|------|------|------|
+| 课程名称 | Java程序设计 | 核心课程 |
+| 学分 | 4学分 | 必修 |
+| 学时 | 64学时 | 理论+实践 |
+| 先修课程 | 计算机基础 | 必须掌握 |
+
+## 教学计划
+
+| 周次 | 教学内容 | 课时 | 教学方式 |
+|------|----------|------|----------|
+| 1-2 | Java基础语法 | 8 | 讲授+实验 |
+| 3-4 | 面向对象编程 | 8 | 讲授+实验 |
+| 5-6 | 异常处理 | 8 | 讲授+实验 |
+        `;
+        
+        // 测试2：HTML表格
+        const htmlTable = `
+<h1>课程评估</h1>
+
+<table>
+<tr><th>评估项目</th><th>权重</th><th>说明</th></tr>
+<tr><td>平时成绩</td><td>30%</td><td>作业+考勤</td></tr>
+<tr><td>期中考试</td><td>30%</td><td>理论考试</td></tr>
+<tr><td>期末考试</td><td>40%</td><td>综合考试</td></tr>
+</table>
+
+普通文本内容。
+        `;
+        
+        // 测试3：混合内容
+        const mixedContent = `
+# 教学大纲
+
+## 基本信息
+课程代码：CS101
+课程名称：Java程序设计
+
+## 成绩构成
+| 考核方式 | 比例 | 要求 |
+| 平时作业 | 20% | 按时提交 |
+| 实验报告 | 30% | 独立完成 |
+| 期末考试 | 50% | 闭卷考试 |
+
+## 教学目标
+1. 掌握Java基本语法
+2. 理解面向对象编程
+3. 能够开发简单应用
+
+## 参考资料
+- Java核心技术
+- 设计模式
+        `;
+        
+        // 应用格式化
+        document.getElementById('test1').innerHTML = formatOutlineContent(markdownTable);
+        document.getElementById('test2').innerHTML = formatOutlineContent(htmlTable);
+        document.getElementById('test3').innerHTML = formatOutlineContent(mixedContent);
+    </script>
+</body>
+</html>

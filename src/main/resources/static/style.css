@@ -28,6 +28,184 @@ body {
     background: linear-gradient(120deg, #f6faff 0%, #eaf1ff 40%, #e3e8ff 100%) fixed;
     color: #333;
     overflow-x: hidden;
+    font-size: 16px; /* 增加全局字体大小 */
+}
+
+/* 联网搜索选项样式 */
+.web-search-option {
+    display: flex;
+    align-items: center;
+    margin: 0 10px;
+}
+
+.web-search-checkbox {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #495057;
+    transition: all 0.3s ease;
+    padding: 10px 16px;
+    border-radius: 6px;
+    background: rgba(23, 162, 184, 0.05);
+    border: 1px solid rgba(23, 162, 184, 0.2);
+    height: 40px; /* 与按钮高度一致 */
+    white-space: nowrap;
+}
+
+.web-search-checkbox:hover {
+    background: rgba(23, 162, 184, 0.1);
+    border-color: rgba(23, 162, 184, 0.3);
+    transform: translateY(-1px);
+}
+
+.web-search-checkbox input[type="checkbox"] {
+    display: none;
+}
+
+.web-search-checkbox .checkmark {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #17a2b8;
+    border-radius: 3px;
+    margin-right: 8px;
+    position: relative;
+    transition: all 0.3s ease;
+    background: white;
+    flex-shrink: 0;
+}
+
+.web-search-checkbox input[type="checkbox"]:checked + .checkmark {
+    background: #17a2b8;
+    border-color: #17a2b8;
+}
+
+.web-search-checkbox input[type="checkbox"]:checked + .checkmark::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 3px;
+    height: 7px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.web-search-checkbox i {
+    color: #17a2b8;
+    margin-right: 6px;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+/* 试卷编辑和显示样式 */
+.exam-header {
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e9ecef;
+}
+
+.exam-header h3 {
+    color: #2c3e50;
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+}
+
+.exam-info {
+    display: flex;
+    gap: 20px;
+    font-size: 14px;
+    color: #7f8c8d;
+    flex-wrap: wrap;
+}
+
+.exam-info span {
+    background: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.exam-content-body {
+    margin-top: 20px;
+}
+
+.exam-edit-container {
+    margin-bottom: 20px;
+}
+
+.exam-edit-textarea {
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.exam-edit-textarea:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* 问题项样式 */
+.question-item {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+}
+
+.question-item h4 {
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 15px 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.question-content {
+    margin-bottom: 15px;
+    line-height: 1.7;
+    color: #2c3e50;
+}
+
+.question-options {
+    margin: 15px 0;
+}
+
+.question-options p {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.question-answer {
+    margin-bottom: 15px;
+    padding: 12px;
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    border-radius: 8px;
+}
+
+.question-explanation {
+    padding: 12px;
+    background: #d1ecf1;
+    border: 1px solid #bee5eb;
+    border-radius: 8px;
 }
 
 /* 顶部导航栏 */
@@ -167,7 +345,7 @@ body {
 
 .menu-title {
     padding: 20px 20px 10px;
-    font-size: 16px;
+    font-size: 18px; /* 增大菜单标题字体 */
     font-weight: 700;
     color: #b8bfff;
     text-transform: uppercase;
@@ -225,7 +403,7 @@ body {
     padding: 10px 20px 10px 50px;
     cursor: pointer;
     transition: var(--transition);
-    font-size: 14px;
+    font-size: 16px; /* 增大子菜单字体 */
     display: flex;
     align-items: center;
 }
@@ -623,7 +801,7 @@ body {
 
 .card-header {
     color: #5b8cff;
-    font-size: 1.2rem;
+    font-size: 1.4rem; /* 增大卡片标题字体 */
     font-weight: 700;
     margin-bottom: 18px;
     padding-bottom: 15px;
@@ -645,7 +823,7 @@ body {
 }
 
 .btn {
-    padding: 10px 20px;
+    padding: 12px 24px; /* 增大按钮内边距 */
     border-radius: var(--border-radius);
     border: none;
     font-weight: 500;
@@ -655,6 +833,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    font-size: 16px; /* 增大按钮字体 */
 }
 
 .btn i {

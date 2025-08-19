@@ -2479,40 +2479,101 @@ async function generateOutline() {
         const courseId = document.getElementById('outline-course-select').value;
         const hours = document.getElementById('outline-hours').value;
         const requirements = document.getElementById('outline-requirements').value;
-        
+
         if (!courseId) {
             showNotification('请选择课程', 'warning');
             return;
         }
-        
+
         if (!hours || hours <= 0) {
             showNotification('请输入有效的教学学时', 'warning');
             return;
         }
-        
-        showLoading('🔍 正在使用RAG技术从知识库中搜索相关内容...<br>🤖 AI将基于检索到的知识块生成教学大纲...');
-        
-        const response = await TeacherAPI.generateOutline({
-            courseId: parseInt(courseId),
-            requirements: requirements || '',
-            hours: parseInt(hours)
-        });
-        
-        hideLoading();
-        
-        if (response.success) {
-            console.log('教学大纲生成成功，响应数据:', response);
-            showNotification('🎉 基于知识库的教学大纲生成成功！', 'success');
-            displayOutlineResult(response.data);
+
+        // 检查是否启用了联网搜索
+        const webSearchEnabled = document.getElementById('enable-web-search-outline').checked;
+
+        if (webSearchEnabled) {
+            // 获取课程名称
+            const courseSelect = document.getElementById('outline-course-select');
+            const courseName = courseSelect.options[courseSelect.selectedIndex].text;
+
+            // 智能生成搜索查询
+            const searchQuery = generateSmartSearchQuery(courseName, requirements, 'outline');
+
+            // 显示确认对话框
+            const confirmed = await showWebSearchConfirmDialog('教学大纲', searchQuery);
+            if (!confirmed) {
+                return;
+            }
+
+            // 执行联网搜索生成
+            await generateOutlineWithWebSearch(courseId, hours, requirements, searchQuery);
         } else {
-            console.error('教学大纲生成失败:', response);
-            showNotification(response.message || '生成失败', 'error');
+            // 执行原有的RAG生成
+            await generateOutlineWithRAG(courseId, hours, requirements);
         }
-        
+
     } catch (error) {
         hideLoading();
         console.error('生成大纲失败:', error);
         showNotification('生成失败，请重试', 'error');
+    }
+}
+
+// 原有的RAG生成逻辑
+async function generateOutlineWithRAG(courseId, hours, requirements) {
+    showLoading('🔍 正在使用RAG技术从知识库中搜索相关内容...<br>🤖 AI将基于检索到的知识块生成教学大纲...');
+
+    const response = await TeacherAPI.generateOutline({
+        courseId: parseInt(courseId),
+        requirements: requirements || '',
+        hours: parseInt(hours)
+    });
+
+    hideLoading();
+
+    if (response.success) {
+        console.log('教学大纲生成成功，响应数据:', response);
+        showNotification('🎉 基于知识库的教学大纲生成成功！', 'success');
+        displayOutlineResult(response.data);
+    } else {
+        console.error('教学大纲生成失败:', response);
+        showNotification(response.message || '生成失败', 'error');
+    }
+}
+
+// 联网搜索生成逻辑
+async function generateOutlineWithWebSearch(courseId, hours, requirements, searchQuery) {
+    showLoading('🌐 正在联网搜索相关信息...<br>🤖 AI将结合网络搜索结果生成教学大纲...');
+
+    // 获取课程名称
+    const courseSelect = document.getElementById('outline-course-select');
+    const courseName = courseSelect.options[courseSelect.selectedIndex].text;
+
+    const response = await fetch('/api/web-search/outline', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            courseName: courseName,
+            requirements: requirements || '',
+            hours: parseInt(hours),
+            searchQuery: searchQuery
+        })
+    });
+
+    const result = await response.json();
+    hideLoading();
+
+    if (result.success) {
+        console.log('联网搜索生成大纲成功:', result);
+        showNotification('🎉 基于联网搜索的教学大纲生成成功！', 'success');
+        displayWebSearchOutlineResult(result.data);
+    } else {
+        console.error('联网搜索生成大纲失败:', result);
+        showNotification(result.message || '联网搜索生成失败', 'error');
     }
 }
 
@@ -2534,12 +2595,21 @@ function displayOutlineResult(outlineData) {
     console.log('开始显示教学大纲结果，数据:', outlineData);
     const resultDiv = document.getElementById('outline-result');
     const contentDiv = document.getElementById('outline-content');
-    
+
     console.log('DOM元素检查:', {
         resultDiv: !!resultDiv,
         contentDiv: !!contentDiv,
         outlineData: !!outlineData
     });
+
+    // 设置当前生成的大纲数据
+    currentGeneratedOutline = {
+        courseName: outlineData.courseName || '教学大纲',
+        hours: outlineData.hours,
+        requirements: outlineData.requirements,
+        content: outlineData.outlineContent,
+        type: 'rag'
+    };
     
     if (!resultDiv) {
         console.error('找不到 outline-result 元素');
@@ -3321,44 +3391,66 @@ async function generateExam() {
         
         // 获取特殊要求（可选）
         const specialRequirements = document.getElementById('exam-special-requirements').value.trim();
-        
+
         // 获取能力维度要求（如果启用）
         const capabilityRequirements = collectCapabilityRequirements();
         const enableCapabilityAnalysis = document.getElementById('enable-capability-analysis')?.checked || false;
-        
-        const examData = {
-            title: examTitle,
-            courseId: parseInt(courseId),
-            materialIds: selectedMaterials,
-            duration: parseInt(duration),
-            totalScore: parseInt(totalScore),
-            questionTypes,
-            difficulty,
-            specialRequirements: specialRequirements || null,
-            enableCapabilityAnalysis: enableCapabilityAnalysis,
-            capabilityRequirements: capabilityRequirements
-        };
-        
-        console.log('生成试卷数据:', examData);
-        console.log('发送的测评名称:', examTitle);
-        
-        showLoading('AI正在使用RAG技术从知识库生成试卷...');
-        
-        const response = await TeacherAPI.generateExam(examData);
-        
-        hideLoading();
-        
-        if (response.success) {
-            showNotification('试卷生成成功！', 'success');
-            // 获取完整的考试数据包括题目
-            const examDetailResponse = await TeacherAPI.getExamDetail(response.data.id);
-            if (examDetailResponse.success) {
-                displayExamPreview(examDetailResponse.data);
-            } else {
-            displayExamPreview(response.data);
+
+        // 检查是否启用了联网搜索
+        const webSearchEnabled = document.getElementById('enable-web-search-exam').checked;
+
+        if (webSearchEnabled) {
+            // 获取课程名称
+            const courseSelect = document.getElementById('exam-course-select');
+            const courseName = courseSelect.options[courseSelect.selectedIndex].text;
+
+            // 智能生成搜索查询
+            const searchQuery = generateSmartSearchQuery(courseName, specialRequirements, 'exam');
+
+            // 显示确认对话框
+            const confirmed = await showWebSearchConfirmDialog('试卷', searchQuery);
+            if (!confirmed) {
+                return;
             }
+
+            // 执行联网搜索生成
+            await generateExamWithWebSearch(examTitle, courseId, duration, totalScore, questionTypes, difficulty, specialRequirements, searchQuery);
         } else {
-            showNotification(response.message || '生成失败', 'error');
+            // 执行原有的RAG生成
+            const examData = {
+                title: examTitle,
+                courseId: parseInt(courseId),
+                materialIds: selectedMaterials,
+                duration: parseInt(duration),
+                totalScore: parseInt(totalScore),
+                questionTypes,
+                difficulty,
+                specialRequirements: specialRequirements || null,
+                enableCapabilityAnalysis: enableCapabilityAnalysis,
+                capabilityRequirements: capabilityRequirements
+            };
+
+            console.log('生成试卷数据:', examData);
+            console.log('发送的测评名称:', examTitle);
+
+            showLoading('AI正在使用RAG技术从知识库生成试卷...');
+
+            const response = await TeacherAPI.generateExam(examData);
+
+            hideLoading();
+
+            if (response.success) {
+                showNotification('试卷生成成功！', 'success');
+                // 获取完整的考试数据包括题目
+                const examDetailResponse = await TeacherAPI.getExamDetail(response.data.id);
+                if (examDetailResponse.success) {
+                    displayExamPreview(examDetailResponse.data);
+                } else {
+                displayExamPreview(response.data);
+                }
+            } else {
+                showNotification(response.message || '生成失败', 'error');
+            }
         }
         
     } catch (error) {
@@ -9265,15 +9357,86 @@ function downloadHistoryOutline(outlineId) {
     }
 }
 
-// 下载当前预览的大纲（详情模态框中使用）
-function downloadCurrentOutline() {
-    if (currentHistoryOutline) {
-        console.log('下载当前预览的大纲:', currentHistoryOutline.id);
-        downloadHistoryOutline(currentHistoryOutline.id);
-    } else {
-        console.error('没有当前预览的大纲数据');
-        showNotification('没有可下载的大纲数据', 'error');
+// 当前生成的大纲数据（用于保存和下载）
+let currentGeneratedOutline = null;
+
+// 保存当前生成的大纲
+function saveCurrentOutline() {
+    if (!currentGeneratedOutline) {
+        showNotification('没有可保存的大纲数据', 'error');
+        return;
     }
+
+    // 这里可以调用保存API
+    console.log('保存大纲:', currentGeneratedOutline);
+    showNotification('大纲保存功能开发中...', 'info');
+}
+
+// 下载当前生成的大纲为Markdown文件
+function downloadCurrentOutline() {
+    if (!currentGeneratedOutline) {
+        // 如果是历史大纲预览
+        if (currentHistoryOutline) {
+            console.log('下载当前预览的大纲:', currentHistoryOutline.id);
+            downloadHistoryOutline(currentHistoryOutline.id);
+            return;
+        }
+
+        showNotification('没有可下载的大纲数据', 'error');
+        return;
+    }
+
+    // 创建Markdown内容
+    const markdownContent = createMarkdownContent(currentGeneratedOutline);
+
+    // 创建下载链接
+    const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${currentGeneratedOutline.courseName || '教学大纲'}_${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showNotification('大纲已下载为Markdown文件', 'success');
+}
+
+// 创建Markdown格式的内容
+function createMarkdownContent(outlineData) {
+    let markdown = '';
+
+    // 添加标题
+    markdown += `# ${outlineData.courseName || '教学大纲'}\n\n`;
+
+    // 添加基本信息
+    if (outlineData.hours) {
+        markdown += `**学时：** ${outlineData.hours}学时\n\n`;
+    }
+
+    if (outlineData.requirements) {
+        markdown += `**教学要求：** ${outlineData.requirements}\n\n`;
+    }
+
+    // 添加生成时间
+    markdown += `**生成时间：** ${new Date().toLocaleString()}\n\n`;
+
+    // 添加分隔线
+    markdown += '---\n\n';
+
+    // 添加大纲内容
+    markdown += outlineData.content || '';
+
+    // 如果有参考链接，添加到末尾
+    if (outlineData.referenceLinks && outlineData.referenceLinks.length > 0) {
+        markdown += '\n\n## 参考资料\n\n';
+        outlineData.referenceLinks.forEach(link => {
+            markdown += `- [${link.title}](${link.url})\n`;
+        });
+    }
+
+    return markdown;
 }
 
 // 删除历史大纲
@@ -12710,30 +12873,51 @@ async function exportAnalysisReport() {
 async function generateImprovements() {
     try {
         const courseId = document.getElementById('improve-course-select').value;
-        
+
         // 验证输入
         if (!courseId) {
             showNotification('请选择要分析的课程', 'warning');
             return;
         }
-        
-        showLoading('正在分析数据并生成改进建议，请稍候...');
-        
-        // 固定使用单个课程分析
-        const scope = 'COURSE';
-        const response = await TeacherAPI.generateImprovements(scope, courseId);
-        
-        hideLoading();
-        
-        if (response.success) {
-            displayImprovements(response.data.improvements, scope, courseId);
-            showNotification('教学改进建议生成成功', 'success');
-            
-            // 自动保存报告到数据库
-            await autoSaveReportToDatabase();
-            
+
+        // 检查是否启用了联网搜索
+        const webSearchEnabled = document.getElementById('enable-web-search-improve').checked;
+
+        if (webSearchEnabled) {
+            // 获取课程名称
+            const courseSelect = document.getElementById('improve-course-select');
+            const courseName = courseSelect.options[courseSelect.selectedIndex].text;
+
+            // 智能生成搜索查询
+            const searchQuery = generateSmartSearchQuery(courseName, '教学改进建议', 'improvement');
+
+            // 显示确认对话框
+            const confirmed = await showWebSearchConfirmDialog('教学改进建议', searchQuery);
+            if (!confirmed) {
+                return;
+            }
+
+            // 执行联网搜索生成
+            await generateImprovementsWithWebSearch(courseId, courseName, searchQuery);
         } else {
-            showNotification(response.message || '生成改进建议失败', 'error');
+            showLoading('正在分析数据并生成改进建议，请稍候...');
+
+            // 固定使用单个课程分析
+            const scope = 'COURSE';
+            const response = await TeacherAPI.generateImprovements(scope, courseId);
+
+            hideLoading();
+
+            if (response.success) {
+                displayImprovements(response.data.improvements, scope, courseId);
+                showNotification('教学改进建议生成成功', 'success');
+
+                // 自动保存报告到数据库
+                await autoSaveReportToDatabase();
+
+            } else {
+                showNotification(response.message || '生成改进建议失败', 'error');
+            }
         }
         
     } catch (error) {
@@ -18113,4 +18297,1227 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+/**
+ * 格式化大纲内容，简洁清晰的显示
+ */
+function formatOutlineContent(content) {
+    if (!content) return '';
+
+    // 预处理表格内容
+    content = preprocessTableContent(content);
+
+    // 首先清理HTML标签，但保留表格结构
+    let cleaned = content
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        // 清理HTML表格标签（但保留内容）
+        .replace(/<\/?table[^>]*>/gi, '')
+        .replace(/<\/?thead[^>]*>/gi, '')
+        .replace(/<\/?tbody[^>]*>/gi, '')
+        .replace(/<tr[^>]*>/gi, '')
+        .replace(/<\/tr>/gi, '')
+        .replace(/<t[hd][^>]*>/gi, '|')
+        .replace(/<\/t[hd]>/gi, '|')
+        // 清理其他HTML标签
+        .replace(/<\/?[^>]+>/g, '')
+        // 清理多余的符号，但保留表格分隔符
+        .replace(/\*{2,}/g, '')  // 只清理连续的星号
+        .replace(/={3,}/g, '')   // 只清理连续的等号
+        .replace(/-{4,}/g, '')   // 只清理长横线
+        .trim();
+
+    // 按行处理
+    let lines = cleaned.split('\n');
+    let formatted = [];
+    let inTable = false;
+    let tableRows = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+
+        if (!line) {
+            // 如果在表格中遇到空行，结束表格
+            if (inTable) {
+                formatted.push(formatTable(tableRows));
+                tableRows = [];
+                inTable = false;
+            }
+            if (formatted.length > 0) {
+                formatted.push('<div style="height: 12px;"></div>');
+            }
+            continue;
+        }
+
+        // 检查是否是表格行（包含|分隔的内容）
+        if (line.includes('|')) {
+            let cells = line.split('|').map(cell => cell.trim()).filter(cell => cell);
+            // 如果有至少2个有效单元格，认为是表格行
+            if (cells.length >= 2) {
+                if (!inTable) {
+                    inTable = true;
+                }
+                tableRows.push(cells);
+                continue;
+            }
+        }
+
+        // 如果当前不是表格行但之前在处理表格，结束表格
+        if (inTable) {
+            formatted.push(formatTable(tableRows));
+            tableRows = [];
+            inTable = false;
+        }
+
+        // 清理行内容，去掉markdown符号
+        let cleanLine = line
+            .replace(/^#{1,6}\s*/, '')  // 去掉标题符号
+            .replace(/^[-*+]\s*/, '')   // 去掉列表符号
+            .replace(/^\d+\.\s*/, '')   // 去掉数字列表符号
+            .replace(/^[一二三四五六七八九十]+[、．.]\s*/, '')  // 去掉中文序号
+            .replace(/^[(（]\d+[)）]\s*/, '')  // 去掉小序号
+            .replace(/\*\*(.+?)\*\*/g, '$1')  // 去掉粗体符号
+            .replace(/__(.+?)__/g, '$1')      // 去掉粗体符号
+            .replace(/\*(.+?)\*/g, '$1')      // 去掉斜体符号
+            .replace(/_(.+?)_/g, '$1')        // 去掉斜体符号
+            .replace(/`([^`]+)`/g, '$1')      // 去掉代码符号
+            .replace(/\*+/g, '')              // 去掉多余的星号
+            .replace(/\|+/g, '')              // 去掉多余的竖线
+            .trim();
+
+        if (!cleanLine) continue;
+
+        // 判断内容类型并应用样式
+        if (line.match(/^#{1,2}\s/)) {
+            // 主标题
+            formatted.push(`<div style="font-size: 20px; font-weight: bold; color: #2c3e50; margin: 25px 0 15px 0; line-height: 1.4; padding-bottom: 8px; border-bottom: 2px solid #3498db;">${escapeHtml(cleanLine)}</div>`);
+        } else if (line.match(/^#{3,}\s/) || line.match(/^[一二三四五六七八九十]+[、．.]\s/)) {
+            // 副标题
+            formatted.push(`<div style="font-size: 17px; font-weight: 600; color: #34495e; margin: 20px 0 12px 0; line-height: 1.4; padding-left: 12px; border-left: 4px solid #3498db;">${escapeHtml(cleanLine)}</div>`);
+        } else if (line.match(/^(\d+\.\s|[-*+]\s|[(（]\d+[)）]\s)/)) {
+            // 列表项
+            formatted.push(`<div style="margin: 8px 0 8px 25px; color: #2c3e50; line-height: 1.6; font-size: 15px; position: relative;"><span style="position: absolute; left: -20px; color: #3498db;">•</span>${escapeHtml(cleanLine)}</div>`);
+        } else {
+            // 普通段落 - 处理链接
+            let processedLine = escapeHtml(cleanLine);
+            processedLine = makeLinksClickable(processedLine);
+            formatted.push(`<div style="margin: 12px 0; color: #2c3e50; line-height: 1.7; font-size: 15px; text-align: justify;">${processedLine}</div>`);
+        }
+    }
+
+    // 处理最后的表格
+    if (inTable && tableRows.length > 0) {
+        formatted.push(formatTable(tableRows));
+    }
+
+    return formatted.join('');
+}
+
+/**
+ * 格式化表格
+ */
+function formatTable(rows) {
+    if (!rows || rows.length === 0) return '';
+
+    console.log('格式化表格，行数:', rows.length, '数据:', rows); // 调试信息
+
+    let tableHtml = `
+        <div style="margin: 20px 0; overflow-x: auto;">
+            <table style="
+                width: 100%;
+                border-collapse: collapse;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                border-radius: 10px;
+                overflow: hidden;
+                background: white;
+                border: 2px solid #3498db;
+            ">`;
+
+    rows.forEach((row, index) => {
+        const isHeader = index === 0;
+        const bgColor = isHeader ? '#3498db' : (index % 2 === 1 ? '#f8f9fa' : 'white');
+        const textColor = isHeader ? 'white' : '#2c3e50';
+        const fontWeight = isHeader ? 'bold' : 'normal';
+        const fontSize = isHeader ? '16px' : '15px';
+
+        tableHtml += `<tr style="background-color: ${bgColor}; transition: background-color 0.2s;">`;
+        row.forEach(cell => {
+            const tag = isHeader ? 'th' : 'td';
+            tableHtml += `<${tag} style="
+                padding: 15px 20px;
+                border: 1px solid ${isHeader ? '#2980b9' : '#e9ecef'};
+                color: ${textColor};
+                font-weight: ${fontWeight};
+                font-size: ${fontSize};
+                text-align: left;
+                vertical-align: top;
+                line-height: 1.5;
+            ">${escapeHtml(cell.toString())}</${tag}>`;
+        });
+        tableHtml += '</tr>';
+    });
+
+    tableHtml += '</table></div>';
+    return tableHtml;
+}
+
+/**
+ * 预处理内容，将markdown表格转换为更容易识别的格式
+ */
+function preprocessTableContent(content) {
+    let lines = content.split('\n');
+    let processedLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+
+        // 检查是否是markdown表格分隔行（如 |---|---|---|）
+        if (line.match(/^\|?[\s]*:?-+:?[\s]*\|/)) {
+            // 跳过分隔行，不添加到结果中
+            continue;
+        }
+
+        // 如果是表格行，确保格式正确
+        if (line.includes('|') && !line.startsWith('#')) {
+            // 确保行首尾有|
+            if (!line.startsWith('|')) {
+                line = '|' + line;
+            }
+            if (!line.endsWith('|')) {
+                line = line + '|';
+            }
+        }
+
+        processedLines.push(line);
+    }
+
+    return processedLines.join('\n');
+}
+
+/**
+ * 将文本中的URL转换为可点击的链接
+ */
+function makeLinksClickable(text) {
+    // URL正则表达式
+    const urlRegex = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/gi;
+
+    return text.replace(urlRegex, function(url) {
+        // 清理URL末尾可能的标点符号
+        let cleanUrl = url.replace(/[.,;:!?)]$/, '');
+        let punctuation = url.slice(cleanUrl.length);
+
+        return `<a href="${cleanUrl}" target="_blank" style="color: #3498db; text-decoration: none; border-bottom: 1px dotted #3498db;" onmouseover="this.style.textDecoration='underline';" onmouseout="this.style.textDecoration='none';">${cleanUrl}</a>${punctuation}`;
+    });
+}
+
+/**
+ * 格式化试卷内容，简洁清晰的显示
+ */
+function formatExamContent(content) {
+    if (!content) return '';
+
+    // 首先清理HTML标签和特殊符号
+    let cleaned = content
+        .replace(/\r\n/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        // 清理HTML表格标签
+        .replace(/<\/?table[^>]*>/gi, '')
+        .replace(/<\/?tr[^>]*>/gi, '')
+        .replace(/<\/?td[^>]*>/gi, '')
+        .replace(/<\/?th[^>]*>/gi, '')
+        .replace(/<\/?thead[^>]*>/gi, '')
+        .replace(/<\/?tbody[^>]*>/gi, '')
+        // 清理其他HTML标签
+        .replace(/<\/?[^>]+>/g, '')
+        // 清理多余的符号
+        .replace(/\*+/g, '')
+        .replace(/\|+/g, '')
+        .replace(/=+/g, '')
+        .replace(/-{3,}/g, '')
+        .trim();
+
+    // 按行处理
+    let lines = cleaned.split('\n');
+    let formatted = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+
+        if (!line) {
+            if (formatted.length > 0) {
+                formatted.push('<div style="height: 12px;"></div>');
+            }
+            continue;
+        }
+
+        // 清理行内容，保留分数标记
+        let cleanLine = line
+            .replace(/^#{1,6}\s*/, '')  // 去掉标题符号
+            .replace(/^[-*+]\s*/, '')   // 去掉列表符号
+            .replace(/^\d+\.\s*/, '')   // 去掉数字列表符号（题目编号除外）
+            .replace(/^[A-Z]\.\s*/, '') // 去掉选项符号
+            .replace(/^[(（]\d+[)）]\s*/, '')  // 去掉小序号
+            .replace(/\*\*(.+?)\*\*/g, '$1')  // 去掉粗体符号
+            .replace(/__(.+?)__/g, '$1')      // 去掉粗体符号
+            .replace(/\*(.+?)\*/g, '$1')      // 去掉斜体符号
+            .replace(/_(.+?)_/g, '$1')        // 去掉斜体符号
+            .replace(/`([^`]+)`/g, '$1')      // 去掉代码符号
+            .replace(/\*+/g, '')              // 去掉多余的星号
+            .replace(/\|+/g, '')              // 去掉多余的竖线
+            .trim();
+
+        if (!cleanLine) continue;
+
+        // 判断内容类型
+        if (line.match(/^#{1,2}\s/)) {
+            // 试卷标题
+            formatted.push(`<div style="font-size: 22px; font-weight: bold; color: #2c3e50; margin: 25px 0 20px 0; text-align: center; line-height: 1.4; padding-bottom: 10px; border-bottom: 2px solid #3498db;">${escapeHtml(cleanLine)}</div>`);
+        } else if (line.match(/^#{3}\s/) && (line.includes('一、') || line.includes('二、') || line.includes('三、') || line.includes('四、') || line.includes('五、'))) {
+            // 题型标题
+            formatted.push(`<div style="font-size: 18px; font-weight: bold; color: #2c3e50; margin: 25px 0 15px 0; padding: 12px 0; border-bottom: 2px solid #3498db; line-height: 1.4;">${escapeHtml(cleanLine)}</div>`);
+        } else if (line.match(/^(\d+)\.\s/)) {
+            // 题目编号
+            let match = line.match(/^(\d+)\.\s*(.+)/);
+            let number = match[1];
+            let text = match[2];
+            formatted.push(`<div style="margin: 18px 0 12px 0; font-size: 16px; line-height: 1.7; color: #2c3e50; background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #3498db;"><span style="font-weight: bold; color: #3498db; margin-right: 8px;">${number}.</span>${escapeHtml(text)}</div>`);
+        } else if (line.match(/^[A-Z]\.\s/)) {
+            // 选项
+            let match = line.match(/^([A-Z])\.\s*(.+)/);
+            let option = match[1];
+            let text = match[2];
+            formatted.push(`<div style="margin: 8px 0 8px 30px; font-size: 15px; line-height: 1.6; color: #2c3e50; padding: 8px 12px; background: white; border: 1px solid #e9ecef; border-radius: 6px;"><span style="font-weight: 600; color: #3498db; margin-right: 8px;">${option}.</span>${escapeHtml(text)}</div>`);
+        } else if (line.match(/^(答案|解析)[：:]/)) {
+            // 答案和解析
+            let match = line.match(/^(答案|解析)[：:]\s*(.+)/);
+            let type = match[1];
+            let content = match[2];
+            let bgColor = type === '答案' ? '#d5f4e6' : '#e8f4fd';
+            let borderColor = type === '答案' ? '#27ae60' : '#3498db';
+            let textColor = type === '答案' ? '#27ae60' : '#3498db';
+            formatted.push(`<div style="margin: 12px 0; font-size: 15px; line-height: 1.6; background: ${bgColor}; padding: 12px; border-radius: 6px; border-left: 4px solid ${borderColor};"><span style="font-weight: bold; color: ${textColor}; margin-right: 8px;">${type}：</span><span style="color: #2c3e50;">${escapeHtml(content)}</span></div>`);
+        } else if (line.match(/^(注意|说明)[：:]/)) {
+            // 考试说明
+            let match = line.match(/^(注意|说明)[：:]\s*(.+)/);
+            let type = match[1];
+            let content = match[2];
+            formatted.push(`<div style="margin: 15px 0; font-size: 15px; line-height: 1.7; color: #856404; background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;"><span style="font-weight: bold; margin-right: 8px;">${type}：</span>${escapeHtml(content)}</div>`);
+        } else if (line.match(/\[(\d+)分\]/)) {
+            // 包含分数标记的行
+            let processedText = escapeHtml(cleanLine)
+                .replace(/\[(\d+)分\]/g, '<span style="color: #e74c3c; font-weight: bold; background: #ffeaa7; padding: 3px 8px; border-radius: 4px; font-size: 13px;">[$1分]</span>');
+            formatted.push(`<div style="margin: 10px 0; color: #2c3e50; line-height: 1.7; font-size: 15px;">${processedText}</div>`);
+        } else {
+            // 普通段落 - 处理链接
+            let processedLine = escapeHtml(cleanLine);
+            processedLine = makeLinksClickable(processedLine);
+            formatted.push(`<div style="margin: 12px 0; color: #2c3e50; line-height: 1.7; font-size: 15px; text-align: justify;">${processedLine}</div>`);
+        }
+    }
+
+    return formatted.join('');
+}
+
+/**
+ * 编辑联网搜索生成的试卷
+ */
+function editWebSearchExam() {
+    if (!window.currentExam || !window.currentExam.isWebSearchGenerated) {
+        showNotification('没有可编辑的联网搜索试卷', 'error');
+        return;
+    }
+
+    const previewDiv = document.getElementById('exam-preview');
+
+    // 重新构建预览界面，包含编辑模式
+    previewDiv.innerHTML = `
+        <div class="card-header">
+            <i class="fas fa-edit"></i> 编辑试卷
+            <div class="card-actions">
+                <button class="btn btn-sm btn-success" onclick="saveWebSearchExamEdit()">
+                    <i class="fas fa-save"></i> 保存
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="cancelWebSearchExamEdit()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+            </div>
+        </div>
+        <div id="exam-content" style="padding: 24px;">
+            <!-- 动态生成的编辑内容 -->
+        </div>
+    `;
+
+    const editContainer = document.createElement('div');
+    editContainer.className = 'exam-edit-container';
+
+    // 创建Markdown编辑器
+    const textarea = document.createElement('textarea');
+    textarea.className = 'exam-edit-textarea';
+    textarea.style.cssText = `
+        width: 100%;
+        min-height: 500px;
+        padding: 20px;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        resize: vertical;
+        background: #f8f9fa;
+        color: #2c3e50;
+    `;
+    textarea.placeholder = '请输入试卷内容（支持Markdown格式）...';
+    textarea.value = window.currentExam.originalContent || '';
+
+    // 添加编辑提示
+    const editHint = document.createElement('div');
+    editHint.style.cssText = `
+        margin-bottom: 15px;
+        padding: 12px;
+        background: #e8f4fd;
+        border: 1px solid #bee5eb;
+        border-radius: 6px;
+        color: #0c5460;
+        font-size: 14px;
+    `;
+    editHint.innerHTML = `
+        <i class="fas fa-info-circle"></i>
+        <strong>编辑提示：</strong>您可以直接编辑试卷内容，支持Markdown格式。编辑完成后点击"保存"按钮。
+    `;
+
+    editContainer.appendChild(editHint);
+    editContainer.appendChild(textarea);
+
+    // 将编辑容器添加到内容区域
+    const contentDiv = document.getElementById('exam-content');
+    contentDiv.appendChild(editContainer);
+
+    // 聚焦到编辑器
+    textarea.focus();
+}
+
+/**
+ * 保存联网搜索试卷的编辑
+ */
+function saveWebSearchExamEdit() {
+    const textarea = document.querySelector('.exam-edit-textarea');
+    if (!textarea) {
+        showNotification('找不到编辑器', 'error');
+        return;
+    }
+
+    const editedContent = textarea.value.trim();
+    if (!editedContent) {
+        showNotification('试卷内容不能为空', 'warning');
+        return;
+    }
+
+    // 更新当前试卷数据
+    window.currentExam.originalContent = editedContent;
+
+    // 重新显示试卷（退出编辑模式）
+    const updatedData = {
+        examTitle: window.currentExam.title,
+        duration: window.currentExam.duration,
+        examType: window.currentExam.examType,
+        examContent: editedContent,
+        referenceLinks: window.currentExam.referenceLinks
+    };
+
+    displayWebSearchExamResult(updatedData);
+    showNotification('试卷编辑已保存', 'success');
+}
+
+/**
+ * 取消联网搜索试卷的编辑
+ */
+function cancelWebSearchExamEdit() {
+    if (!window.currentExam) {
+        showNotification('没有可取消的编辑', 'error');
+        return;
+    }
+
+    // 重新显示原始试卷
+    const originalData = {
+        examTitle: window.currentExam.title,
+        duration: window.currentExam.duration,
+        examType: window.currentExam.examType,
+        examContent: window.currentExam.originalContent,
+        referenceLinks: window.currentExam.referenceLinks
+    };
+
+    displayWebSearchExamResult(originalData);
+}
+
+/**
+ * 保存联网搜索生成的试卷
+ */
+function saveWebSearchExam() {
+    if (!window.currentExam || !window.currentExam.isWebSearchGenerated) {
+        showNotification('没有可保存的联网搜索试卷', 'error');
+        return;
+    }
+
+    // 这里可以调用后端API保存试卷
+    console.log('保存联网搜索试卷:', window.currentExam);
+    showNotification('试卷保存功能开发中...', 'info');
+}
+
+/**
+ * 导出联网搜索生成的试卷
+ */
+function exportWebSearchExam() {
+    if (!window.currentExam || !window.currentExam.isWebSearchGenerated) {
+        showNotification('没有可导出的联网搜索试卷', 'error');
+        return;
+    }
+
+    // 创建Markdown内容
+    let markdownContent = `# ${window.currentExam.title}\n\n`;
+    markdownContent += `**考试时长：** ${window.currentExam.duration}分钟\n`;
+    markdownContent += `**总分：** ${window.currentExam.totalScore}分\n`;
+    markdownContent += `**类型：** ${window.currentExam.examType}\n\n`;
+    markdownContent += `**生成时间：** ${new Date().toLocaleString()}\n\n`;
+    markdownContent += '---\n\n';
+    markdownContent += window.currentExam.originalContent || '';
+
+    // 添加参考链接
+    if (window.currentExam.referenceLinks && window.currentExam.referenceLinks.length > 0) {
+        markdownContent += '\n\n## 参考资料\n\n';
+        window.currentExam.referenceLinks.forEach(link => {
+            markdownContent += `- [${link.title}](${link.url})\n`;
+        });
+    }
+
+    // 创建下载链接
+    const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${window.currentExam.title}_${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showNotification('试卷已导出为Markdown文件', 'success');
+}
+
+/**
+ * 联网搜索生成教学改进建议
+ */
+async function generateImprovementsWithWebSearch(courseId, courseName, searchQuery) {
+    try {
+        showLoading('正在联网搜索相关信息并生成改进建议，请稍候...');
+
+        // 调用联网搜索API
+        const response = await fetch('/api/web-search/improvements', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                courseId: courseId,
+                courseName: courseName,
+                searchQuery: searchQuery
+            })
+        });
+
+        if (!response.ok) {
+            // 如果API不可用，使用模拟数据
+            if (response.status === 404) {
+                console.warn('联网搜索API不可用，使用模拟数据');
+                const mockData = generateMockImprovementData(courseName, searchQuery);
+                displayWebSearchImprovementResult(mockData);
+                showNotification('教学改进建议生成成功！（模拟数据）', 'success');
+                return;
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            // 显示联网搜索生成的改进建议
+            displayWebSearchImprovementResult(data.data);
+            showNotification('教学改进建议生成成功！', 'success');
+        } else {
+            throw new Error(data.message || '生成改进建议失败');
+        }
+
+    } catch (error) {
+        console.error('联网搜索生成改进建议失败:', error);
+
+        // 如果是网络错误，尝试使用模拟数据
+        if (error.message.includes('Failed to fetch') || error.message.includes('404')) {
+            console.warn('API不可用，使用模拟数据');
+            const mockData = generateMockImprovementData(courseName, searchQuery);
+            displayWebSearchImprovementResult(mockData);
+            showNotification('教学改进建议生成成功！（模拟数据）', 'warning');
+        } else {
+            showNotification('生成改进建议失败: ' + error.message, 'error');
+        }
+    } finally {
+        hideLoading();
+    }
+}
+
+/**
+ * 显示联网搜索生成的改进建议结果
+ */
+function displayWebSearchImprovementResult(data) {
+    const contentDiv = document.getElementById('improvements-content');
+
+    // 生成参考链接HTML
+    let referenceLinksHtml = '';
+    if (data.referenceLinks && data.referenceLinks.length > 0) {
+        referenceLinksHtml = `
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e9ecef;">
+                <h4 style="color: #2c3e50; margin-bottom: 15px; font-size: 16px; font-weight: 600;">
+                    参考资料链接
+                </h4>
+                <div style="margin-bottom: 15px;">
+                    ${data.referenceLinks.map(link => `
+                        <div style="margin: 8px 0;">
+                            <a href="${escapeHtml(link.url)}" target="_blank"
+                               style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6;"
+                               onmouseover="this.style.textDecoration='underline';"
+                               onmouseout="this.style.textDecoration='none';">
+                                • ${escapeHtml(link.title)}
+                            </a>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="font-size: 13px; color: #7f8c8d; margin-top: 10px;">
+                    点击链接查看相关资料（新窗口打开）
+                </div>
+            </div>
+        `;
+    }
+
+    contentDiv.innerHTML = `
+        <div class="improvement-result">
+            <div class="improvement-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e9ecef;">
+                <div>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #2c3e50;">
+                        <i class="fas fa-globe" style="color: #17a2b8; margin-right: 8px;"></i>
+                        ${escapeHtml(data.courseName)} - 联网搜索生成改进建议
+                    </h3>
+                    <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
+                        基于网络搜索结果生成 • 生成时间：${new Date().toLocaleString()}
+                    </div>
+                </div>
+                <div class="improvement-actions" style="display: flex; gap: 8px;">
+                    <button class="btn btn-sm btn-primary" onclick="saveCurrentImprovement()">
+                        <i class="fas fa-save"></i> 保存建议
+                    </button>
+                    <button class="btn btn-sm btn-accent" onclick="exportCurrentImprovement()">
+                        <i class="fas fa-download"></i> 导出报告
+                    </button>
+                </div>
+            </div>
+            <div class="improvement-content" style="background: white; padding: 30px; border-radius: 12px; line-height: 1.8; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
+                ${formatOutlineContent(data.improvementContent)}
+            </div>
+            ${referenceLinksHtml}
+        </div>
+    `;
+
+    // 显示"我的报告"按钮
+    const myReportsBtn = document.getElementById('my-reports-btn');
+    if (myReportsBtn) {
+        myReportsBtn.style.display = 'inline-flex';
+    }
+}
+
+// ==================== 联网搜索功能 ====================
+
+let currentSearchType = null; // 'outline' 或 'exam'
+
+// 初始化联网搜索勾选框事件
+document.addEventListener('DOMContentLoaded', function() {
+    // 联网搜索勾选框不需要额外的事件处理，只需要在生成时检查状态即可
+});
+
+
+
+/**
+ * 应用大纲生成结果
+ */
+function applyOutlineResult(data) {
+    if (data.outlineContent) {
+        // 显示大纲结果区域
+        const resultDiv = document.getElementById('outline-result');
+        const contentDiv = document.getElementById('outline-content');
+
+        contentDiv.innerHTML = `
+            <div class="outline-display">
+                <div class="outline-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e9ecef;">
+                    <div>
+                        <h3 class="outline-title" style="margin: 0; font-size: 18px; font-weight: 600; color: #2c3e50;">
+                            <i class="fas fa-globe" style="color: #17a2b8; margin-right: 8px;"></i>
+                            ${escapeHtml(data.courseName)} - 联网搜索生成大纲
+                        </h3>
+                        <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
+                            基于网络搜索结果生成 • 学时：${data.hours}学时
+                        </div>
+                    </div>
+                    <div class="outline-actions" style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-primary" onclick="saveCurrentOutline()">
+                            <i class="fas fa-save"></i> 保存大纲
+                        </button>
+                        <button class="btn btn-sm btn-accent" onclick="downloadCurrentOutline()">
+                            <i class="fas fa-download"></i> 下载PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="outline-content" style="background: white; padding: 30px; border-radius: 12px; line-height: 1.8; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
+                    ${formatOutlineContent(data.outlineContent)}
+                </div>
+            </div>
+        `;
+
+        resultDiv.style.display = 'block';
+
+        // 滚动到结果区域
+        resultDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+/**
+ * 应用试卷生成结果
+ */
+function applyExamResult(data) {
+    if (data.examContent) {
+        // 显示试卷预览区域
+        const previewDiv = document.getElementById('exam-preview');
+        const contentDiv = document.getElementById('exam-content');
+
+        contentDiv.innerHTML = `
+            <div style="background: white; border-radius: 15px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                    <h2 style="color: #2c3e50; margin: 0; font-size: 24px; font-weight: 600;">
+                        <i class="fas fa-globe" style="color: #17a2b8; margin-right: 8px;"></i>
+                        ${escapeHtml(data.examTitle)}
+                    </h2>
+                    <div style="display: flex; gap: 15px; font-size: 14px; color: #7f8c8d;">
+                        <span><strong>考试时长：</strong>${data.duration}分钟</span>
+                        <span><strong>类型：</strong>${escapeHtml(data.examType)}</span>
+                    </div>
+                </div>
+                <div style="font-size: 12px; color: #17a2b8; margin-bottom: 20px; padding: 8px 12px; background: #e8f4fd; border-radius: 4px;">
+                    <i class="fas fa-info-circle"></i> 本试卷基于网络搜索结果生成，包含最新的相关信息和实际应用场景
+                </div>
+                <div style="line-height: 1.7; font-size: 15px; color: #2c3e50;">
+                    ${formatExamContent(data.examContent)}
+                </div>
+            </div>
+        `;
+
+        previewDiv.style.display = 'block';
+
+        // 滚动到结果区域
+        previewDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+/**
+ * 智能生成搜索查询
+ */
+function generateSmartSearchQuery(courseName, requirements, type) {
+    let searchQuery = '';
+
+    // 基于课程名称生成核心搜索词
+    const courseKeywords = extractCourseKeywords(courseName);
+
+    if (type === 'outline') {
+        // 教学大纲搜索查询
+        searchQuery = `${courseKeywords} 2024年最新教学大纲 课程设计 教学方法`;
+
+        if (requirements && requirements.trim()) {
+            // 从教学要求中提取关键词
+            const reqKeywords = extractRequirementKeywords(requirements);
+            searchQuery += ` ${reqKeywords}`;
+        }
+
+        searchQuery += ' 教育部 高等教育 人才培养';
+
+    } else if (type === 'exam') {
+        // 试卷搜索查询
+        searchQuery = `${courseKeywords} 2024年考试题目 实际应用案例 行业实践`;
+
+        if (requirements && requirements.trim()) {
+            // 从特殊要求中提取关键词
+            const reqKeywords = extractRequirementKeywords(requirements);
+            searchQuery += ` ${reqKeywords}`;
+        }
+
+        searchQuery += ' 最新技术 面试题 实战项目';
+
+    } else if (type === 'improvement') {
+        // 教学改进建议搜索查询
+        searchQuery = `${courseKeywords} 2024年教学改进 教学方法创新 教育技术`;
+
+        if (requirements && requirements.trim()) {
+            const reqKeywords = extractRequirementKeywords(requirements);
+            searchQuery += ` ${reqKeywords}`;
+        }
+
+        searchQuery += ' 教学效果提升 学生参与度 教学质量';
+    }
+
+    return searchQuery.trim();
+}
+
+/**
+ * 从课程名称中提取关键词
+ */
+function extractCourseKeywords(courseName) {
+    // 移除常见的课程修饰词，保留核心技术词汇
+    let keywords = courseName
+        .replace(/课程|设计|基础|高级|实践|应用|原理|技术|程序|开发|系统/g, '')
+        .trim();
+
+    // 如果是常见的技术课程，添加相关关键词
+    if (courseName.includes('Java')) {
+        keywords += ' Spring Boot 微服务 企业级开发';
+    } else if (courseName.includes('Python')) {
+        keywords += ' 数据分析 人工智能 机器学习';
+    } else if (courseName.includes('前端') || courseName.includes('Web')) {
+        keywords += ' React Vue.js 现代前端框架';
+    } else if (courseName.includes('数据库')) {
+        keywords += ' MySQL Redis 大数据 NoSQL';
+    } else if (courseName.includes('算法') || courseName.includes('数据结构')) {
+        keywords += ' LeetCode 编程竞赛 面试算法';
+    } else if (courseName.includes('网络')) {
+        keywords += ' 网络安全 云计算 分布式系统';
+    }
+
+    return keywords;
+}
+
+/**
+ * 从教学要求中提取关键词
+ */
+function extractRequirementKeywords(requirements) {
+    // 提取关键的技术词汇和概念
+    const techWords = requirements.match(/[A-Za-z]+|[\u4e00-\u9fa5]{2,}/g) || [];
+
+    // 过滤掉常见的非关键词
+    const stopWords = ['学生', '掌握', '了解', '理解', '能够', '通过', '学习', '课程', '内容', '知识', '技能', '方法', '基本', '主要', '重要', '相关'];
+
+    const keywords = techWords
+        .filter(word => word.length > 1 && !stopWords.includes(word))
+        .slice(0, 5) // 只取前5个关键词
+        .join(' ');
+
+    return keywords;
+}
+
+/**
+ * 显示联网搜索确认对话框
+ */
+function showWebSearchConfirmDialog(type, searchQuery) {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'course-modal-overlay';
+        modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;';
+
+        modal.innerHTML = `
+            <div class="course-modal-container" style="max-width: 500px; background: white; border-radius: 12px; padding: 0; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                <div class="course-modal-header" style="padding: 20px 24px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: rgba(23, 162, 184, 0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-search" style="color: #17a2b8; font-size: 18px;"></i>
+                        </div>
+                        <h3 style="margin: 0; color: #2c3e50; font-size: 18px;">确认联网搜索</h3>
+                    </div>
+                </div>
+
+                <div class="course-modal-body" style="padding: 24px;">
+                    <div style="margin-bottom: 20px;">
+                        <p style="margin: 0 0 16px 0; color: #495057; line-height: 1.6;">
+                            您选择了启用联网搜索功能来生成<strong>${type}</strong>。系统将：
+                        </p>
+                        <ul style="margin: 0 0 16px 0; padding-left: 20px; color: #495057; line-height: 1.6;">
+                            <li>根据您的搜索查询从互联网获取最新信息</li>
+                            <li>结合搜索结果和AI能力生成更贴合实际的内容</li>
+                            <li>整个过程可能需要30-60秒</li>
+                        </ul>
+                    </div>
+
+                    <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                        <div style="font-weight: 500; color: #17a2b8; margin-bottom: 8px;">
+                            <i class="fas fa-search"></i> 搜索查询
+                        </div>
+                        <div style="color: #495057; font-size: 14px; line-height: 1.5;">
+                            ${escapeHtml(searchQuery)}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="course-modal-footer" style="padding: 20px 24px; border-top: 1px solid #eee; display: flex; gap: 12px; justify-content: flex-end;">
+                    <button id="cancel-web-search" class="btn btn-secondary" style="padding: 10px 20px;">
+                        <i class="fas fa-times"></i> 取消
+                    </button>
+                    <button id="confirm-web-search" class="btn btn-primary" style="padding: 10px 20px;">
+                        <i class="fas fa-search"></i> 确认搜索
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // 绑定事件
+        document.getElementById('cancel-web-search').onclick = () => {
+            document.body.removeChild(modal);
+            resolve(false);
+        };
+
+        document.getElementById('confirm-web-search').onclick = () => {
+            document.body.removeChild(modal);
+            resolve(true);
+        };
+
+        // 点击背景关闭
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                document.body.removeChild(modal);
+                resolve(false);
+            }
+        };
+    });
+}
+
+/**
+ * 联网搜索生成试卷
+ */
+async function generateExamWithWebSearch(examTitle, courseId, duration, totalScore, questionTypes, difficulty, specialRequirements, searchQuery) {
+    showLoading('🌐 正在联网搜索相关信息...<br>🤖 AI将结合网络搜索结果生成试卷...');
+
+    // 获取课程名称
+    const courseSelect = document.getElementById('exam-course-select');
+    const courseName = courseSelect.options[courseSelect.selectedIndex].text;
+
+    const response = await fetch('/api/web-search/exam', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            examTitle: examTitle,
+            courseName: courseName,
+            examType: '期末考试', // 默认类型，可以根据需要调整
+            duration: parseInt(duration),
+            searchQuery: searchQuery
+        })
+    });
+
+    const result = await response.json();
+    hideLoading();
+
+    if (result.success) {
+        console.log('联网搜索生成试卷成功:', result);
+        showNotification('🎉 基于联网搜索的试卷生成成功！', 'success');
+        displayWebSearchExamResult(result.data);
+    } else {
+        console.error('联网搜索生成试卷失败:', result);
+        showNotification(result.message || '联网搜索生成失败', 'error');
+    }
+}
+
+/**
+ * 显示联网搜索大纲结果
+ */
+function displayWebSearchOutlineResult(data) {
+    if (data.outlineContent) {
+        // 设置当前生成的大纲数据
+        currentGeneratedOutline = {
+            courseName: data.courseName,
+            hours: data.hours,
+            requirements: data.requirements,
+            content: data.outlineContent,
+            referenceLinks: data.referenceLinks,
+            type: 'web_search'
+        };
+        // 显示大纲结果区域
+        const resultDiv = document.getElementById('outline-result');
+        const contentDiv = document.getElementById('outline-content');
+
+        // 生成参考链接HTML
+        let referenceLinksHtml = '';
+        if (data.referenceLinks && data.referenceLinks.length > 0) {
+            referenceLinksHtml = `
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e9ecef;">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px; font-size: 16px; font-weight: 600;">
+                        参考资料链接
+                    </h4>
+                    <div style="margin-bottom: 15px;">
+                        ${data.referenceLinks.map(link => `
+                            <div style="margin: 8px 0;">
+                                <a href="${escapeHtml(link.url)}" target="_blank"
+                                   style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6;"
+                                   onmouseover="this.style.textDecoration='underline';"
+                                   onmouseout="this.style.textDecoration='none';">
+                                    • ${escapeHtml(link.title)}
+                                </a>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div style="font-size: 13px; color: #7f8c8d; margin-top: 10px;">
+                        点击链接查看相关资料（新窗口打开）
+                    </div>
+                </div>
+            `;
+        }
+
+        contentDiv.innerHTML = `
+            <div class="outline-display">
+                <div class="outline-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e9ecef;">
+                    <div>
+                        <h3 class="outline-title" style="margin: 0; font-size: 18px; font-weight: 600; color: #2c3e50;">
+                            <i class="fas fa-globe" style="color: #17a2b8; margin-right: 8px;"></i>
+                            ${escapeHtml(data.courseName)} - 联网搜索生成大纲
+                        </h3>
+                        <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
+                            基于网络搜索结果生成 • 学时：${data.hours}学时
+                        </div>
+                    </div>
+                    <div class="outline-actions" style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-primary" onclick="saveCurrentOutline()">
+                            <i class="fas fa-save"></i> 保存大纲
+                        </button>
+                        <button class="btn btn-sm btn-accent" onclick="downloadCurrentOutline()">
+                            <i class="fas fa-download"></i> 下载PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="outline-content" style="background: white; padding: 30px; border-radius: 12px; line-height: 1.8; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #e9ecef;">
+                    ${formatOutlineContent(data.outlineContent)}
+                </div>
+                ${referenceLinksHtml}
+            </div>
+        `;
+
+        resultDiv.style.display = 'block';
+
+        // 滚动到结果区域
+        resultDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+/**
+ * 显示联网搜索试卷结果
+ */
+function displayWebSearchExamResult(data) {
+    if (data.examContent) {
+        // 显示试卷预览区域
+        const previewDiv = document.getElementById('exam-preview');
+        const contentDiv = document.getElementById('exam-content');
+
+        // 创建一个临时的试卷数据对象，模拟普通试卷的结构
+        const examData = {
+            id: 'web_search_' + Date.now(), // 临时ID
+            title: data.examTitle || '联网搜索生成试卷',
+            duration: data.duration || 120,
+            totalScore: 100,
+            examType: data.examType || '综合测试',
+            originalContent: data.examContent,
+            isWebSearchGenerated: true,
+            referenceLinks: data.referenceLinks
+        };
+
+        // 保存到全局变量
+        window.currentExam = examData;
+
+        // 使用与普通试卷相同的头部结构，但添加编辑功能
+        previewDiv.innerHTML = `
+            <div class="card-header">
+                <i class="fas fa-globe"></i> 联网搜索生成试卷
+                <div class="card-actions">
+                    <button class="btn btn-sm btn-accent" onclick="editWebSearchExam()">
+                        <i class="fas fa-edit"></i> 编辑
+                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="saveWebSearchExam()">
+                        <i class="fas fa-save"></i> 保存
+                    </button>
+                    <button class="btn btn-sm btn-secondary" onclick="exportWebSearchExam()">
+                        <i class="fas fa-download"></i> 导出
+                    </button>
+                </div>
+            </div>
+            <div id="exam-content" style="padding: 24px;">
+                <!-- 动态生成的试卷内容 -->
+            </div>
+        `;
+
+        // 重新获取contentDiv引用
+        const newContentDiv = document.getElementById('exam-content');
+
+        // 生成参考链接HTML
+        let referenceLinksHtml = '';
+        if (data.referenceLinks && data.referenceLinks.length > 0) {
+            referenceLinksHtml = `
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e9ecef;">
+                    <h4 style="color: #2c3e50; margin-bottom: 15px; font-size: 16px; font-weight: 600;">
+                        参考资料链接
+                    </h4>
+                    <div style="margin-bottom: 15px;">
+                        ${data.referenceLinks.map(link => `
+                            <div style="margin: 8px 0;">
+                                <a href="${escapeHtml(link.url)}" target="_blank"
+                                   style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6;"
+                                   onmouseover="this.style.textDecoration='underline';"
+                                   onmouseout="this.style.textDecoration='none';">
+                                    • ${escapeHtml(link.title)}
+                                </a>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div style="font-size: 13px; color: #7f8c8d; margin-top: 10px;">
+                        点击链接查看相关资料（新窗口打开）
+                    </div>
+                </div>
+            `;
+        }
+
+        // 使用与普通试卷相同的内容结构
+        newContentDiv.innerHTML = `
+            <div class="exam-header">
+                <h3>${examData.title}</h3>
+                <div class="exam-info">
+                    <span>考试时长：${examData.duration}分钟</span>
+                    <span>总分：${examData.totalScore}分</span>
+                    <span>类型：${examData.examType}</span>
+                </div>
+                <div style="font-size: 12px; color: #17a2b8; margin-top: 10px; padding: 8px 12px; background: #e8f4fd; border-radius: 4px;">
+                    <i class="fas fa-info-circle"></i> 本试卷基于网络搜索结果生成，包含最新的相关信息和实际应用场景
+                </div>
+            </div>
+            <div class="exam-content-body">
+                ${formatExamContent(data.examContent)}
+                ${referenceLinksHtml}
+            </div>
+        `;
+
+        previewDiv.style.display = 'block';
+
+        // 滚动到结果区域
+        previewDiv.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+/**
+ * 生成模拟的教学改进建议数据
+ */
+function generateMockImprovementData(courseName, searchQuery) {
+    const mockContent = `# ${courseName} 教学改进建议报告
+
+## 基于联网搜索的最新教育趋势分析
+
+**搜索查询：** ${searchQuery}
+
+## 一、教学内容优化建议
+
+### 1.1 课程内容更新
+- 结合2024年最新行业发展趋势，更新课程案例和实践项目
+- 增加前沿技术和应用场景的介绍，如AI技术在教育中的应用
+- 优化知识点的逻辑结构，采用螺旋式递进教学方法
+- 参考链接：https://www.edu.cn/latest-trends
+
+### 1.2 实践环节加强
+- 增加动手实践的比重，提高学生的实际操作能力
+- 设计更多贴近实际工作场景的项目案例
+- 建立校企合作，引入真实项目进行教学
+- 推荐资源：https://github.com/education-projects
+
+## 二、教学方法创新
+
+### 2.1 混合式教学模式
+- 采用线上线下相结合的教学模式，利用现代教育技术
+- 利用翻转课堂提高课堂互动效果
+- 运用多媒体技术和虚拟现实技术丰富教学手段
+- 参考平台：https://www.coursera.org/teaching-methods
+
+### 2.2 互动式教学策略
+- 增加小组讨论和协作学习环节
+- 采用问题导向的教学方法（PBL）
+- 鼓励学生主动参与和表达，培养批判性思维
+- 教学工具：https://www.mentimeter.com/
+
+## 三、学生参与度提升
+
+### 3.1 激发学习兴趣
+- 通过生动的案例和实际应用激发学生兴趣
+- 设置有挑战性的学习任务和游戏化元素
+- 建立积极的课堂氛围，营造学习共同体
+- 案例库：https://www.case-studies.edu
+
+### 3.2 个性化指导
+- 根据学生的不同基础提供差异化指导
+- 建立学习小组，促进同伴互助学习
+- 定期进行学习反馈和个性化指导
+- 评估工具：https://www.adaptive-learning.com
+
+## 四、教学技术应用
+
+### 4.1 数字化教学工具
+- 利用在线学习平台提供丰富的学习资源
+- 使用虚拟仿真技术增强实践教学效果
+- 采用智能化评估工具提高评价效率和准确性
+- 推荐平台：https://www.edtech-tools.com
+
+### 4.2 人工智能技术融合
+- 探索AI技术在个性化学习中的应用
+- 利用大数据分析学生学习行为和效果
+- 建设智慧教室，提升教学体验和效果
+- AI教育：https://www.ai-education.org
+
+## 五、评估方式改进
+
+### 5.1 多元化评价体系
+- 采用过程性评价与终结性评价相结合的方式
+- 增加实践能力和创新能力的评价权重
+- 建立学生自评和互评机制，培养反思能力
+- 评价标准：https://www.assessment-standards.edu
+
+### 5.2 实时反馈机制
+- 建立及时的学习反馈机制，使用数字化工具
+- 提供个性化的学习建议和改进方案
+- 定期调整教学策略，基于数据驱动的决策
+- 反馈系统：https://www.feedback-systems.com
+
+## 六、课程资源建设
+
+### 6.1 数字化资源开发
+- 建设高质量的在线课程资源和微课程
+- 开发多媒体教学材料，包括视频、动画等
+- 建立完善的案例库和题库，支持自适应学习
+- 资源平台：https://www.open-educational-resources.org
+
+### 6.2 资源共享与协作
+- 建立教师间的资源共享平台和社区
+- 与其他院校开展资源合作和交流
+- 持续更新和维护教学资源，保持内容的时效性
+- 合作网络：https://www.education-collaboration.net
+
+---
+
+**生成时间：** ${new Date().toLocaleString()}
+**基于搜索：** ${searchQuery}
+
+*本报告基于最新的教育研究和网络搜索结果生成，建议结合实际情况进行调整和实施。*`;
+
+    return {
+        courseName: courseName,
+        improvementContent: mockContent,
+        referenceLinks: [
+            { title: "教育部最新教学指导意见", url: "http://www.moe.gov.cn/jyb_xxgk/moe_1777/moe_1778/" },
+            { title: "现代教育技术应用指南", url: "https://www.icourse163.org/" },
+            { title: "高等教育教学改革案例", url: "https://www.xuetangx.com/" },
+            { title: "AI技术在教育中的应用", url: "https://www.ai-education.org/" },
+            { title: "数字化教学资源平台", url: "https://www.smartedu.cn/" }
+        ]
+    };
+}
 

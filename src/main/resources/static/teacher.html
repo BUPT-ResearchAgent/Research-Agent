@@ -1257,6 +1257,15 @@
                             <button class="btn btn-primary" onclick="generateOutline()">
                                 <i class="fas fa-brain"></i> 基于RAG生成大纲
                             </button>
+                            <div class="web-search-option">
+                                <label class="web-search-checkbox">
+                                    <input type="checkbox" id="enable-web-search-outline">
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-globe"></i>
+                                    联网搜索增强
+                                </label>
+                                <div class="web-search-hint">获取最新行业信息</div>
+                            </div>
                             <button class="btn btn-secondary" onclick="clearOutlineForm()">
                                 <i class="fas fa-times"></i> 清空表单
                             </button>
@@ -1852,6 +1861,15 @@
                             <button class="btn btn-primary" onclick="generateExam()">
                                 <i class="fas fa-magic"></i> 生成试卷
                             </button>
+                            <div class="web-search-option">
+                                <label class="web-search-checkbox">
+                                    <input type="checkbox" id="enable-web-search-exam">
+                                    <span class="checkmark"></span>
+                                    <i class="fas fa-globe"></i>
+                                    联网搜索增强
+                                </label>
+                                <div class="web-search-hint">获取最新行业信息</div>
+                            </div>
                             <button class="btn btn-secondary" onclick="clearExamForm()">
                                 <i class="fas fa-times"></i> 清空设置
                             </button>
@@ -2165,6 +2183,14 @@
                     <button class="btn btn-primary" onclick="generateImprovements()">
                         <i class="fas fa-magic"></i> AI生成建议
                     </button>
+                    <div class="web-search-option">
+                        <label class="web-search-checkbox">
+                            <input type="checkbox" id="enable-web-search-improve">
+                            <span class="checkmark"></span>
+                            <i class="fas fa-globe"></i>
+                            联网搜索增强
+                        </label>
+                    </div>
                     <button class="btn btn-accent" onclick="exportImprovements()">
                         <i class="fas fa-download"></i> 导出报告
                     </button>
@@ -4195,5 +4221,8 @@ D. D. 8
         }
     }
     </script>
+
+
+
 </body>
-</html> 
+</html>
