@@ -28,7 +28,7 @@ body {
     background: linear-gradient(120deg, #f6faff 0%, #eaf1ff 40%, #e3e8ff 100%) fixed;
     color: #333;
     overflow-x: hidden;
-    font-size: 18px; /* 增加全局字体大小 */
+    font-size: 20px; /* 再次增加全局字体大小 */
 }
 
 /* 联网搜索选项样式 */
@@ -348,7 +348,7 @@ body {
 
 .menu-title {
     padding: 20px 20px 10px;
-    font-size: 20px; /* 增大菜单标题字体 */
+    font-size: 22px; /* 再次增大菜单标题字体 */
     font-weight: 700;
     color: #b8bfff;
     text-transform: uppercase;
@@ -364,7 +364,7 @@ body {
     font-weight: 500;
     border-radius: 8px;
     margin: 2px 8px;
-    font-size: 17px; /* 增大菜单项字体 */
+    font-size: 19px; /* 再次增大菜单项字体 */
 }
 
 .menu-item:hover, .submenu-item:hover {
@@ -838,7 +838,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    font-size: 18px; /* 增大按钮字体 */
+    font-size: 20px; /* 再次增大按钮字体 */
 }
 
 .btn i {
@@ -847,7 +847,7 @@ body {
 
 .btn-sm {
     padding: 6px 12px;
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .btn-primary {
@@ -875,7 +875,7 @@ body {
     border-radius: var(--border-radius);
     border: 1px solid #ddd;
     background-color: white;
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .table-container {
@@ -2174,7 +2174,7 @@ tr:hover {
     padding: 14px;
     border: 1px solid #ddd;
     border-radius: 6px;
-    font-size: 16px; /* 增大表单字体 */
+    font-size: 18px; /* 再次增大表单字体 */
     transition: border-color 0.3s ease;
 }
 
@@ -2189,7 +2189,7 @@ input[type="datetime-local"] {
     padding: 12px;
     border: 1px solid #ddd;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 16px;
     width: 100%;
     box-sizing: border-box;
     transition: border-color 0.3s ease;
@@ -8316,7 +8316,7 @@ section#gen-test .main-content {
     padding: 10px 15px;
     border: 2px solid #e9ecef;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 16px;
     transition: border-color 0.2s ease;
 }
 
