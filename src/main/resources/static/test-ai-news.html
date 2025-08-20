@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI教育新闻测试页面</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            color: white;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+        
+        .btn-success {
+            background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+        }
+        
+        .btn-info {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .status {
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .news-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+        }
+        
+        .news-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        
+        .news-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+        
+        .news-summary {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            color: #888;
+        }
+        
+        .news-source {
+            background: #667eea;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        .news-category {
+            background: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI教育新闻爬取测试</h1>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="crawlAINews()">
+                🚀 爬取AI教育新闻
+            </button>
+            <button class="btn btn-success" onclick="refreshNews()">
+                🔄 刷新所有新闻
+            </button>
+            <button class="btn btn-info" onclick="loadLatestNews()">
+                📰 加载最新新闻
+            </button>
+            <button class="btn btn-info" onclick="loadAINews()">
+                🤖 查看AI教育新闻
+            </button>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-item">
+                <div class="stat-number" id="totalCount">0</div>
+                <div class="stat-label">总新闻数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="aiCount">0</div>
+                <div class="stat-label">AI教育新闻</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="techCount">0</div>
+                <div class="stat-label">科技教育</div>
+            </div>
+        </div>
+        
+        <div id="newsContainer">
+            <div class="loading">
+                <div class="spinner"></div>
+                点击上方按钮开始爬取AI教育新闻
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 爬取AI教育新闻
+        async function crawlAINews() {
+            showStatus('正在爬取AI教育新闻，包含近6个月的相关新闻...', 'info');
+            
+            try {
+                const response = await fetch('/api/hot-topics/crawl-ai-education', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus('✅ ' + result.message, 'success');
+                    setTimeout(() => {
+                        loadLatestNews();
+                    }, 3000);
+                } else {
+                    showStatus('❌ ' + result.message, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ 爬取失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 刷新所有新闻
+        async function refreshNews() {
+            showStatus('正在刷新所有新闻数据...', 'info');
+            
+            try {
+                const response = await fetch('/api/hot-topics/refresh', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showStatus('✅ ' + result.message, 'success');
+                    setTimeout(() => {
+                        loadLatestNews();
+                    }, 2000);
+                } else {
+                    showStatus('❌ ' + result.message, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ 刷新失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 加载最新新闻
+        async function loadLatestNews() {
+            showStatus('正在加载最新新闻...', 'info');
+            
+            try {
+                const response = await fetch('/api/hot-topics/latest?limit=20');
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayNews(result.data);
+                    showStatus(`✅ 成功加载 ${result.count} 条最新新闻`, 'success');
+                    loadStats();
+                } else {
+                    showStatus('❌ 加载失败', 'error');
+                }
+            } catch (error) {
+                showStatus('❌ 加载失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 加载AI教育新闻
+        async function loadAINews() {
+            showStatus('正在加载AI教育相关新闻...', 'info');
+            
+            try {
+                const response = await fetch('/api/hot-topics/search?keyword=AI');
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayNews(result.data);
+                    showStatus(`✅ 找到 ${result.count} 条AI教育相关新闻`, 'success');
+                } else {
+                    showStatus('❌ 搜索失败', 'error');
+                }
+            } catch (error) {
+                showStatus('❌ 搜索失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 加载统计信息
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/hot-topics/stats');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const stats = result.data;
+                    document.getElementById('totalCount').textContent = stats.totalCount;
+                    document.getElementById('aiCount').textContent = stats.techCount;
+                    document.getElementById('techCount').textContent = stats.platformCount;
+                    document.getElementById('stats').style.display = 'flex';
+                }
+            } catch (error) {
+                console.error('加载统计信息失败:', error);
+            }
+        }
+        
+        // 显示状态信息
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        // 显示新闻列表
+        function displayNews(newsData) {
+            const container = document.getElementById('newsContainer');
+            
+            if (!newsData || newsData.length === 0) {
+                container.innerHTML = '<div class="loading">暂无新闻数据</div>';
+                return;
+            }
+            
+            const newsHtml = newsData.map(news => `
+                <div class="news-card">
+                    <div class="news-title">${news.title}</div>
+                    <div class="news-summary">${news.summary}</div>
+                    <div class="news-meta">
+                        <div>
+                            <span class="news-source">${news.sourceWebsite}</span>
+                            <span class="news-category">${news.category}</span>
+                        </div>
+                        <div>
+                            <small>👀 ${news.viewCount} | 📅 ${formatDate(news.publishTime)}</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            container.innerHTML = `<div class="news-grid">${newsHtml}</div>`;
+        }
+        
+        // 格式化日期
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 1) return '今天';
+            if (diffDays === 2) return '昨天';
+            if (diffDays <= 7) return `${diffDays}天前`;
+            if (diffDays <= 30) return `${Math.ceil(diffDays/7)}周前`;
+            if (diffDays <= 180) return `${Math.ceil(diffDays/30)}个月前`;
+            return date.toLocaleDateString('zh-CN');
+        }
+        
+        // 页面加载完成后自动加载最新新闻
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLatestNews();
+        });
+    </script>
+</body>
+</html>

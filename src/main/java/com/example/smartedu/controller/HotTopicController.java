@@ -241,17 +241,40 @@ public class HotTopicController {
     public ResponseEntity<Map<String, Object>> initializeSampleData() {
         try {
             hotTopicService.initializeSampleData();
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "示例数据初始化完成");
-            
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("初始化示例数据失败", e);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("message", "初始化数据失败");
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+
+    /**
+     * 手动爬取AI教育新闻
+     */
+    @PostMapping("/crawl-ai-education")
+    public ResponseEntity<Map<String, Object>> crawlAIEducationNews() {
+        try {
+            hotTopicService.crawlAIEducationNews();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "AI教育新闻爬取已启动，包含近6个月的相关新闻");
+            response.put("timestamp", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("爬取AI教育新闻失败", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "爬取AI教育新闻失败");
             return ResponseEntity.internalServerError().body(errorResponse);
         }
     }

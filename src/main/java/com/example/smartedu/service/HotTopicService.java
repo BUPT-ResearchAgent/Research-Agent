@@ -192,4 +192,25 @@ public class HotTopicService {
         public long getPlatformCount() { return platformCount; }
         public long getOtherCount() { return otherCount; }
     }
+
+    /**
+     * 手动爬取AI教育新闻（包含近6个月的历史数据）
+     */
+    public void crawlAIEducationNews() {
+        logger.info("开始手动爬取AI教育新闻...");
+
+        try {
+            // 触发常规新闻爬取
+            crawlerService.manualCrawl();
+
+            // 触发历史AI教育新闻爬取
+            crawlerService.manualCrawlHistoricalAI();
+
+            logger.info("AI教育新闻爬取任务已启动");
+
+        } catch (Exception e) {
+            logger.error("爬取AI教育新闻时发生错误", e);
+            throw e;
+        }
+    }
 }
