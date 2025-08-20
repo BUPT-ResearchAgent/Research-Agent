@@ -2707,8 +2707,8 @@ function parseMarkdown(markdown) {
     // 解析行内代码 `code`
     html = html.replace(/`([^`]+)`/g, '<code style="background: #f1f2f6; color: #e74c3c; padding: 2px 6px; border-radius: 4px; font-family: Monaco, Consolas, monospace; font-size: 13px;">$1</code>');
     
-    // 解析链接 [text](url)
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #3498db; text-decoration: none;" target="_blank">$1</a>');
+    // 解析链接 [text](url) - 使用安全提示
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="javascript:void(0)" onclick="showTeacherSecurityWarning(\'$2\')" style="color: #3498db; text-decoration: none; cursor: pointer;" title="点击安全访问: $2">$1</a>');
     
     // 解析无序列表 - item 或 * item
     html = html.replace(/^[\s]*[-*+]\s+(.*)$/gim, '<li style="margin: 4px 0; color: #2c3e50;">$1</li>');
@@ -18494,7 +18494,7 @@ function preprocessTableContent(content) {
 }
 
 /**
- * 将文本中的URL转换为可点击的链接
+ * 将文本中的URL转换为可点击的链接（带安全提示）
  */
 function makeLinksClickable(text) {
     // URL正则表达式
@@ -18505,7 +18505,8 @@ function makeLinksClickable(text) {
         let cleanUrl = url.replace(/[.,;:!?)]$/, '');
         let punctuation = url.slice(cleanUrl.length);
 
-        return `<a href="${cleanUrl}" target="_blank" style="color: #3498db; text-decoration: none; border-bottom: 1px dotted #3498db;" onmouseover="this.style.textDecoration='underline';" onmouseout="this.style.textDecoration='none';">${cleanUrl}</a>${punctuation}`;
+        // 使用安全提示功能，而不是直接跳转
+        return `<a href="javascript:void(0)" onclick="showTeacherSecurityWarning('${cleanUrl.replace(/'/g, '\\\'')}')" style="color: #3498db; text-decoration: none; border-bottom: 1px dotted #3498db; cursor: pointer;" onmouseover="this.style.textDecoration='underline';" onmouseout="this.style.textDecoration='none';" title="点击安全访问: ${cleanUrl}">${cleanUrl}</a>${punctuation}`;
     });
 }
 
@@ -18878,17 +18879,18 @@ function displayWebSearchImprovementResult(data) {
                 <div style="margin-bottom: 15px;">
                     ${data.referenceLinks.map(link => `
                         <div style="margin: 8px 0;">
-                            <a href="${escapeHtml(link.url)}" target="_blank"
-                               style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6;"
+                            <a href="javascript:void(0)" onclick="showTeacherSecurityWarning('${escapeHtml(link.url).replace(/'/g, '\\\'')}')"
+                               style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6; cursor: pointer;"
                                onmouseover="this.style.textDecoration='underline';"
-                               onmouseout="this.style.textDecoration='none';">
+                               onmouseout="this.style.textDecoration='none';"
+                               title="点击安全访问: ${escapeHtml(link.url)}">
                                 • ${escapeHtml(link.title)}
                             </a>
                         </div>
                     `).join('')}
                 </div>
                 <div style="font-size: 13px; color: #7f8c8d; margin-top: 10px;">
-                    点击链接查看相关资料（新窗口打开）
+                    点击链接查看相关资料（安全访问）
                 </div>
             </div>
         `;
@@ -19255,17 +19257,18 @@ function displayWebSearchOutlineResult(data) {
                     <div style="margin-bottom: 15px;">
                         ${data.referenceLinks.map(link => `
                             <div style="margin: 8px 0;">
-                                <a href="${escapeHtml(link.url)}" target="_blank"
-                                   style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6;"
+                                <a href="javascript:void(0)" onclick="showTeacherSecurityWarning('${escapeHtml(link.url).replace(/'/g, '\\\'')}')"
+                                   style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6; cursor: pointer;"
                                    onmouseover="this.style.textDecoration='underline';"
-                                   onmouseout="this.style.textDecoration='none';">
+                                   onmouseout="this.style.textDecoration='none';"
+                                   title="点击安全访问: ${escapeHtml(link.url)}">
                                     • ${escapeHtml(link.title)}
                                 </a>
                             </div>
                         `).join('')}
                     </div>
                     <div style="font-size: 13px; color: #7f8c8d; margin-top: 10px;">
-                        点击链接查看相关资料（新窗口打开）
+                        点击链接查看相关资料（安全访问）
                     </div>
                 </div>
             `;
@@ -19365,17 +19368,18 @@ function displayWebSearchExamResult(data) {
                     <div style="margin-bottom: 15px;">
                         ${data.referenceLinks.map(link => `
                             <div style="margin: 8px 0;">
-                                <a href="${escapeHtml(link.url)}" target="_blank"
-                                   style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6;"
+                                <a href="javascript:void(0)" onclick="showTeacherSecurityWarning('${escapeHtml(link.url).replace(/'/g, '\\\'')}')"
+                                   style="color: #3498db; text-decoration: none; font-size: 15px; line-height: 1.6; cursor: pointer;"
                                    onmouseover="this.style.textDecoration='underline';"
-                                   onmouseout="this.style.textDecoration='none';">
+                                   onmouseout="this.style.textDecoration='none';"
+                                   title="点击安全访问: ${escapeHtml(link.url)}">
                                     • ${escapeHtml(link.title)}
                                 </a>
                             </div>
                         `).join('')}
                     </div>
                     <div style="font-size: 13px; color: #7f8c8d; margin-top: 10px;">
-                        点击链接查看相关资料（新窗口打开）
+                        点击链接查看相关资料（安全访问）
                     </div>
                 </div>
             `;
