@@ -28,7 +28,7 @@ body {
     background: linear-gradient(120deg, #f6faff 0%, #eaf1ff 40%, #e3e8ff 100%) fixed;
     color: #333;
     overflow-x: hidden;
-    font-size: 16px; /* 增加全局字体大小 */
+    font-size: 18px; /* 增加全局字体大小 */
 }
 
 /* 联网搜索选项样式 */
@@ -117,7 +117,7 @@ body {
 
 .exam-header h3 {
     color: #2c3e50;
-    font-size: 24px;
+    font-size: 28px; /* 增大考试标题字体 */
     font-weight: 600;
     margin: 0 0 10px 0;
 }
@@ -166,7 +166,7 @@ body {
 
 .question-item h4 {
     color: #2c3e50;
-    font-size: 16px;
+    font-size: 18px; /* 增大问题标题字体 */
     font-weight: 600;
     margin: 0 0 15px 0;
     display: flex;
@@ -179,6 +179,7 @@ body {
     margin-bottom: 15px;
     line-height: 1.7;
     color: #2c3e50;
+    font-size: 16px; /* 增大问题内容字体 */
 }
 
 .question-options {
@@ -187,10 +188,11 @@ body {
 
 .question-options p {
     margin: 8px 0;
-    padding: 8px 12px;
+    padding: 10px 14px; /* 增大选项内边距 */
     background: white;
     border-radius: 6px;
     border: 1px solid #e9ecef;
+    font-size: 15px; /* 增大选项字体 */
 }
 
 .question-answer {
@@ -226,7 +228,7 @@ body {
 }
 
 .logo {
-    font-size: 24px;
+    font-size: 28px; /* 增大Logo字体 */
     font-weight: 700;
     color: #5b8cff;
     text-shadow: 0 2px 8px #b8bfff33;
@@ -324,6 +326,7 @@ body {
 .user-name {
     font-weight: 500;
     color: var(--dark-color);
+    font-size: 16px; /* 增大用户名字体 */
 }
 
 /* 左侧菜单栏 */
@@ -345,7 +348,7 @@ body {
 
 .menu-title {
     padding: 20px 20px 10px;
-    font-size: 18px; /* 增大菜单标题字体 */
+    font-size: 20px; /* 增大菜单标题字体 */
     font-weight: 700;
     color: #b8bfff;
     text-transform: uppercase;
@@ -361,6 +364,7 @@ body {
     font-weight: 500;
     border-radius: 8px;
     margin: 2px 8px;
+    font-size: 17px; /* 增大菜单项字体 */
 }
 
 .menu-item:hover, .submenu-item:hover {
@@ -403,7 +407,7 @@ body {
     padding: 10px 20px 10px 50px;
     cursor: pointer;
     transition: var(--transition);
-    font-size: 16px; /* 增大子菜单字体 */
+    font-size: 18px; /* 增大子菜单字体 */
     display: flex;
     align-items: center;
 }
@@ -450,7 +454,7 @@ body {
 
 .page-title {
     color: #5b8cff;
-    font-size: 2rem;
+    font-size: 2.4rem; /* 增大页面标题字体 */
     font-weight: 800;
     letter-spacing: 1px;
     text-shadow: 0 2px 8px #b8bfff33;
@@ -499,14 +503,14 @@ body {
 .stat-title {
     color: #5b8cff;
     font-weight: 700;
-    font-size: 1.1rem;
+    font-size: 1.3rem; /* 增大统计标题字体 */
 }
 
 .stat-icon {
     background: linear-gradient(135deg, #b8bfff 0%, #5b8cff 100%);
     border-radius: 50%;
-    width: 44px;
-    height: 44px;
+    width: 48px; /* 增大图标尺寸 */
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -515,7 +519,7 @@ body {
 
 .stat-value {
     color: #7f7fff;
-    font-size: 2.1rem;
+    font-size: 2.4rem; /* 增大统计数值字体 */
     font-weight: 800;
     margin-bottom: 6px;
 }
@@ -523,6 +527,7 @@ body {
 .stat-change {
     color: #27ae60;
     font-weight: 600;
+    font-size: 16px; /* 增大变化指示字体 */
 }
 
 .stat-change.down {
@@ -801,7 +806,7 @@ body {
 
 .card-header {
     color: #5b8cff;
-    font-size: 1.4rem; /* 增大卡片标题字体 */
+    font-size: 1.6rem; /* 增大卡片标题字体 */
     font-weight: 700;
     margin-bottom: 18px;
     padding-bottom: 15px;
@@ -823,7 +828,7 @@ body {
 }
 
 .btn {
-    padding: 12px 24px; /* 增大按钮内边距 */
+    padding: 14px 28px; /* 增大按钮内边距 */
     border-radius: var(--border-radius);
     border: none;
     font-weight: 500;
@@ -833,7 +838,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    font-size: 16px; /* 增大按钮字体 */
+    font-size: 18px; /* 增大按钮字体 */
 }
 
 .btn i {
@@ -1125,9 +1130,10 @@ table {
 }
 
 th, td {
-    padding: 15px;
+    padding: 16px;
     text-align: left;
     border-bottom: 1px solid #eee;
+    font-size: 16px; /* 增大表格字体 */
 }
 
 th {
@@ -1370,16 +1376,17 @@ tr:hover {
 .activity-title {
     font-weight: 500;
     margin-bottom: 3px;
+    font-size: 16px; /* 增大活动标题字体 */
 }
 
 .activity-desc {
-    font-size: 13px;
+    font-size: 15px; /* 增大活动描述字体 */
     color: #7f8c8d;
     margin-bottom: 5px;
 }
 
 .activity-time {
-    font-size: 12px;
+    font-size: 14px; /* 增大活动时间字体 */
     color: #95a5a6;
 }
 
@@ -2164,10 +2171,10 @@ tr:hover {
 
 .form-input, .form-select {
     width: 100%;
-    padding: 12px;
+    padding: 14px;
     border: 1px solid #ddd;
     border-radius: 6px;
-    font-size: 14px;
+    font-size: 16px; /* 增大表单字体 */
     transition: border-color 0.3s ease;
 }
 
