@@ -18091,36 +18091,18 @@ function displayTeacherHotTopics(topics) {
         const badgeText = getBadgeText(topic.publishTime);
 
         html += `
-            <div class="hotspot-item">
+            <div class="hotspot-item" onclick="openHotTopicDetail(${topic.id})">
                 <div class="hotspot-header">
                     <h4 class="hotspot-title">${escapeHtml(topic.title)}</h4>
                     <span class="hotspot-badge ${badgeClass}">${badgeText}</span>
                 </div>
                 <p class="hotspot-summary">${escapeHtml(topic.summary || '暂无摘要')}</p>
-                ${topic.content ? `
-                    <div class="hotspot-content" style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
-                        <h5 style="margin: 0 0 10px 0; color: #2c3e50; font-size: 14px;">📰 新闻详情</h5>
-                        <div style="color: #34495e; line-height: 1.6; font-size: 14px; max-height: 200px; overflow-y: auto;">
-                            ${formatNewsContent(topic.content)}
-                        </div>
-                    </div>
-                ` : ''}
                 <div class="hotspot-meta">
                     <div class="hotspot-source">
-                        <i class="fas fa-globe"></i>
+                        <i class="fas fa-globe" style="font-size: 10px;"></i>
                         <span>${escapeHtml(topic.sourceWebsite || '未知来源')}</span>
                     </div>
                     <div class="hotspot-time">${timeAgo}</div>
-                    <div class="hotspot-actions">
-                        <button onclick="openHotTopicDetail(${topic.id})" class="btn-link" style="margin-right: 10px;">
-                            <i class="fas fa-eye"></i> 查看详情
-                        </button>
-                        ${topic.url && topic.url !== '#' ? `
-                            <a href="${topic.url}" target="_blank" class="btn-link">
-                                <i class="fas fa-external-link-alt"></i> 原文链接
-                            </a>
-                        ` : ''}
-                    </div>
                 </div>
             </div>
         `;
@@ -19562,241 +19544,227 @@ function formatNewsContent(content) {
     return formatted;
 }
 
-/**
- * 打开热点详情模态框
- */
-async function openHotTopicDetail(topicId) {
-    try {
-        console.log('打开热点详情，ID:', topicId);
 
-        // 从当前热点列表中找到对应的热点
-        const topic = currentHotTopics.find(t => t.id === topicId);
 
-        if (!topic) {
-            console.error('找不到热点数据，ID:', topicId);
-            showNotification('热点数据不存在', 'error');
-            return;
-        }
 
-        // 填充模态框内容
-        document.getElementById('hotspot-detail-title').textContent = topic.title || '无标题';
-        document.getElementById('hotspot-detail-source-text').textContent = topic.sourceWebsite || '未知来源';
-        document.getElementById('hotspot-detail-time').textContent = getTimeAgo(topic.publishTime);
-        document.getElementById('hotspot-summary-content').innerHTML = formatNewsContent(topic.summary || '暂无摘要');
-        document.getElementById('hotspot-view-count').textContent = topic.viewCount || 0;
-        document.getElementById('hotspot-category').textContent = topic.category || '未分类';
 
-        // 显示完整内容
-        const fullContentElement = document.getElementById('hotspot-full-content');
-        if (topic.content && topic.content.trim()) {
-            fullContentElement.innerHTML = formatNewsContent(topic.content);
-        } else {
-            fullContentElement.innerHTML = `
-                <div style="text-align: center; padding: 40px 0; color: #7f8c8d;">
-                    <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                    <p>暂无详细内容</p>
-                    <p style="font-size: 14px; margin-top: 8px;">该新闻的详细内容正在获取中，请稍后重试</p>
+
+
+
+
+// ==================== 教师端安全提示功能 ====================
+
+// 显示教师端安全警告
+function showTeacherSecurityWarning(url) {
+    if (!url) {
+        console.warn('URL为空，无法显示安全警告');
+        return;
+    }
+
+    // 创建安全提示弹窗
+    const modal = createTeacherSecurityModal(url);
+    document.body.appendChild(modal);
+    modal.style.display = 'block';
+}
+
+// 创建教师端安全提示弹窗
+function createTeacherSecurityModal(url) {
+    const modal = document.createElement('div');
+    modal.id = 'teacher-security-modal';
+    modal.className = 'teacher-security-modal';
+
+    modal.innerHTML = `
+        <div class="teacher-security-modal-content">
+            <div class="teacher-security-modal-header">
+                <div class="warning-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
                 </div>
-            `;
-        }
+                <h3>安全提示</h3>
+            </div>
+            <div class="teacher-security-modal-body">
+                <p><strong class="highlight">您即将离开智囊，跳转到第三方网站。</strong></p>
+                <p>智囊出于为您提供便利的目的向您提供第三方链接，我们不对第三方网站的内容负责，请您审慎访问，保护好您的信息及财产安全。</p>
+            </div>
+            <div class="teacher-security-modal-footer">
+                <button type="button" class="teacher-security-btn teacher-security-btn-cancel" onclick="closeTeacherSecurityModal()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button type="button" class="teacher-security-btn teacher-security-btn-continue" onclick="continueToTeacherUrl('${url}')">
+                    <i class="fas fa-external-link-alt"></i> 继续访问
+                </button>
+            </div>
+        </div>
+    `;
 
-        // 显示模态框
-        const modal = document.getElementById('hotspot-detail-modal');
-        modal.style.display = 'flex';
+    // 添加样式
+    if (!document.getElementById('teacher-security-modal-styles')) {
+        const style = document.createElement('style');
+        style.id = 'teacher-security-modal-styles';
+        style.textContent = `
+            .teacher-security-modal {
+                position: fixed;
+                z-index: 10001;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                backdrop-filter: blur(5px);
+                -webkit-backdrop-filter: blur(5px);
+            }
 
-        // 增加浏览次数
-        try {
-            await fetch(`/api/hot-topics/${topicId}/view`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-        } catch (error) {
-            console.warn('更新浏览次数失败:', error);
-        }
+            .teacher-security-modal-content {
+                background-color: #fff;
+                margin: 10% auto;
+                padding: 0;
+                border-radius: 15px;
+                width: 90%;
+                max-width: 500px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                animation: teacherModalSlideIn 0.3s ease-out;
+            }
 
-    } catch (error) {
-        console.error('打开热点详情失败:', error);
-        showNotification('打开详情失败', 'error');
+            @keyframes teacherModalSlideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(-50px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            .teacher-security-modal-header {
+                background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+                color: white;
+                padding: 20px;
+                border-radius: 15px 15px 0 0;
+                text-align: center;
+            }
+
+            .teacher-security-modal-header h3 {
+                margin: 0;
+                font-size: 20px;
+                font-weight: 600;
+            }
+
+            .teacher-security-modal-header .warning-icon {
+                font-size: 48px;
+                margin-bottom: 10px;
+                color: #fff;
+            }
+
+            .teacher-security-modal-body {
+                padding: 30px;
+                text-align: center;
+            }
+
+            .teacher-security-modal-body p {
+                color: #555;
+                line-height: 1.6;
+                margin-bottom: 20px;
+                font-size: 16px;
+            }
+
+            .teacher-security-modal-body .highlight {
+                color: #e74c3c;
+                font-weight: 600;
+            }
+
+            .teacher-security-modal-footer {
+                padding: 0 30px 30px;
+                display: flex;
+                gap: 15px;
+                justify-content: center;
+            }
+
+            .teacher-security-btn {
+                padding: 12px 30px;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                min-width: 120px;
+            }
+
+            .teacher-security-btn-cancel {
+                background: #f8f9fa;
+                color: #6c757d;
+                border: 2px solid #dee2e6;
+            }
+
+            .teacher-security-btn-cancel:hover {
+                background: #e9ecef;
+                color: #495057;
+                border-color: #adb5bd;
+            }
+
+            .teacher-security-btn-continue {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: 2px solid transparent;
+            }
+
+            .teacher-security-btn-continue:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            }
+
+            @media (max-width: 768px) {
+                .teacher-security-modal-content {
+                    margin: 20% auto;
+                    width: 95%;
+                }
+
+                .teacher-security-modal-footer {
+                    flex-direction: column;
+                }
+
+                .teacher-security-btn {
+                    width: 100%;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    return modal;
+}
+
+// 关闭教师端安全提示弹窗
+function closeTeacherSecurityModal() {
+    const modal = document.getElementById('teacher-security-modal');
+    if (modal) {
+        modal.remove();
     }
 }
 
-/**
- * 关闭热点详情模态框
- */
-function closeHotTopicDetail() {
-    const modal = document.getElementById('hotspot-detail-modal');
-    modal.style.display = 'none';
+// 继续访问教师端URL
+function continueToTeacherUrl(url) {
+    if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+    closeTeacherSecurityModal();
 }
 
-/**
- * 分享热点
- */
-function shareHotTopic() {
-    const title = document.getElementById('hotspot-detail-title').textContent;
-    const url = window.location.href;
+// 打开热点原文链接（带安全提示）
+function openHotspotOriginalLink() {
+    const originalLinkBtn = document.getElementById('hotspot-original-link-btn');
+    const url = originalLinkBtn.getAttribute('data-url');
 
-    if (navigator.share) {
-        navigator.share({
-            title: title,
-            text: '分享一个教育热点新闻',
-            url: url
-        }).catch(err => console.log('分享失败:', err));
+    if (url) {
+        showTeacherSecurityWarning(url);
     } else {
-        // 复制到剪贴板
-        const textToCopy = `${title}\n${url}`;
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            showNotification('链接已复制到剪贴板', 'success');
-        }).catch(() => {
-            showNotification('分享功能不可用', 'warning');
-        });
+        showNotification('原文链接不可用', 'warning');
     }
 }
 
-/**
- * 打开热点详情模态框
- */
-async function openHotTopicDetail(topicId) {
-    try {
-        console.log('打开热点详情，ID:', topicId);
-
-        // 从当前热点列表中找到对应的热点
-        const topic = currentHotTopics.find(t => t.id === topicId);
-
-        if (!topic) {
-            console.error('找不到热点数据，ID:', topicId);
-            showNotification('热点数据不存在', 'error');
-            return;
-        }
-
-        // 填充模态框内容
-        document.getElementById('hotspot-detail-title').textContent = topic.title || '无标题';
-        document.getElementById('hotspot-detail-source-text').textContent = topic.sourceWebsite || '未知来源';
-        document.getElementById('hotspot-detail-time').textContent = getTimeAgo(topic.publishTime);
-        document.getElementById('hotspot-summary-content').innerHTML = formatNewsContent(topic.summary || '暂无摘要');
-        document.getElementById('hotspot-view-count').textContent = topic.viewCount || 0;
-        document.getElementById('hotspot-category').textContent = topic.category || '未分类';
-
-        // 显示完整内容
-        const fullContentElement = document.getElementById('hotspot-full-content');
-        if (topic.content && topic.content.trim()) {
-            fullContentElement.innerHTML = formatNewsContent(topic.content);
-        } else {
-            fullContentElement.innerHTML = `
-                <div style="text-align: center; padding: 40px 0; color: #7f8c8d;">
-                    <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                    <p>暂无详细内容</p>
-                    <p style="font-size: 14px; margin-top: 8px;">该新闻的详细内容正在获取中，请稍后重试</p>
-                </div>
-            `;
-        }
-
-        // 显示模态框
-        const modal = document.getElementById('hotspot-detail-modal');
-        modal.style.display = 'flex';
-
-        // 增加浏览次数
-        try {
-            await fetch(`/api/hot-topics/${topicId}/view`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-        } catch (error) {
-            console.warn('更新浏览次数失败:', error);
-        }
-
-    } catch (error) {
-        console.error('打开热点详情失败:', error);
-        showNotification('打开详情失败', 'error');
-    }
-}
-
-/**
- * 打开热点详情模态框
- */
-async function openHotTopicDetail(topicId) {
-    try {
-        console.log('打开热点详情，ID:', topicId);
-
-        // 从当前热点列表中找到对应的热点
-        const topic = currentHotTopics.find(t => t.id === topicId);
-
-        if (!topic) {
-            console.error('找不到热点数据，ID:', topicId);
-            showNotification('热点数据不存在', 'error');
-            return;
-        }
-
-        // 填充模态框内容
-        document.getElementById('hotspot-detail-title').textContent = topic.title || '无标题';
-        document.getElementById('hotspot-detail-source-text').textContent = topic.sourceWebsite || '未知来源';
-        document.getElementById('hotspot-detail-time').textContent = getTimeAgo(topic.publishTime);
-        document.getElementById('hotspot-summary-content').innerHTML = formatNewsContent(topic.summary || '暂无摘要');
-        document.getElementById('hotspot-view-count').textContent = topic.viewCount || 0;
-        document.getElementById('hotspot-category').textContent = topic.category || '未分类';
-
-        // 显示完整内容
-        const fullContentElement = document.getElementById('hotspot-full-content');
-        if (topic.content && topic.content.trim()) {
-            fullContentElement.innerHTML = formatNewsContent(topic.content);
-        } else {
-            fullContentElement.innerHTML = `
-                <div style="text-align: center; padding: 40px 0; color: #7f8c8d;">
-                    <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 16px; color: #bdc3c7;"></i>
-                    <p>暂无详细内容</p>
-                    <p style="font-size: 14px; margin-top: 8px;">该新闻的详细内容正在获取中，请稍后重试</p>
-                </div>
-            `;
-        }
-
-        // 显示模态框
-        const modal = document.getElementById('hotspot-detail-modal');
-        modal.style.display = 'flex';
-
-        // 增加浏览次数
-        try {
-            await fetch(`/api/hot-topics/${topicId}/view`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-        } catch (error) {
-            console.warn('更新浏览次数失败:', error);
-        }
-
-    } catch (error) {
-        console.error('打开热点详情失败:', error);
-        showNotification('打开详情失败', 'error');
-    }
-}
-
-/**
- * 关闭热点详情模态框
- */
-function closeHotTopicDetail() {
-    const modal = document.getElementById('hotspot-detail-modal');
-    modal.style.display = 'none';
-}
-
-/**
- * 分享热点
- */
-function shareHotTopic() {
-    const title = document.getElementById('hotspot-detail-title').textContent;
-    const url = window.location.href;
-
-    if (navigator.share) {
-        navigator.share({
-            title: title,
-            text: '分享一个教育热点新闻',
-            url: url
-        }).catch(err => console.log('分享失败:', err));
-    } else {
-        // 复制到剪贴板
-        const textToCopy = `${title}\n${url}`;
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            showNotification('链接已复制到剪贴板', 'success');
-        }).catch(() => {
-            showNotification('分享功能不可用', 'warning');
-        });
-    }
-}
+// 导出教师端安全提示函数
+window.showTeacherSecurityWarning = showTeacherSecurityWarning;
+window.closeTeacherSecurityModal = closeTeacherSecurityModal;
+window.continueToTeacherUrl = continueToTeacherUrl;
+window.openHotspotOriginalLink = openHotspotOriginalLink;
 

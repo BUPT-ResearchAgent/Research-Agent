@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <script src="security-modal.js"></script>
     <style>
         .hotspot-detail-container {
             max-width: 800px;
@@ -134,23 +135,149 @@
             color: #e74c3c;
         }
         
+        /* 安全提示弹窗样式 */
+        .security-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .security-modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 0;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .security-modal-header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 20px;
+            border-radius: 15px 15px 0 0;
+            text-align: center;
+        }
+
+        .security-modal-header h3 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .security-modal-header .warning-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #fff;
+        }
+
+        .security-modal-body {
+            padding: 30px;
+            text-align: center;
+        }
+
+        .security-modal-body p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        .security-modal-body .highlight {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        .security-modal-footer {
+            padding: 0 30px 30px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .security-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .security-btn-cancel {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 2px solid #dee2e6;
+        }
+
+        .security-btn-cancel:hover {
+            background: #e9ecef;
+            color: #495057;
+            border-color: #adb5bd;
+        }
+
+        .security-btn-continue {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: 2px solid transparent;
+        }
+
+        .security-btn-continue:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
         @media (max-width: 768px) {
             .hotspot-detail-container {
                 margin: 20px;
                 padding: 15px;
             }
-            
+
             .hotspot-title {
                 font-size: 24px;
             }
-            
+
             .hotspot-meta {
                 flex-direction: column;
                 align-items: flex-start;
             }
-            
+
             .hotspot-actions {
                 flex-direction: column;
+            }
+
+            .security-modal-content {
+                margin: 20% auto;
+                width: 95%;
+            }
+
+            .security-modal-footer {
+                flex-direction: column;
+            }
+
+            .security-btn {
+                width: 100%;
             }
         }
     </style>
@@ -195,11 +322,35 @@
             </div>
             
             <div class="hotspot-actions">
-                <a id="view-original-btn" class="btn btn-primary" target="_blank">
+                <button id="view-original-btn" class="btn btn-primary" onclick="showSecurityWarning()">
                     <i class="fas fa-external-link-alt"></i> 查看原文
-                </a>
+                </button>
                 <button class="btn btn-secondary" onclick="goBack()">
                     <i class="fas fa-arrow-left"></i> 返回
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 安全提示弹窗 -->
+    <div id="security-modal" class="security-modal">
+        <div class="security-modal-content">
+            <div class="security-modal-header">
+                <div class="warning-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h3>安全提示</h3>
+            </div>
+            <div class="security-modal-body">
+                <p><strong class="highlight">您即将离开智囊，跳转到第三方网站。</strong></p>
+                <p>智囊出于为您提供便利的目的向您提供第三方链接，我们不对第三方网站的内容负责，请您审慎访问，保护好您的信息及财产安全。</p>
+            </div>
+            <div class="security-modal-footer">
+                <button class="security-btn security-btn-cancel" onclick="closeSecurityModal()">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+                <button class="security-btn security-btn-continue" onclick="continueToOriginal()">
+                    <i class="fas fa-external-link-alt"></i> 继续访问
                 </button>
             </div>
         </div>
@@ -240,26 +391,28 @@
             }
         }
         
+        // 存储当前热点的URL
+        let currentTopicUrl = '';
+
         // 显示热点详情
         function displayHotspotDetail(topic) {
             document.getElementById('hotspot-title').textContent = topic.title;
             document.getElementById('hotspot-source').textContent = topic.sourceWebsite || '未知来源';
             document.getElementById('hotspot-summary').textContent = topic.summary || '暂无摘要';
-            
+
             // 设置时间和徽章
             const timeAgo = getTimeAgo(topic.publishTime);
             const badgeText = getBadgeText(topic.publishTime);
             document.getElementById('hotspot-time').textContent = timeAgo;
             document.getElementById('hotspot-badge').textContent = badgeText;
-            
-            // 设置原文链接
+
+            // 保存原文链接
+            currentTopicUrl = topic.url;
             const viewBtn = document.getElementById('view-original-btn');
-            if (topic.url) {
-                viewBtn.href = topic.url;
-            } else {
+            if (!topic.url) {
                 viewBtn.style.display = 'none';
             }
-            
+
             showContent();
         }
         
@@ -335,6 +488,51 @@
             }
         }
         
+        // 显示安全警告弹窗
+        function showSecurityWarning() {
+            if (!currentTopicUrl) {
+                alert('原文链接不可用');
+                return;
+            }
+
+            const modal = document.getElementById('security-modal');
+            modal.style.display = 'block';
+
+            // 添加点击背景关闭弹窗的功能
+            modal.onclick = function(event) {
+                if (event.target === modal) {
+                    closeSecurityModal();
+                }
+            };
+        }
+
+        // 关闭安全提示弹窗
+        function closeSecurityModal() {
+            const modal = document.getElementById('security-modal');
+            modal.style.display = 'none';
+        }
+
+        // 继续访问原文
+        function continueToOriginal() {
+            if (currentTopicUrl) {
+                // 在新窗口中打开链接
+                window.open(currentTopicUrl, '_blank', 'noopener,noreferrer');
+            }
+            closeSecurityModal();
+        }
+
+        // 键盘事件处理
+        document.addEventListener('keydown', function(event) {
+            const modal = document.getElementById('security-modal');
+            if (modal.style.display === 'block') {
+                if (event.key === 'Escape') {
+                    closeSecurityModal();
+                } else if (event.key === 'Enter') {
+                    continueToOriginal();
+                }
+            }
+        });
+
         // 页面加载完成后自动加载热点详情
         document.addEventListener('DOMContentLoaded', function() {
             loadHotspotDetail();
