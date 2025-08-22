@@ -2560,34 +2560,36 @@ public class ExamService {
             // 验证考试和学生存在
             Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-            
+
             // 获取学生的考试结果
             Optional<ExamResult> examResultOpt = examResultRepository.findByStudentIdAndExamId(studentId, examId);
             if (!examResultOpt.isPresent()) {
                 throw new RuntimeException("学生尚未参加此考试");
             }
-            
+
             ExamResult examResult = examResultOpt.get();
-            
+
             // 获取学生答案
             List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(examResult.getId());
-            
-            // 分析学生各能力维度表现
-            Map<String, Double> capabilityScores = analyzeStudentCapabilityPerformance(studentAnswers);
-            
-            Map<String, Object> radarData = new HashMap<>();
-            radarData.put("labels", Arrays.asList("理论掌握", "实践应用", "创新思维", "知识迁移", "学习能力", "系统思维"));
-            radarData.put("values", Arrays.asList(
-                capabilityScores.getOrDefault("knowledge", 0.0),
-                capabilityScores.getOrDefault("application", 0.0),
-                capabilityScores.getOrDefault("innovation", 0.0),
-                capabilityScores.getOrDefault("transfer", 0.0),
-                capabilityScores.getOrDefault("learning", 0.0),
-                capabilityScores.getOrDefault("systematic", 0.0)
-            ));
-            radarData.put("studentName", examResult.getStudentName());
-            radarData.put("examTitle", exam.getTitle());
-            
+
+            // 尝试获取能力维度数据
+            Map<String, Object> radarData = tryGetCapabilityRadarData(studentAnswers, examResult.getStudentName(), exam.getTitle());
+
+            // 如果能力维度数据不足，尝试题型分析
+            if (isRadarDataEmpty(radarData)) {
+                radarData = tryGetQuestionTypeRadarData(studentAnswers, examResult.getStudentName(), exam.getTitle());
+            }
+
+            // 如果题型数据也不足，尝试难度分析
+            if (isRadarDataEmpty(radarData)) {
+                radarData = tryGetDifficultyRadarData(studentAnswers, examResult.getStudentName(), exam.getTitle());
+            }
+
+            // 如果所有数据都不足，返回基础统计数据
+            if (isRadarDataEmpty(radarData)) {
+                radarData = getBasicStatisticsRadarData(studentAnswers, examResult.getStudentName(), exam.getTitle());
+            }
+
             return radarData;
         } catch (Exception e) {
             System.err.println("获取学生能力雷达图数据失败: " + e.getMessage());
@@ -2602,61 +2604,48 @@ public class ExamService {
         try {
             Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-            
+
             // 获取所有参与考试的学生结果
             List<ExamResult> allResults = examResultRepository.findByExam(exam);
-            
+
             if (allResults.isEmpty()) {
                 throw new RuntimeException("暂无学生参加此考试");
             }
-            
-            // 计算各能力维度的平均分
-            Map<String, Double> totalCapabilityScores = new HashMap<>();
-            totalCapabilityScores.put("knowledge", 0.0);
-            totalCapabilityScores.put("application", 0.0);
-            totalCapabilityScores.put("innovation", 0.0);
-            totalCapabilityScores.put("transfer", 0.0);
-            totalCapabilityScores.put("learning", 0.0);
-            totalCapabilityScores.put("systematic", 0.0);
-            
+
+            // 收集所有学生的答题数据
+            List<List<StudentAnswer>> allStudentAnswers = new ArrayList<>();
             int participantCount = 0;
-            
+
             for (ExamResult result : allResults) {
                 List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(result.getId());
                 if (!studentAnswers.isEmpty()) {
-                    Map<String, Double> studentCapabilityScores = analyzeStudentCapabilityPerformance(studentAnswers);
-                    
-                    for (String capability : totalCapabilityScores.keySet()) {
-                        totalCapabilityScores.put(capability, 
-                            totalCapabilityScores.get(capability) + studentCapabilityScores.getOrDefault(capability, 0.0));
-                    }
+                    allStudentAnswers.add(studentAnswers);
                     participantCount++;
                 }
             }
-            
+
             if (participantCount == 0) {
                 throw new RuntimeException("没有有效的答题数据");
             }
-            
-            // 计算平均值
-            Map<String, Double> averageCapabilityScores = new HashMap<>();
-            for (String capability : totalCapabilityScores.keySet()) {
-                averageCapabilityScores.put(capability, totalCapabilityScores.get(capability) / participantCount);
+
+            // 尝试获取能力维度数据
+            Map<String, Object> radarData = tryGetClassCapabilityRadarData(allStudentAnswers, participantCount, exam.getTitle());
+
+            // 如果能力维度数据不足，尝试题型分析
+            if (isRadarDataEmpty(radarData)) {
+                radarData = tryGetClassQuestionTypeRadarData(allStudentAnswers, participantCount, exam.getTitle());
             }
-            
-            Map<String, Object> radarData = new HashMap<>();
-            radarData.put("labels", Arrays.asList("理论掌握", "实践应用", "创新思维", "知识迁移", "学习能力", "系统思维"));
-            radarData.put("values", Arrays.asList(
-                averageCapabilityScores.getOrDefault("knowledge", 0.0),
-                averageCapabilityScores.getOrDefault("application", 0.0),
-                averageCapabilityScores.getOrDefault("innovation", 0.0),
-                averageCapabilityScores.getOrDefault("transfer", 0.0),
-                averageCapabilityScores.getOrDefault("learning", 0.0),
-                averageCapabilityScores.getOrDefault("systematic", 0.0)
-            ));
-            radarData.put("participantCount", participantCount);
-            radarData.put("examTitle", exam.getTitle());
-            
+
+            // 如果题型数据也不足，尝试难度分析
+            if (isRadarDataEmpty(radarData)) {
+                radarData = tryGetClassDifficultyRadarData(allStudentAnswers, participantCount, exam.getTitle());
+            }
+
+            // 如果所有数据都不足，返回基础统计数据
+            if (isRadarDataEmpty(radarData)) {
+                radarData = getClassBasicStatisticsRadarData(allStudentAnswers, participantCount, exam.getTitle());
+            }
+
             return radarData;
         } catch (Exception e) {
             System.err.println("获取全班平均能力雷达图数据失败: " + e.getMessage());
@@ -2697,32 +2686,32 @@ public class ExamService {
     private Map<String, Double> analyzeStudentCapabilityPerformance(List<StudentAnswer> studentAnswers) {
         Map<String, Double> capabilityScores = new HashMap<>();
         Map<String, Integer> capabilityQuestionCounts = new HashMap<>();
-        
+
         // 初始化能力维度
         String[] capabilities = {"knowledge", "application", "innovation", "transfer", "learning", "systematic"};
         for (String capability : capabilities) {
             capabilityScores.put(capability, 0.0);
             capabilityQuestionCounts.put(capability, 0);
         }
-        
+
         for (StudentAnswer answer : studentAnswers) {
             Question question = answer.getQuestion();
             String primaryCapability = question.getPrimaryCapability();
-            
+
             if (primaryCapability != null && capabilityScores.containsKey(primaryCapability)) {
                 double score = answer.getScore() != null ? answer.getScore() : 0.0;
                 double questionMaxScore = question.getScore() != null ? question.getScore() : 1.0;
-                
+
                 // 计算百分制得分
                 double normalizedScore = questionMaxScore > 0 ? (score / questionMaxScore) * 100 : 0;
-                
-                capabilityScores.put(primaryCapability, 
+
+                capabilityScores.put(primaryCapability,
                     capabilityScores.get(primaryCapability) + normalizedScore);
-                capabilityQuestionCounts.put(primaryCapability, 
+                capabilityQuestionCounts.put(primaryCapability,
                     capabilityQuestionCounts.get(primaryCapability) + 1);
             }
         }
-        
+
         // 计算各能力维度的平均分
         Map<String, Double> finalCapabilityScores = new HashMap<>();
         for (String capability : capabilities) {
@@ -2733,13 +2722,432 @@ public class ExamService {
                 finalCapabilityScores.put(capability, 0.0);
             }
         }
-        
+
         return finalCapabilityScores;
     }
-    
+
+    /**
+     * 尝试获取能力维度雷达图数据
+     */
+    private Map<String, Object> tryGetCapabilityRadarData(List<StudentAnswer> studentAnswers, String studentName, String examTitle) {
+        Map<String, Double> capabilityScores = analyzeStudentCapabilityPerformance(studentAnswers);
+
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", Arrays.asList("理论掌握", "实践应用", "创新思维", "知识迁移", "学习能力", "系统思维"));
+        radarData.put("values", Arrays.asList(
+            capabilityScores.getOrDefault("knowledge", 0.0),
+            capabilityScores.getOrDefault("application", 0.0),
+            capabilityScores.getOrDefault("innovation", 0.0),
+            capabilityScores.getOrDefault("transfer", 0.0),
+            capabilityScores.getOrDefault("learning", 0.0),
+            capabilityScores.getOrDefault("systematic", 0.0)
+        ));
+        radarData.put("studentName", studentName);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "能力维度");
+
+        return radarData;
+    }
+
+    /**
+     * 尝试获取题型维度雷达图数据
+     */
+    private Map<String, Object> tryGetQuestionTypeRadarData(List<StudentAnswer> studentAnswers, String studentName, String examTitle) {
+        Map<String, Double> typeScores = new HashMap<>();
+        Map<String, Integer> typeCounts = new HashMap<>();
+
+        for (StudentAnswer answer : studentAnswers) {
+            Question question = answer.getQuestion();
+            String questionType = question.getType();
+
+            if (questionType != null && !questionType.trim().isEmpty()) {
+                double score = answer.getScore() != null ? answer.getScore() : 0.0;
+                double questionMaxScore = question.getScore() != null ? question.getScore() : 1.0;
+                double normalizedScore = questionMaxScore > 0 ? (score / questionMaxScore) * 100 : 0;
+
+                typeScores.put(questionType, typeScores.getOrDefault(questionType, 0.0) + normalizedScore);
+                typeCounts.put(questionType, typeCounts.getOrDefault(questionType, 0) + 1);
+            }
+        }
+
+        // 计算各题型的平均分
+        List<String> labels = new ArrayList<>();
+        List<Double> values = new ArrayList<>();
+
+        for (Map.Entry<String, Double> entry : typeScores.entrySet()) {
+            String type = entry.getKey();
+            int count = typeCounts.get(type);
+            if (count > 0) {
+                labels.add(getQuestionTypeDisplayName(type));
+                values.add(entry.getValue() / count);
+            }
+        }
+
+        // 如果题型数据不足，返回空数据
+        if (labels.size() < 3) {
+            return createEmptyRadarData(studentName, examTitle);
+        }
+
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", labels);
+        radarData.put("values", values);
+        radarData.put("studentName", studentName);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "题型分析");
+
+        return radarData;
+    }
+
+    /**
+     * 尝试获取难度维度雷达图数据
+     */
+    private Map<String, Object> tryGetDifficultyRadarData(List<StudentAnswer> studentAnswers, String studentName, String examTitle) {
+        Map<String, Double> difficultyScores = new HashMap<>();
+        Map<String, Integer> difficultyCounts = new HashMap<>();
+
+        // 初始化难度等级
+        String[] difficultyLevels = {"很简单", "简单", "中等", "困难", "很困难"};
+        for (String level : difficultyLevels) {
+            difficultyScores.put(level, 0.0);
+            difficultyCounts.put(level, 0);
+        }
+
+        for (StudentAnswer answer : studentAnswers) {
+            Question question = answer.getQuestion();
+            Integer difficultyLevel = question.getDifficultyLevel();
+
+            if (difficultyLevel != null && difficultyLevel >= 1 && difficultyLevel <= 5) {
+                String levelName = difficultyLevels[difficultyLevel - 1];
+                double score = answer.getScore() != null ? answer.getScore() : 0.0;
+                double questionMaxScore = question.getScore() != null ? question.getScore() : 1.0;
+                double normalizedScore = questionMaxScore > 0 ? (score / questionMaxScore) * 100 : 0;
+
+                difficultyScores.put(levelName, difficultyScores.get(levelName) + normalizedScore);
+                difficultyCounts.put(levelName, difficultyCounts.get(levelName) + 1);
+            }
+        }
+
+        // 计算各难度等级的平均分
+        List<String> labels = new ArrayList<>();
+        List<Double> values = new ArrayList<>();
+
+        for (String level : difficultyLevels) {
+            int count = difficultyCounts.get(level);
+            if (count > 0) {
+                labels.add(level);
+                values.add(difficultyScores.get(level) / count);
+            }
+        }
+
+        // 如果难度数据不足，返回空数据
+        if (labels.size() < 3) {
+            return createEmptyRadarData(studentName, examTitle);
+        }
+
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", labels);
+        radarData.put("values", values);
+        radarData.put("studentName", studentName);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "难度分析");
+
+        return radarData;
+    }
+
+    /**
+     * 获取基础统计雷达图数据（保底方案）
+     */
+    private Map<String, Object> getBasicStatisticsRadarData(List<StudentAnswer> studentAnswers, String studentName, String examTitle) {
+        if (studentAnswers.isEmpty()) {
+            return createEmptyRadarData(studentName, examTitle);
+        }
+
+        // 计算基础统计指标
+        double totalScore = 0;
+        double maxPossibleScore = 0;
+        int correctCount = 0;
+        double avgResponseTime = 0;
+        int totalQuestions = studentAnswers.size();
+
+        for (StudentAnswer answer : studentAnswers) {
+            double score = answer.getScore() != null ? answer.getScore() : 0.0;
+            double maxScore = answer.getQuestion().getScore() != null ? answer.getQuestion().getScore() : 1.0;
+
+            totalScore += score;
+            maxPossibleScore += maxScore;
+
+            if (score > 0) {
+                correctCount++;
+            }
+        }
+
+        double accuracy = totalQuestions > 0 ? (double) correctCount / totalQuestions * 100 : 0;
+        double scoreRate = maxPossibleScore > 0 ? totalScore / maxPossibleScore * 100 : 0;
+        double completionRate = 100; // 已答题完成率，这里假设都完成了
+
+        // 构造雷达图数据
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", Arrays.asList("答题准确率", "得分率", "完成度", "整体表现"));
+        radarData.put("values", Arrays.asList(accuracy, scoreRate, completionRate, (accuracy + scoreRate) / 2));
+        radarData.put("studentName", studentName);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "基础统计");
+
+        return radarData;
+    }
+
+    /**
+     * 检查雷达图数据是否为空或无效
+     */
+    private boolean isRadarDataEmpty(Map<String, Object> radarData) {
+        if (radarData == null) return true;
+
+        @SuppressWarnings("unchecked")
+        List<Double> values = (List<Double>) radarData.get("values");
+        if (values == null || values.isEmpty()) return true;
+
+        // 检查是否所有值都为0
+        return values.stream().allMatch(value -> value == null || value == 0.0);
+    }
+
+    /**
+     * 创建空的雷达图数据
+     */
+    private Map<String, Object> createEmptyRadarData(String studentName, String examTitle) {
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", Arrays.asList("暂无数据"));
+        radarData.put("values", Arrays.asList(0.0));
+        radarData.put("studentName", studentName);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "无数据");
+
+        return radarData;
+    }
+
+    /**
+     * 获取题型显示名称
+     */
+    private String getQuestionTypeDisplayName(String type) {
+        if (type == null) return "未知题型";
+
+        switch (type.toLowerCase()) {
+            case "single_choice":
+            case "单选题":
+                return "单选题";
+            case "multiple_choice":
+            case "多选题":
+                return "多选题";
+            case "fill_blank":
+            case "填空题":
+                return "填空题";
+            case "short_answer":
+            case "简答题":
+                return "简答题";
+            case "essay":
+            case "论述题":
+                return "论述题";
+            case "calculation":
+            case "计算题":
+                return "计算题";
+            case "true_false":
+            case "判断题":
+                return "判断题";
+            default:
+                return type;
+        }
+    }
+
+    /**
+     * 尝试获取全班能力维度雷达图数据
+     */
+    private Map<String, Object> tryGetClassCapabilityRadarData(List<List<StudentAnswer>> allStudentAnswers, int participantCount, String examTitle) {
+        Map<String, Double> totalCapabilityScores = new HashMap<>();
+        String[] capabilities = {"knowledge", "application", "innovation", "transfer", "learning", "systematic"};
+
+        for (String capability : capabilities) {
+            totalCapabilityScores.put(capability, 0.0);
+        }
+
+        for (List<StudentAnswer> studentAnswers : allStudentAnswers) {
+            Map<String, Double> studentCapabilityScores = analyzeStudentCapabilityPerformance(studentAnswers);
+            for (String capability : capabilities) {
+                totalCapabilityScores.put(capability,
+                    totalCapabilityScores.get(capability) + studentCapabilityScores.getOrDefault(capability, 0.0));
+            }
+        }
+
+        // 计算平均值
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", Arrays.asList("理论掌握", "实践应用", "创新思维", "知识迁移", "学习能力", "系统思维"));
+        radarData.put("values", Arrays.asList(
+            totalCapabilityScores.get("knowledge") / participantCount,
+            totalCapabilityScores.get("application") / participantCount,
+            totalCapabilityScores.get("innovation") / participantCount,
+            totalCapabilityScores.get("transfer") / participantCount,
+            totalCapabilityScores.get("learning") / participantCount,
+            totalCapabilityScores.get("systematic") / participantCount
+        ));
+        radarData.put("participantCount", participantCount);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "能力维度");
+
+        return radarData;
+    }
+
+    /**
+     * 尝试获取全班题型雷达图数据
+     */
+    private Map<String, Object> tryGetClassQuestionTypeRadarData(List<List<StudentAnswer>> allStudentAnswers, int participantCount, String examTitle) {
+        Map<String, Double> totalTypeScores = new HashMap<>();
+        Map<String, Integer> typeCounts = new HashMap<>();
+
+        for (List<StudentAnswer> studentAnswers : allStudentAnswers) {
+            for (StudentAnswer answer : studentAnswers) {
+                Question question = answer.getQuestion();
+                String questionType = question.getType();
+
+                if (questionType != null && !questionType.trim().isEmpty()) {
+                    double score = answer.getScore() != null ? answer.getScore() : 0.0;
+                    double questionMaxScore = question.getScore() != null ? question.getScore() : 1.0;
+                    double normalizedScore = questionMaxScore > 0 ? (score / questionMaxScore) * 100 : 0;
+
+                    totalTypeScores.put(questionType, totalTypeScores.getOrDefault(questionType, 0.0) + normalizedScore);
+                    typeCounts.put(questionType, typeCounts.getOrDefault(questionType, 0) + 1);
+                }
+            }
+        }
+
+        List<String> labels = new ArrayList<>();
+        List<Double> values = new ArrayList<>();
+
+        for (Map.Entry<String, Double> entry : totalTypeScores.entrySet()) {
+            String type = entry.getKey();
+            int count = typeCounts.get(type);
+            if (count > 0) {
+                labels.add(getQuestionTypeDisplayName(type));
+                values.add(entry.getValue() / count);
+            }
+        }
+
+        if (labels.size() < 3) {
+            return createEmptyRadarData("全班平均", examTitle);
+        }
+
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", labels);
+        radarData.put("values", values);
+        radarData.put("participantCount", participantCount);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "题型分析");
+
+        return radarData;
+    }
+
+    /**
+     * 尝试获取全班难度雷达图数据
+     */
+    private Map<String, Object> tryGetClassDifficultyRadarData(List<List<StudentAnswer>> allStudentAnswers, int participantCount, String examTitle) {
+        Map<String, Double> totalDifficultyScores = new HashMap<>();
+        Map<String, Integer> difficultyCounts = new HashMap<>();
+        String[] difficultyLevels = {"很简单", "简单", "中等", "困难", "很困难"};
+
+        for (String level : difficultyLevels) {
+            totalDifficultyScores.put(level, 0.0);
+            difficultyCounts.put(level, 0);
+        }
+
+        for (List<StudentAnswer> studentAnswers : allStudentAnswers) {
+            for (StudentAnswer answer : studentAnswers) {
+                Question question = answer.getQuestion();
+                Integer difficultyLevel = question.getDifficultyLevel();
+
+                if (difficultyLevel != null && difficultyLevel >= 1 && difficultyLevel <= 5) {
+                    String levelName = difficultyLevels[difficultyLevel - 1];
+                    double score = answer.getScore() != null ? answer.getScore() : 0.0;
+                    double questionMaxScore = question.getScore() != null ? question.getScore() : 1.0;
+                    double normalizedScore = questionMaxScore > 0 ? (score / questionMaxScore) * 100 : 0;
+
+                    totalDifficultyScores.put(levelName, totalDifficultyScores.get(levelName) + normalizedScore);
+                    difficultyCounts.put(levelName, difficultyCounts.get(levelName) + 1);
+                }
+            }
+        }
+
+        List<String> labels = new ArrayList<>();
+        List<Double> values = new ArrayList<>();
+
+        for (String level : difficultyLevels) {
+            int count = difficultyCounts.get(level);
+            if (count > 0) {
+                labels.add(level);
+                values.add(totalDifficultyScores.get(level) / count);
+            }
+        }
+
+        if (labels.size() < 3) {
+            return createEmptyRadarData("全班平均", examTitle);
+        }
+
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", labels);
+        radarData.put("values", values);
+        radarData.put("participantCount", participantCount);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "难度分析");
+
+        return radarData;
+    }
+
+    /**
+     * 获取全班基础统计雷达图数据
+     */
+    private Map<String, Object> getClassBasicStatisticsRadarData(List<List<StudentAnswer>> allStudentAnswers, int participantCount, String examTitle) {
+        double totalAccuracy = 0;
+        double totalScoreRate = 0;
+
+        for (List<StudentAnswer> studentAnswers : allStudentAnswers) {
+            if (!studentAnswers.isEmpty()) {
+                double studentTotalScore = 0;
+                double studentMaxPossibleScore = 0;
+                int correctCount = 0;
+
+                for (StudentAnswer answer : studentAnswers) {
+                    double score = answer.getScore() != null ? answer.getScore() : 0.0;
+                    double maxScore = answer.getQuestion().getScore() != null ? answer.getQuestion().getScore() : 1.0;
+
+                    studentTotalScore += score;
+                    studentMaxPossibleScore += maxScore;
+
+                    if (score > 0) {
+                        correctCount++;
+                    }
+                }
+
+                double accuracy = studentAnswers.size() > 0 ? (double) correctCount / studentAnswers.size() * 100 : 0;
+                double scoreRate = studentMaxPossibleScore > 0 ? studentTotalScore / studentMaxPossibleScore * 100 : 0;
+
+                totalAccuracy += accuracy;
+                totalScoreRate += scoreRate;
+            }
+        }
+
+        double avgAccuracy = participantCount > 0 ? totalAccuracy / participantCount : 0;
+        double avgScoreRate = participantCount > 0 ? totalScoreRate / participantCount : 0;
+        double completionRate = 100; // 假设都完成了
+
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", Arrays.asList("答题准确率", "得分率", "完成度", "整体表现"));
+        radarData.put("values", Arrays.asList(avgAccuracy, avgScoreRate, completionRate, (avgAccuracy + avgScoreRate) / 2));
+        radarData.put("participantCount", participantCount);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "基础统计");
+
+        return radarData;
+    }
+
     /**
      * 基于课程类型生成智能考核内容
-     * 
+     *
      * @param request 考试生成请求
      * @return 生成的考试
      */
