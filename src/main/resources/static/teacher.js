@@ -14131,15 +14131,21 @@ async function updateStudentRadarChart() {
             `;
             
             if (studentSelect.value === 'all') {
+                const dataTypeInfo = capabilityData.isSimulated ?
+                    `<span style="color: #f39c12; font-size: 12px;">[基于分数模拟]</span>` :
+                    `<span style="color: #27ae60; font-size: 12px;">[真实能力数据]</span>`;
                 infoDiv.innerHTML = `
-                    <strong>${capabilityData.examTitle || '当前考试'} - 全班平均表现</strong><br>
+                    <strong>${capabilityData.examTitle || '当前考试'} - 全班平均表现</strong> ${dataTypeInfo}<br>
                     参与人数: ${capabilityData.participantCount || 0}人
                 `;
             } else {
-                const avgScore = capabilityData.values ? 
+                const avgScore = capabilityData.values ?
                     (capabilityData.values.reduce((a, b) => a + b, 0) / capabilityData.values.length).toFixed(1) : '0.0';
+                const dataTypeInfo = capabilityData.isSimulated ?
+                    `<span style="color: #f39c12; font-size: 12px;">[基于分数模拟]</span>` :
+                    `<span style="color: #27ae60; font-size: 12px;">[真实能力数据]</span>`;
                 infoDiv.innerHTML = `
-                    <strong>${capabilityData.examTitle || '当前考试'} - ${capabilityData.studentName || '学生'}表现</strong><br>
+                    <strong>${capabilityData.examTitle || '当前考试'} - ${capabilityData.studentName || '学生'}表现</strong> ${dataTypeInfo}<br>
                     能力平均分: ${avgScore}分
                 `;
             }

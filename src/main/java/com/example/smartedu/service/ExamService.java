@@ -1,4 +1,5 @@
 package com.example.smartedu.service;
+import java.util.Random;
 
 import com.example.smartedu.dto.ExamGenerationRequest;
 import com.example.smartedu.dto.ExamListDTO;
@@ -21,40 +22,40 @@ import java.util.Optional;
 @Service
 @Transactional
 public class ExamService {
-    
+
     @Autowired
     private ExamRepository examRepository;
-    
+
     @Autowired
     private QuestionRepository questionRepository;
-    
+
     @Autowired
     private CourseRepository courseRepository;
-    
+
     @Autowired
     private CourseMaterialRepository courseMaterialRepository;
-    
+
     @Autowired
     private DeepSeekService deepSeekService;
-    
+
     @Autowired
     private ObjectMapper objectMapper;
-    
+
     @Autowired
     private ExamResultRepository examResultRepository;
-    
+
     @Autowired
     private KnowledgeBaseService knowledgeBaseService;
-    
+
     @Autowired
     private EmbeddingService embeddingService;
-    
+
     @Autowired
     private StudentAnswerRepository studentAnswerRepository;
-    
+
     @Autowired
     private CourseTypeDetectionService courseTypeDetectionService;
-    
+
     /**
      * 生成考试
      */
@@ -63,14 +64,14 @@ public class ExamService {
             // 验证课程存在
             Course course = courseRepository.findById(request.getCourseId())
                     .orElseThrow(() -> new RuntimeException("课程不存在"));
-            
+
             // 使用RAG从知识库检索相关内容，如果知识库没有数据则使用课程资料
             String ragContent = retrieveRelevantKnowledge(request.getCourseId(), request);
-            
+
             if (ragContent == null || ragContent.trim().isEmpty()) {
                 // 检查课程是否有任何内容资源
                 List<CourseMaterial> materials = courseMaterialRepository.findByCourseId(request.getCourseId());
-                
+
                 if (materials.isEmpty()) {
                     throw new RuntimeException("该课程没有上传任何学习资料。请先在课程管理中上传PPT、PDF或Word等课程资料，或者在知识库管理中上传相关文档，然后再尝试生成试卷。");
                 } else {
@@ -83,19 +84,19 @@ public class ExamService {
                     }
                 }
             }
-            
+
             System.out.println("RAG检索到的知识内容长度: " + ragContent.length() + " 字符");
-            
+
             // 解析题型配置
             Map<String, Object> questionTypesMap = (Map<String, Object>) request.getQuestionTypes();
             List<String> questionTypes = new ArrayList<>();
             boolean isAssignmentMode = false;
-            
+
             if (questionTypesMap != null) {
                 for (Map.Entry<String, Object> entry : questionTypesMap.entrySet()) {
                     Object value = entry.getValue();
                     Integer count = null;
-                    
+
                     // 安全处理不同类型的值
                     if (value instanceof Number) {
                         count = ((Number) value).intValue();
@@ -106,23 +107,23 @@ public class ExamService {
                         if (countValue instanceof Number) {
                             count = ((Number) countValue).intValue();
                         }
-                        
+
                         // 检查是否为大作业模式
                         if ("assignment".equals(entry.getKey()) && Boolean.TRUE.equals(customType.get("isAssignment"))) {
                             isAssignmentMode = true;
                         }
                     }
-                    
+
                     if (count != null && count > 0) {
                         questionTypes.add(entry.getKey());
                     }
                 }
             }
-            
+
             if (questionTypes.isEmpty()) {
                 throw new RuntimeException("请至少选择一种题型");
             }
-            
+
             // 根据是否为大作业模式选择不同的处理方式
             String examJson;
             if (isAssignmentMode) {
@@ -166,7 +167,7 @@ public class ExamService {
                 );
                 }
             }
-            
+
             // 创建考试记录
         Exam exam = new Exam();
             // 使用用户输入的测评名称，如果没有输入则使用默认格式
@@ -183,7 +184,7 @@ public class ExamService {
             exam.setTitle(examTitle);
             System.out.println("📝 最终设置的exam title: " + exam.getTitle());
             exam.setCourse(course);
-            
+
             // 根据内容来源设置不同的标识
             if (ragContent.contains("=== 基于知识库检索的相关内容 ===")) {
             exam.setChapter("基于知识库内容");
@@ -199,23 +200,23 @@ public class ExamService {
             exam.setTotalScore(request.getTotalScore());
             exam.setIsPublished(false);
             exam.setIsAnswerPublished(false);
-            
+
             // 保存考试
             exam = examRepository.save(exam);
-            
+
             // 解析并保存题目
             parseAndSaveQuestions(examJson, exam, request);
-            
+
             // 重新加载带有题目的考试对象
             exam = examRepository.findById(exam.getId()).orElse(exam);
-        
+
             return exam;
-            
+
         } catch (Exception e) {
             throw new RuntimeException("生成考试失败：" + e.getMessage(), e);
         }
     }
-    
+
     /**
      * 创建大作业框架
      */
@@ -225,9 +226,9 @@ public class ExamService {
             Map<String, Object> assignmentConfig = (Map<String, Object>) questionTypesMap.get("assignment");
             int assignmentCount = ((Number) assignmentConfig.get("count")).intValue();
             int scorePerAssignment = ((Number) assignmentConfig.get("scorePerQuestion")).intValue();
-            
+
             StringBuilder framework = new StringBuilder();
-            
+
             for (int i = 1; i <= assignmentCount; i++) {
                 framework.append("### 大作业").append(i).append("（").append(scorePerAssignment).append("分）\n\n");
                 framework.append("**作业要求**：\n");
@@ -239,9 +240,9 @@ public class ExamService {
                 framework.append("**知识点**：").append(courseName).append("综合应用\n\n");
                 framework.append("---\n\n");
             }
-            
+
             return framework.toString();
-            
+
         } catch (Exception e) {
             System.err.println("创建大作业框架失败: " + e.getMessage());
             // 创建默认的单个大作业框架
@@ -255,7 +256,7 @@ public class ExamService {
                    "**知识点**：" + courseName + "综合应用\n\n";
         }
     }
-    
+
     /**
      * 使用RAG检索相关知识内容
      */
@@ -263,33 +264,33 @@ public class ExamService {
         try {
             // 构建查询语句，基于题型和课程内容
             String query = buildSearchQuery(request);
-            
+
             // 从向量数据库中检索相关内容，增加检索数量以获得更全面的内容
-            List<VectorDatabaseService.SearchResult> searchResults = 
+            List<VectorDatabaseService.SearchResult> searchResults =
                 knowledgeBaseService.searchKnowledge(courseId, query, 15); // 增加到15个结果
-            
+
             if (searchResults.isEmpty()) {
                 System.out.println("警告：未从知识库中检索到相关内容，尝试使用课程资料作为备选");
                 // 当知识库没有数据时，尝试使用课程资料作为fallback
                 return getCourseMaterialContent(courseId);
             }
-            
+
             System.out.println("RAG检索到 " + searchResults.size() + " 个相关知识块");
-            
+
             // 合并检索结果，按相关性排序
             StringBuilder ragContent = new StringBuilder();
             ragContent.append("=== 基于知识库检索的相关内容 ===\n\n");
-            
+
             for (int i = 0; i < searchResults.size(); i++) {
                 VectorDatabaseService.SearchResult result = searchResults.get(i);
                 ragContent.append(String.format("【知识块 %d】(相关度: %.3f)\n", i + 1, result.getScore()));
                 ragContent.append(result.getContent());
                 ragContent.append("\n\n---\n\n");
             }
-            
+
             System.out.println("RAG内容构建完成，总长度: " + ragContent.length() + " 字符");
             return ragContent.toString();
-            
+
         } catch (Exception e) {
             System.err.println("RAG检索失败: " + e.getMessage());
             e.printStackTrace();
@@ -297,44 +298,44 @@ public class ExamService {
             return getCourseMaterialContent(courseId);
         }
     }
-    
+
     /**
      * 获取课程资料内容作为fallback
      */
     private String getCourseMaterialContent(Long courseId) {
         try {
             List<CourseMaterial> materials = courseMaterialRepository.findByCourseIdOrderByUploadedAtDesc(courseId);
-            
+
             System.out.println("课程 " + courseId + " 共有 " + materials.size() + " 个资料文件");
-            
+
             if (materials.isEmpty()) {
                 System.out.println("课程 " + courseId + " 既没有知识库数据，也没有课程资料");
                 return null;
             }
-            
+
             StringBuilder content = new StringBuilder();
             content.append("=== 基于课程资料的相关内容 ===\n\n");
-            
+
             int validMaterialCount = 0;
             int totalMaterialCount = 0;
-            
+
             for (CourseMaterial material : materials) {
                 totalMaterialCount++;
-                System.out.println("检查资料 " + totalMaterialCount + ": " + material.getOriginalName() + 
+                System.out.println("检查资料 " + totalMaterialCount + ": " + material.getOriginalName() +
                                  " (内容长度: " + (material.getContent() != null ? material.getContent().length() : 0) + ")");
-                
+
                 if (material.getContent() != null && !material.getContent().trim().isEmpty()) {
                     content.append(String.format("【资料 %d】%s\n", ++validMaterialCount, material.getOriginalName()));
                     String materialContent = material.getContent().trim();
-                    
+
                     // 如果内容太长，只取前面部分
                     if (materialContent.length() > 3000) {
                         materialContent = materialContent.substring(0, 3000) + "...[内容过长，已截断]";
                     }
-                    
+
                     content.append(materialContent);
                     content.append("\n\n---\n\n");
-                    
+
                     // 限制总内容长度，避免过长
                     if (content.length() > 15000) {
                         content.append("...[更多内容已省略]\n");
@@ -342,33 +343,33 @@ public class ExamService {
                     }
                 }
             }
-            
+
             if (validMaterialCount == 0) {
                 System.out.println("课程资料中没有可用的文本内容。共检查了 " + totalMaterialCount + " 个资料文件。");
                 return null;
             }
-            
-            System.out.println("使用课程资料作为内容源，共 " + validMaterialCount + "/" + totalMaterialCount + 
+
+            System.out.println("使用课程资料作为内容源，共 " + validMaterialCount + "/" + totalMaterialCount +
                              " 个有效资料，总长度: " + content.length() + " 字符");
             return content.toString();
-            
+
         } catch (Exception e) {
             System.err.println("获取课程资料内容失败: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
     }
-    
+
     /**
      * 构建搜索查询语句
      */
     private String buildSearchQuery(ExamGenerationRequest request) {
         StringBuilder query = new StringBuilder();
-        
+
         // 基于题型构建查询
         if (request.getQuestionTypes() != null) {
             Map<String, Object> questionTypes = (Map<String, Object>) request.getQuestionTypes();
-            
+
             for (String type : questionTypes.keySet()) {
                 switch (type) {
                     case "multiple-choice":
@@ -399,126 +400,126 @@ public class ExamService {
                 }
             }
         }
-        
+
         // 添加通用的学习相关词汇
         query.append("知识 内容 学习 课程 教学");
-        
+
         // 如果有特殊要求，也加入查询
         if (request.getSpecialRequirements() != null && !request.getSpecialRequirements().trim().isEmpty()) {
             query.append(" ").append(request.getSpecialRequirements());
         }
-        
+
         String finalQuery = query.toString().trim();
         System.out.println("构建的RAG搜索查询: " + finalQuery);
         return finalQuery;
     }
-    
+
     /**
      * 获取考试详情
      */
     public Exam getExamById(Long examId) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-        
+
         // 确保加载题目列表
         List<Question> questions = questionRepository.findByExamId(examId);
         exam.setQuestions(questions);
-        
+
         // 确保加载课程信息（触发延迟加载）
         if (exam.getCourse() != null) {
             // 访问课程属性以触发延迟加载
             exam.getCourse().getName();
             exam.getCourse().getCourseCode();
         }
-        
+
         return exam;
     }
-    
+
     /**
      * 获取考试题目
      */
     public List<Question> getExamQuestions(Long examId) {
         return questionRepository.findByExamId(examId);
     }
-    
+
     /**
      * 发布考试（立即发布）
      */
     public void publishExam(Long examId) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-        
+
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
-        
+
         exam.setIsPublished(true);
         exam.setPublishedAt(now); // 设置发布时间
         exam.setStartTime(now); // 立即发布时，开始时间就是发布时间
-        
+
         // 根据考试时长设置结束时间
         if (exam.getDuration() != null) {
             exam.setEndTime(now.plusMinutes(exam.getDuration()));
         }
-        
+
         examRepository.save(exam);
     }
-    
+
     /**
      * 发布考试并设置时间
      */
     public void publishExamWithTime(Long examId, java.time.LocalDateTime startTime, java.time.LocalDateTime endTime) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-        
+
         // 验证时间设置
         if (startTime != null && endTime != null && startTime.isAfter(endTime)) {
             throw new RuntimeException("开始时间不能晚于结束时间");
         }
-        
+
         exam.setIsPublished(true);
         exam.setPublishedAt(java.time.LocalDateTime.now());
         exam.setStartTime(startTime);
         exam.setEndTime(endTime);
         examRepository.save(exam);
     }
-    
+
     /**
      * 发布答案和解析
      */
     public void publishAnswers(Long examId) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-        
+
         exam.setIsAnswerPublished(true);
         examRepository.save(exam);
     }
-    
+
     /**
      * 取消定时发布
      */
     public void cancelScheduledPublish(Long examId) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-        
+
         // 重置发布相关字段
         exam.setIsPublished(false);
         exam.setPublishedAt(null);
         exam.setStartTime(null);
         exam.setEndTime(null);
-        
+
         examRepository.save(exam);
     }
-    
+
     /**
      * 更新考试时长
      */
     public void updateExamDuration(Long examId, Integer duration) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-        
+
         exam.setDuration(duration);
         examRepository.save(exam);
     }
-    
+
     /**
      * 处理定时发布的试卷
      */
@@ -526,46 +527,46 @@ public class ExamService {
         try {
             // 查找所有设置了开始时间但还未发布的试卷
             List<Exam> scheduledExams = examRepository.findScheduledExamsToPublish();
-            
+
             LocalDateTime now = LocalDateTime.now();
-            
+
             for (Exam exam : scheduledExams) {
                 if (exam.getStartTime() != null && !exam.getStartTime().isAfter(now) && !exam.getIsPublished()) {
                     // 时间已到，自动发布试卷
                     exam.setIsPublished(true);
                     exam.setPublishedAt(now);
                     examRepository.save(exam);
-                    
+
                     System.out.println("自动发布试卷: " + exam.getTitle() + " (ID: " + exam.getId() + ")");
                 }
             }
-            
+
         } catch (Exception e) {
             System.err.println("处理定时发布试卷失败: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    
+
     /**
      * 更新考试内容
      */
     public Exam updateExamContent(Long examId, String content) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-        
+
         // 清空原有题目
         List<Question> existingQuestions = questionRepository.findByExamId(examId);
         questionRepository.deleteAll(existingQuestions);
-        
+
         // 重新解析并保存题目
         parseAndSaveQuestions(content, exam, null);
-        
+
         // 重新加载带有题目的考试对象
         exam = examRepository.findById(examId).orElse(exam);
-        
+
         return exam;
     }
-    
+
     /**
      * 解析DeepSeek返回的试卷内容并保存题目
      */
@@ -574,18 +575,18 @@ public class ExamService {
             System.out.println("=== 开始解析题目内容 ===");
             System.out.println("原始内容长度: " + examContent.length());
             System.out.println("原始内容前800字符: " + examContent.substring(0, Math.min(800, examContent.length())));
-            
+
             // 构建题目类型顺序列表
             List<String> questionTypeOrder = new ArrayList<>();
             int expectedQuestions = 0;
-            
+
             if (request != null && request.getQuestionTypes() != null) {
                 Map<String, Object> questionTypesMap = (Map<String, Object>) request.getQuestionTypes();
                 for (Map.Entry<String, Object> entry : questionTypesMap.entrySet()) {
                     String questionType = entry.getKey();
                     Object value = entry.getValue();
                     Integer count = null;
-                    
+
                     // 安全处理不同类型的值
                     if (value instanceof Number) {
                         count = ((Number) value).intValue();
@@ -602,7 +603,7 @@ public class ExamService {
                             questionType = "custom"; // 保持为custom，但后续会特殊处理
                         }
                     }
-                    
+
                     if (count != null && count > 0) {
                         // 根据数量添加题目类型到顺序列表
                         for (int i = 0; i < count; i++) {
@@ -612,19 +613,19 @@ public class ExamService {
                     }
                 }
             }
-            
+
             System.out.println("期望题目数量: " + expectedQuestions);
             System.out.println("题目类型顺序: " + questionTypeOrder);
-            
+
             // 尝试解析AI生成的内容，传递题目类型顺序
             boolean parseSuccess = parseAIGeneratedQuestions(exam, examContent, expectedQuestions, questionTypeOrder);
-            
+
             if (!parseSuccess) {
                 System.out.println("AI内容解析失败，使用备用题目生成");
                 // 如果解析失败，使用备用题目
                 createTestQuestions(exam, examContent, request);
             }
-            
+
         } catch (Exception e) {
             System.err.println("解析题目失败: " + e.getMessage());
             e.printStackTrace();
@@ -632,78 +633,78 @@ public class ExamService {
             createDefaultQuestion(exam);
         }
     }
-    
+
     /**
      * 解析AI生成的题目内容（兼容旧版本）
      */
     private boolean parseAIGeneratedQuestions(Exam exam, String content, int expectedQuestions) {
         return parseAIGeneratedQuestions(exam, content, expectedQuestions, null);
     }
-    
+
     /**
      * 解析AI生成的题目内容（支持题目类型顺序）
      */
     private boolean parseAIGeneratedQuestions(Exam exam, String content, int expectedQuestions, List<String> questionTypeOrder) {
         try {
             List<Question> questions = new ArrayList<>();
-            
+
             System.out.println("=== 开始详细解析AI题目 ===");
             System.out.println("原始内容总长度: " + content.length());
             System.out.println("期望题目数量: " + expectedQuestions);
             System.out.println("期望总分: " + exam.getTotalScore());
-            
+
             // 打印AI生成的原始内容前500字符用于调试
             System.out.println("AI生成内容前500字符：");
             System.out.println(content.substring(0, Math.min(500, content.length())));
-            
+
             // 尝试多种分割符模式
             String[] questionBlocks = null;
-            
+
             // 模式1: ### 题目X（类型）
             questionBlocks = content.split("###\\s*题目\\d+[^\\n]*");
             System.out.println("模式1分割后的块数量: " + questionBlocks.length);
-            
+
             if (questionBlocks.length < 2) {
                 // 模式2: ### 题目X
                 questionBlocks = content.split("###\\s*题目\\d+");
                 System.out.println("模式2分割后的块数量: " + questionBlocks.length);
             }
-            
+
             if (questionBlocks.length < 2) {
                 // 模式3: 题目X（任何格式）
                 questionBlocks = content.split("题目\\d+[^\\n]*");
                 System.out.println("模式3分割后的块数量: " + questionBlocks.length);
             }
-            
+
             if (questionBlocks.length < 2) {
                 // 模式4: ## 题目X 或 # 题目X
                 questionBlocks = content.split("#{1,3}\\s*题目\\d+[^\\n]*");
                 System.out.println("模式4分割后的块数量: " + questionBlocks.length);
             }
-            
+
             if (questionBlocks.length < 2) {
                 // 模式5: 使用---分隔符
                 questionBlocks = content.split("---+");
                 System.out.println("模式5分割后的块数量: " + questionBlocks.length);
             }
-            
+
             // 只有在期望多道题目时才使用数字编号分割，避免把题目内容中的编号误识别为分割符
             if (questionBlocks.length < 2 && expectedQuestions > 1) {
                 // 模式6: 数字编号 1. 2. 3.（仅在期望多题时使用）
                 questionBlocks = content.split("\\n\\s*\\d+\\.");
                 System.out.println("模式6（数字编号）分割后的块数量: " + questionBlocks.length);
             }
-            
+
             if (questionBlocks.length < 2) {
                 System.out.println("所有分割模式都失败，尝试整体解析");
                 // 如果所有分割都失败，尝试将整个内容作为一道题目
                 return parseAsOneQuestion(exam, content, expectedQuestions);
             }
-            
+
             // 特殊处理：如果期望1道题目，但分割结果不合理，优先使用整体解析
             if (expectedQuestions == 1) {
                 boolean shouldUseWholeContent = false;
-                
+
                 // 检查分割结果是否合理
                 if (questionBlocks.length == 2) {
                     // 如果分割成2块，检查第一块是否太小（可能是验证信息等）
@@ -717,21 +718,21 @@ public class ExamService {
                     System.out.println("期望1道题目但分割成" + questionBlocks.length + "块，可能是误分割，使用整体解析");
                     shouldUseWholeContent = true;
                 }
-                
+
                 if (shouldUseWholeContent) {
                     return parseAsOneQuestion(exam, content, expectedQuestions);
                 }
             }
-            
+
             // 解析每个题目块
             for (int i = 1; i < questionBlocks.length; i++) {
                 String block = questionBlocks[i].trim();
                 if (block.isEmpty()) continue;
-                
+
                 System.out.println("=== 解析第" + i + "个题目块 ===");
                 System.out.println("题目块内容长度: " + block.length());
                 System.out.println("题目块前300字符: " + block.substring(0, Math.min(300, block.length())));
-                
+
                 Question question = parseQuestionBlock(exam, block, i, questionTypeOrder);
                 if (question != null) {
                     questions.add(question);
@@ -740,20 +741,20 @@ public class ExamService {
                     System.out.println("题目" + i + "解析失败");
                 }
             }
-            
+
             if (questions.isEmpty()) {
                 System.out.println("未能解析出任何题目");
                 return false;
             }
-            
+
             // 验证分值总和
             int actualTotalScore = questions.stream().mapToInt(q -> q.getScore() != null ? q.getScore() : 0).sum();
             int expectedTotalScore = exam.getTotalScore() != null ? exam.getTotalScore() : 100;
-            
+
             System.out.println("=== 分值验证 ===");
             System.out.println("实际分值总和: " + actualTotalScore);
             System.out.println("期望分值总和: " + expectedTotalScore);
-            
+
             // 如果分值不匹配，尝试调整
             if (actualTotalScore != expectedTotalScore) {
                 System.out.println("分值总和不匹配，尝试调整...");
@@ -761,7 +762,7 @@ public class ExamService {
                 actualTotalScore = questions.stream().mapToInt(q -> q.getScore() != null ? q.getScore() : 0).sum();
                 System.out.println("调整后分值总和: " + actualTotalScore);
             }
-            
+
             // 保存解析出的题目
             for (Question question : questions) {
                 try {
@@ -782,62 +783,62 @@ public class ExamService {
                         question.setScore(5);
                         System.out.println("警告：题目分值为空，设置为默认值: 5");
                     }
-                    
+
                     questionRepository.save(question);
-                    System.out.println("成功解析并保存题目: " + question.getContent().substring(0, Math.min(30, question.getContent().length())) + "... (分值: " + question.getScore() + 
+                    System.out.println("成功解析并保存题目: " + question.getContent().substring(0, Math.min(30, question.getContent().length())) + "... (分值: " + question.getScore() +
                                      ", 类型: " + question.getType() + ", 答案长度: " + (question.getAnswer() != null ? question.getAnswer().length() : 0) + "字符)");
                 } catch (Exception saveException) {
                     System.err.println("保存题目失败: " + saveException.getMessage());
-                    System.err.println("题目详情 - 类型: " + question.getType() + ", 内容长度: " + (question.getContent() != null ? question.getContent().length() : 0) + 
+                    System.err.println("题目详情 - 类型: " + question.getType() + ", 内容长度: " + (question.getContent() != null ? question.getContent().length() : 0) +
                                      ", 答案长度: " + (question.getAnswer() != null ? question.getAnswer().length() : 0) + ", 分值: " + question.getScore());
                     throw saveException; // 重新抛出异常以触发事务回滚
                 }
             }
-            
+
             System.out.println("成功解析了 " + questions.size() + " 道题目，总分值: " + actualTotalScore);
-            
+
             // 检查是否解析出了足够的题目
             if (expectedQuestions > 0 && questions.size() < expectedQuestions) {
                 System.out.println("警告：期望 " + expectedQuestions + " 道题目，但只解析出 " + questions.size() + " 道");
                 System.out.println("可能原因：1) DeepSeek没有生成完整题目 2) 解析逻辑有问题");
                 System.out.println("建议检查DeepSeek返回的完整内容");
-                
+
                 // 如果缺少太多题目，可以考虑返回false让系统使用备用方案
                 if (questions.size() < expectedQuestions * 0.5) { // 如果少于期望的50%
                     System.out.println("解析出的题目数量严重不足，使用备用方案");
                     return false;
                 }
             }
-            
+
             // 检查分值是否严重偏离
             if (Math.abs(actualTotalScore - expectedTotalScore) > expectedTotalScore * 0.2) {
                 System.out.println("警告：分值偏离过大，实际" + actualTotalScore + "分，期望" + expectedTotalScore + "分");
             }
-            
+
             return true;
-            
+
         } catch (Exception e) {
             System.err.println("解析AI生成内容失败: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
-    
+
     /**
      * 当无法分割时，尝试将整个内容作为一道题目解析
      */
     private boolean parseAsOneQuestion(Exam exam, String content, int expectedQuestions) {
         try {
             System.out.println("尝试将整个内容作为一道题目解析");
-            
+
             Question question = new Question();
             question.setExam(exam);
-            
+
             // 智能推断题型
             String questionType = inferQuestionTypeFromContent(content);
             question.setType(questionType);
             System.out.println("推断题型为: " + questionType);
-            
+
             // 提取题目内容 - 针对编程题进行特殊处理
             String questionContent = null;
             if (questionType.contains("programming") || questionType.contains("编程")) {
@@ -849,19 +850,19 @@ public class ExamService {
                 if (answerStart == -1) {
                     answerStart = content.indexOf("**答案**");
                 }
-                
+
                 if (answerStart != -1) {
                     // 找到了答案标记，提取题目内容部分
                     String contentPart = content.substring(0, answerStart).trim();
-                    
+
                     // 移除开头的题目标题（如"### 编程题（困难题）"）
                     String[] lines = contentPart.split("\n");
                     StringBuilder contentBuilder = new StringBuilder();
                     boolean contentStarted = false;
-                    
+
                     for (String line : lines) {
                         String trimmedLine = line.trim();
-                        
+
                         // 跳过题目标题行
                         if (trimmedLine.startsWith("###") || trimmedLine.startsWith("**题目内容**")) {
                             if (trimmedLine.startsWith("**题目内容**")) {
@@ -878,7 +879,7 @@ public class ExamService {
                             }
                             continue;
                         }
-                        
+
                         // 收集题目内容
                         if (!trimmedLine.isEmpty()) {
                             if (contentBuilder.length() > 0) {
@@ -890,7 +891,7 @@ public class ExamService {
                             contentBuilder.append("\n"); // 保持空行
                         }
                     }
-                    
+
                     questionContent = contentBuilder.toString().trim();
                 } else {
                     // 没有找到答案标记，使用前80%的内容作为题目
@@ -915,19 +916,19 @@ public class ExamService {
                     questionContent = contentBuilder.toString().trim();
                 }
             }
-            
+
             if (questionContent == null || questionContent.trim().isEmpty()) {
                 questionContent = "AI生成的题目内容解析失败，请查看原始内容。";
             }
             question.setContent(questionContent);
-            
+
             // 提取答案
             String answer = extractAnswerSmartly(content, questionType);
             if (answer == null || answer.trim().isEmpty()) {
                 answer = getDefaultAnswerForType(questionType);
             }
             question.setAnswer(answer);
-            
+
             // 提取解析
             String explanation = extractContent(content, "**解析**：", "**");
             if (explanation == null) {
@@ -937,7 +938,7 @@ public class ExamService {
                 explanation = "这道题目考查相关知识点的理解和应用能力。";
             }
             question.setExplanation(explanation);
-            
+
             // 生成知识点
             String knowledgePoint = extractContent(content, "**知识点**：", "**");
             if (knowledgePoint != null && !knowledgePoint.trim().isEmpty()) {
@@ -947,11 +948,11 @@ public class ExamService {
                 String generatedKnowledgePoint = generateKnowledgePoint(questionContent, questionType);
                 question.setKnowledgePoint(generatedKnowledgePoint);
             }
-            
+
             // 设置分值
             int totalScore = exam.getTotalScore() != null ? exam.getTotalScore() : 100;
             question.setScore(totalScore); // 单题情况下使用全部分值
-            
+
             // 处理选项（如果是选择题）
             if (questionType.contains("choice")) {
                 List<String> options = extractOptionsSmartly(content, questionType);
@@ -965,66 +966,66 @@ public class ExamService {
             } else {
                 question.setOptions("[]"); // 非选择题设置空选项
             }
-            
+
             // 保存题目
             questionRepository.save(question);
             System.out.println("成功保存单题目解析结果: " + questionContent.substring(0, Math.min(50, questionContent.length())) + "...");
-            
+
             return true;
-            
+
         } catch (Exception e) {
             System.err.println("单题目解析失败: " + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
-    
+
     /**
      * 调整题目分值以匹配总分要求
      */
     private void adjustQuestionScores(List<Question> questions, int expectedTotalScore) {
         if (questions.isEmpty()) return;
-        
+
         int currentTotal = questions.stream().mapToInt(q -> q.getScore() != null ? q.getScore() : 0).sum();
         int difference = expectedTotalScore - currentTotal;
-        
+
         System.out.println("需要调整分值差异: " + difference);
-        
+
         if (difference == 0) return;
-        
+
         // 平均分配差异到每道题
         int adjustmentPerQuestion = difference / questions.size();
         int remainder = difference % questions.size();
-        
+
         for (int i = 0; i < questions.size(); i++) {
             Question question = questions.get(i);
             int currentScore = question.getScore() != null ? question.getScore() : 5;
             int adjustment = adjustmentPerQuestion;
-            
+
             // 将余数分配给前几道题
             if (i < Math.abs(remainder)) {
                 adjustment += (remainder > 0) ? 1 : -1;
             }
-            
+
             int newScore = Math.max(1, currentScore + adjustment); // 确保分值至少为1
             question.setScore(newScore);
-            
+
             System.out.println("题目" + (i + 1) + "分值调整: " + currentScore + " → " + newScore);
         }
     }
-    
+
     /**
      * 解析单个题目块
      */
     private Question parseQuestionBlock(Exam exam, String block, int questionIndex) {
         return parseQuestionBlock(exam, block, questionIndex, null);
     }
-    
+
     private Question parseQuestionBlock(Exam exam, String block, int questionIndex, List<String> questionTypeOrder) {
         try {
             Question question = new Question();
             question.setExam(exam);
-            
+
             // 根据题目类型顺序分配题目类型
             String questionType;
             if (questionTypeOrder != null && !questionTypeOrder.isEmpty() && questionIndex <= questionTypeOrder.size()) {
@@ -1037,9 +1038,9 @@ public class ExamService {
                 questionType = extractQuestionType(block, questionIndex);
                 System.out.println("题目" + questionIndex + "使用推断类型: " + questionType);
             }
-            
+
             question.setType(questionType);
-            
+
             // 智能提取题目内容（根据题型自适应）
             String content = extractQuestionContentSmartly(block, questionType);
             if (content != null && !content.trim().isEmpty()) {
@@ -1048,7 +1049,7 @@ public class ExamService {
                 question.setContent("题目内容解析失败，请手动补充");
                 System.out.println("题目" + questionIndex + "内容提取失败，使用默认内容: " + question.getContent());
             }
-            
+
             // 智能提取选项（自动判断是否需要选项）
             List<String> options = extractOptionsSmartly(block, questionType);
             if (!options.isEmpty()) {
@@ -1056,7 +1057,7 @@ public class ExamService {
             } else {
                 question.setOptions(null);
             }
-            
+
             // 智能提取答案（根据题型自适应）
             String answer = extractAnswerSmartly(block, questionType);
             if (answer != null && !answer.trim().isEmpty()) {
@@ -1066,19 +1067,19 @@ public class ExamService {
                 question.setAnswer(getDefaultAnswerForType(questionType));
                 System.out.println("题目" + questionIndex + "答案提取失败，使用默认答案: " + question.getAnswer());
             }
-            
+
             // 提取解析
             String explanation = extractContent(block, "**解析**：", "**");
             if (explanation != null) {
                 question.setExplanation(explanation.trim());
             }
-            
+
             // 提取知识点
             String knowledgePoint = extractContent(block, "**知识点**：", "**");
             if (knowledgePoint != null && !knowledgePoint.trim().isEmpty()) {
                 String trimmedKnowledgePoint = knowledgePoint.trim();
                 question.setKnowledgePoint(trimmedKnowledgePoint);
-                
+
                 // 检查知识点是否包含能力维度代码
                 String capabilityCode = extractCapabilityCode(trimmedKnowledgePoint);
                 if (capabilityCode != null) {
@@ -1092,7 +1093,7 @@ public class ExamService {
                 String generatedKnowledgePoint = generateKnowledgePoint(question.getContent(), questionType);
                 question.setKnowledgePoint(generatedKnowledgePoint);
             }
-            
+
             // 提取分值
             String scoreStr = extractContent(block, "**分值建议**：", "分");
             if (scoreStr != null) {
@@ -1104,15 +1105,15 @@ public class ExamService {
             } else {
                 question.setScore(5); // 默认分值
             }
-            
+
             return question;
-            
+
         } catch (Exception e) {
             System.err.println("解析题目块失败: " + e.getMessage());
             return null;
         }
     }
-    
+
     /**
      * 通用题型提取方法（支持任何自定义题型）
      */
@@ -1120,29 +1121,29 @@ public class ExamService {
         // 首先尝试从第一行提取题型（支持中英文括号）
         String firstLine = block.split("\n")[0].trim();
         String extractedType = null;
-        
+
         // 提取中文括号内的题型
         if (firstLine.contains("（") && firstLine.contains("）")) {
             extractedType = firstLine.substring(firstLine.indexOf("（") + 1, firstLine.indexOf("）"));
-        } 
+        }
         // 提取英文括号内的题型
         else if (firstLine.contains("(") && firstLine.contains(")")) {
             extractedType = firstLine.substring(firstLine.indexOf("(") + 1, firstLine.indexOf(")"));
         }
-        
+
         // 如果成功提取到题型，进行标准化处理
         if (extractedType != null && !extractedType.trim().isEmpty()) {
             extractedType = normalizeQuestionType(extractedType.trim());
             System.out.println("从第一行提取到题型: " + extractedType);
             return extractedType;
         }
-        
+
         // 如果没有显式题型，从内容推断
         String inferredType = inferQuestionTypeFromContent(block);
         System.out.println("从内容推断题型: " + inferredType);
         return inferredType;
     }
-    
+
     /**
      * 标准化题型名称 - 统一映射到标准题型
      */
@@ -1150,9 +1151,9 @@ public class ExamService {
         if (originalType == null || originalType.trim().isEmpty()) {
             return "essay"; // 默认为解答题
         }
-        
+
         String lowerType = originalType.toLowerCase().trim();
-        
+
         // 统一映射到标准题型
         if (lowerType.contains("选择") || lowerType.contains("choice") || lowerType.contains("单选") || lowerType.contains("多选")) {
             return "choice";
@@ -1177,13 +1178,13 @@ public class ExamService {
             return "essay"; // 默认为解答题
         }
     }
-    
+
     /**
      * 从题目内容推断题型 - 与标准化方法保持一致
      */
     private String inferQuestionTypeFromContent(String block) {
         String lowerBlock = block.toLowerCase();
-        
+
         // 按优先级判断题型，使用标准题型名称
         // 优先检查选项格式来识别选择题
         if (lowerBlock.contains("**选项**") || lowerBlock.contains("选项：") ||
@@ -1216,18 +1217,18 @@ public class ExamService {
             return "essay"; // 默认为解答题
         }
     }
-    
+
     /**
      * 提取两个标记之间的内容
      */
     private String extractContent(String text, String startMarker, String endMarker) {
         if (text == null || startMarker == null) return null;
-        
+
         int startIndex = text.indexOf(startMarker);
         if (startIndex == -1) return null;
-        
+
         startIndex += startMarker.length();
-        
+
         // 如果结束标记是换行符，找到第一个换行符
         if ("\n".equals(endMarker)) {
             int endIndex = text.indexOf("\n", startIndex);
@@ -1236,19 +1237,19 @@ public class ExamService {
             }
             return text.substring(startIndex, endIndex).trim();
         }
-        
+
         int endIndex = text.indexOf(endMarker, startIndex);
-        
+
         if (endIndex == -1) {
             // 如果没有找到结束标记，取到下一个**或行末
             String remaining = text.substring(startIndex);
-            
+
             // 尝试找到下一个**标记
             int nextMarker = remaining.indexOf("**");
             if (nextMarker != -1) {
                 remaining = remaining.substring(0, nextMarker);
             }
-            
+
             // 取第一行内容
             String[] lines = remaining.split("\n");
             if (lines.length > 0) {
@@ -1256,17 +1257,17 @@ public class ExamService {
             }
             return remaining.trim();
         }
-        
+
         return text.substring(startIndex, endIndex).trim();
     }
-    
+
     /**
      * 提取选项
      */
     private List<String> extractOptions(String block) {
         List<String> options = new ArrayList<>();
         String[] lines = block.split("\n");
-        
+
         for (String line : lines) {
             line = line.trim();
             // 匹配 A. B. C. D. 格式的选项
@@ -1275,30 +1276,30 @@ public class ExamService {
                 options.add(option);
             }
         }
-        
+
         return options;
     }
-    
+
     /**
      * 根据用户设置创建题目（基于AI返回内容）
      */
     private void createTestQuestions(Exam exam, String aiContent, ExamGenerationRequest request) {
         try {
             List<Question> questions = new ArrayList<>();
-            
+
             // 获取用户的题型设置
             Map<String, Object> questionTypesMap = null;
             int totalQuestions = 0;
             int totalScore = exam.getTotalScore() != null ? exam.getTotalScore() : 100;
-            
+
             if (request != null && request.getQuestionTypes() != null) {
                 questionTypesMap = (Map<String, Object>) request.getQuestionTypes();
-                
+
                 // 计算总题目数
                 for (Map.Entry<String, Object> entry : questionTypesMap.entrySet()) {
                     Object value = entry.getValue();
                     Integer count = null;
-                    
+
                     // 安全处理不同类型的值
                     if (value instanceof Number) {
                         count = ((Number) value).intValue();
@@ -1310,24 +1311,24 @@ public class ExamService {
                             count = ((Number) countValue).intValue();
                         }
                     }
-                    
+
                     if (count != null && count > 0) {
                         totalQuestions += count;
                     }
                 }
             }
-            
+
             // 如果没有用户设置，使用默认设置
             if (totalQuestions == 0) {
                 totalQuestions = 5; // 默认5道题
             }
-            
+
             // 计算每道题的平均分值
             int averageScore = totalScore / totalQuestions;
             int remainderScore = totalScore % totalQuestions;
-            
+
             System.out.println("根据用户设置生成题目：总题数=" + totalQuestions + "，总分=" + totalScore + "，平均每题=" + averageScore + "分");
-            
+
             // 预定义的题目池，根据用户设置动态选择
             String[][] questionPool = {
                 // 选择题题目池
@@ -1375,7 +1376,7 @@ public class ExamService {
                     "这道题考查嵌入式Python编程中GPIO控制的基本概念。解答要点：\n1. 导入必要的库（RPi.GPIO和time）\n2. 正确设置GPIO模式和引脚配置\n3. 使用循环实现指定次数的闪烁\n4. 通过GPIO.HIGH和GPIO.LOW控制LED开关\n5. 使用time.sleep()实现延时\n6. 异常处理和资源清理（GPIO.cleanup()）\n7. 代码结构清晰，包含注释和使用示例"
                 },
                 {
-                    "programming", 
+                    "programming",
                     "请编写一个C程序，实现简单的温度传感器数据读取和处理。要求：\n1. 定义结构体存储传感器数据（温度值、时间戳）\n2. 实现函数read_temperature()模拟读取温度\n3. 实现函数process_data()处理温度数据（转换单位、异常检测）\n4. 在main函数中演示使用",
                     "[]",
                     "```c\n#include <stdio.h>\n#include <stdlib.h>\n#include <time.h>\n\n// 定义传感器数据结构体\ntypedef struct {\n    float temperature;  // 温度值（摄氏度）\n    time_t timestamp;   // 时间戳\n    int status;         // 状态：0正常，1异常\n} SensorData;\n\n// 模拟读取温度数据\nSensorData read_temperature() {\n    SensorData data;\n    \n    // 模拟温度读取（实际应用中从硬件接口读取）\n    data.temperature = 20.0 + (rand() % 200) / 10.0;  // 20-40度范围\n    data.timestamp = time(NULL);\n    data.status = 0;\n    \n    return data;\n}\n\n// 处理温度数据\nvoid process_data(SensorData *data) {\n    // 异常检测\n    if (data->temperature < -40 || data->temperature > 85) {\n        data->status = 1;  // 标记为异常\n        printf(\"警告：温度异常 %.1f°C\\n\", data->temperature);\n    }\n    \n    // 温度单位转换（摄氏度转华氏度）\n    float fahrenheit = data->temperature * 9.0 / 5.0 + 32.0;\n    \n    printf(\"温度数据：%.1f°C / %.1f°F\\n\", data->temperature, fahrenheit);\n    printf(\"时间戳：%ld\\n\", data->timestamp);\n    printf(\"状态：%s\\n\", data->status == 0 ? \"正常\" : \"异常\");\n}\n\nint main() {\n    printf(\"温度传感器数据处理程序\\n\");\n    printf(\"========================\\n\");\n    \n    srand(time(NULL));  // 初始化随机数种子\n    \n    // 模拟读取和处理5次温度数据\n    for (int i = 0; i < 5; i++) {\n        printf(\"\\n第%d次读取：\\n\", i + 1);\n        \n        SensorData data = read_temperature();\n        process_data(&data);\n        \n        // 延时1秒\n        sleep(1);\n    }\n    \n    return 0;\n}\n```",
@@ -1384,7 +1385,7 @@ public class ExamService {
                 {
                     "programming",
                     "请编写一个嵌入式系统的任务调度器框架。要求：\n1. 定义任务结构体（任务ID、优先级、执行函数指针、状态）\n2. 实现任务队列管理（添加、删除、查找任务）\n3. 实现简单的优先级调度算法\n4. 提供任务执行和状态管理接口",
-                    "[]", 
+                    "[]",
                     "```c\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n#define MAX_TASKS 10\n#define TASK_READY 0\n#define TASK_RUNNING 1\n#define TASK_BLOCKED 2\n\n// 任务结构体定义\ntypedef struct {\n    int task_id;                    // 任务ID\n    int priority;                   // 优先级（数值越小优先级越高）\n    void (*task_func)(void);        // 任务执行函数指针\n    int status;                     // 任务状态\n    char name[32];                  // 任务名称\n} Task;\n\n// 任务调度器结构体\ntypedef struct {\n    Task tasks[MAX_TASKS];          // 任务数组\n    int task_count;                 // 当前任务数量\n    int current_task;               // 当前运行任务索引\n} Scheduler;\n\n// 全局调度器实例\nScheduler scheduler = {0};\n\n// 示例任务函数\nvoid led_task(void) {\n    printf(\"执行LED控制任务\\n\");\n}\n\nvoid sensor_task(void) {\n    printf(\"执行传感器读取任务\\n\");\n}\n\nvoid communication_task(void) {\n    printf(\"执行通信任务\\n\");\n}\n\n// 添加任务到调度器\nint add_task(int task_id, int priority, void (*func)(void), const char* name) {\n    if (scheduler.task_count >= MAX_TASKS) {\n        printf(\"错误：任务队列已满\\n\");\n        return -1;\n    }\n    \n    Task* task = &scheduler.tasks[scheduler.task_count];\n    task->task_id = task_id;\n    task->priority = priority;\n    task->task_func = func;\n    task->status = TASK_READY;\n    strncpy(task->name, name, sizeof(task->name) - 1);\n    \n    scheduler.task_count++;\n    printf(\"任务添加成功：%s (ID:%d, 优先级:%d)\\n\", name, task_id, priority);\n    return 0;\n}\n\n// 根据优先级查找下一个就绪任务\nint find_highest_priority_task(void) {\n    int highest_priority = 999;\n    int selected_task = -1;\n    \n    for (int i = 0; i < scheduler.task_count; i++) {\n        if (scheduler.tasks[i].status == TASK_READY && \n            scheduler.tasks[i].priority < highest_priority) {\n            highest_priority = scheduler.tasks[i].priority;\n            selected_task = i;\n        }\n    }\n    \n    return selected_task;\n}\n\n// 执行任务调度\nvoid schedule_tasks(void) {\n    printf(\"\\n=== 开始任务调度 ===\\n\");\n    \n    for (int cycle = 0; cycle < 3; cycle++) {\n        printf(\"\\n调度周期 %d:\\n\", cycle + 1);\n        \n        // 重置所有任务为就绪状态（模拟任务完成后重新就绪）\n        for (int i = 0; i < scheduler.task_count; i++) {\n            if (scheduler.tasks[i].status == TASK_RUNNING) {\n                scheduler.tasks[i].status = TASK_READY;\n            }\n        }\n        \n        // 查找最高优先级任务\n        int next_task = find_highest_priority_task();\n        if (next_task != -1) {\n            Task* task = &scheduler.tasks[next_task];\n            task->status = TASK_RUNNING;\n            \n            printf(\"运行任务：%s (优先级:%d)\\n\", task->name, task->priority);\n            \n            // 执行任务\n            if (task->task_func) {\n                task->task_func();\n            }\n            \n            scheduler.current_task = next_task;\n        } else {\n            printf(\"没有就绪任务\\n\");\n        }\n    }\n}\n\n// 显示任务状态\nvoid show_task_status(void) {\n    printf(\"\\n=== 任务状态列表 ===\\n\");\n    printf(\"ID\\t名称\\t\\t优先级\\t状态\\n\");\n    printf(\"----------------------------------\\n\");\n    \n    for (int i = 0; i < scheduler.task_count; i++) {\n        Task* task = &scheduler.tasks[i];\n        const char* status_str;\n        \n        switch (task->status) {\n            case TASK_READY: status_str = \"就绪\"; break;\n            case TASK_RUNNING: status_str = \"运行\"; break;\n            case TASK_BLOCKED: status_str = \"阻塞\"; break;\n            default: status_str = \"未知\"; break;\n        }\n        \n        printf(\"%d\\t%-12s\\t%d\\t%s\\n\", \n               task->task_id, task->name, task->priority, status_str);\n    }\n}\n\nint main() {\n    printf(\"嵌入式任务调度器演示\\n\");\n    printf(\"=====================\\n\");\n    \n    // 初始化调度器\n    scheduler.task_count = 0;\n    scheduler.current_task = -1;\n    \n    // 添加任务（优先级：1最高，数值越大优先级越低）\n    add_task(1, 1, led_task, \"LED控制\");\n    add_task(2, 3, sensor_task, \"传感器读取\");\n    add_task(3, 2, communication_task, \"通信处理\");\n    \n    // 显示初始任务状态\n    show_task_status();\n    \n    // 执行任务调度\n    schedule_tasks();\n    \n    // 显示最终任务状态\n    show_task_status();\n    \n    return 0;\n}\n```",
                     "这道编程题考查嵌入式系统任务调度的核心概念。解答要点：\n1. 数据结构设计：合理定义任务和调度器结构体\n2. 任务管理：实现任务的添加、查找、状态管理\n3. 调度算法：基于优先级的抢占式调度\n4. 函数指针：使用函数指针实现任务的动态调用\n5. 状态机：任务状态的正确转换和管理\n6. 内存管理：静态数组管理任务队列，避免动态分配\n7. 错误处理：任务队列满、无就绪任务等异常情况\n8. 实际应用：模拟真实嵌入式系统的任务调度场景\n9. 代码规范：清晰的模块划分和接口设计"
                 },
@@ -1419,7 +1420,7 @@ public class ExamService {
                     "交叉编译的目的就是在宿主机上编译出目标机能运行的程序，两者架构通常不同。"
                 }
             };
-            
+
             // 根据用户设置创建题目
             int questionIndex = 0;
             if (questionTypesMap != null) {
@@ -1427,7 +1428,7 @@ public class ExamService {
                     String questionType = entry.getKey();
                     Object value = entry.getValue();
                     Integer count = null;
-                    
+
                     // 安全处理不同类型的值
                     if (value instanceof Number) {
                         count = ((Number) value).intValue();
@@ -1439,14 +1440,14 @@ public class ExamService {
                             count = ((Number) countValue).intValue();
                         }
                     }
-                    
+
                     if (count != null && count > 0) {
                         System.out.println("创建 " + questionType + " 类型题目 " + count + " 道");
-                        
+
                         for (int i = 0; i < count && questionIndex < questionPool.length; i++) {
                             // 查找匹配的题目类型
                             int foundIndex = -1;
-                            
+
                             // 先精确匹配题型
                             for (int j = 0; j < questionPool.length; j++) {
                                 if (questionPool[j][0].equals(questionType)) {
@@ -1458,20 +1459,20 @@ public class ExamService {
                                             break;
                                         }
                                     }
-                                    
+
                                     if (!alreadyUsed) {
                                         foundIndex = j;
                                         break;
                                     }
                                 }
                             }
-                            
+
                             // 如果精确匹配失败，尝试模糊匹配
                             if (foundIndex == -1) {
                                 for (int j = 0; j < questionPool.length; j++) {
                                     String poolType = questionPool[j][0];
                                     boolean typeMatch = false;
-                                    
+
                                     // 编程题的多种匹配方式
                                     if ((questionType.contains("programming") || questionType.contains("编程") || questionType.contains("代码")) &&
                                         (poolType.contains("programming") || poolType.contains("编程"))) {
@@ -1481,7 +1482,7 @@ public class ExamService {
                                     else if (poolType.contains(questionType) || questionType.contains(poolType)) {
                                         typeMatch = true;
                                     }
-                                    
+
                                     if (typeMatch) {
                                         // 检查是否已经使用过这道题
                                         boolean alreadyUsed = false;
@@ -1491,7 +1492,7 @@ public class ExamService {
                                                 break;
                                             }
                                         }
-                                        
+
                                         if (!alreadyUsed) {
                                             foundIndex = j;
                                             break;
@@ -1499,7 +1500,7 @@ public class ExamService {
                                     }
                                 }
                             }
-                            
+
                             if (foundIndex != -1) {
                                 Question question = new Question();
                                 question.setExam(exam);
@@ -1508,7 +1509,7 @@ public class ExamService {
                                 question.setOptions(questionPool[foundIndex][2]);
                                 question.setAnswer(questionPool[foundIndex][3]);
                                 question.setExplanation(questionPool[foundIndex][4]);
-                                
+
                                 // 分配分值（编程题分值通常较高）
                                 int questionScore = averageScore;
                                 if (questionType.contains("programming") || questionType.contains("编程")) {
@@ -1519,7 +1520,7 @@ public class ExamService {
                                     remainderScore--;
                                 }
                                 question.setScore(questionScore);
-                                
+
                                 questions.add(question);
                                 System.out.println("成功匹配题目：" + questionType + " -> " + questionPool[foundIndex][0]);
                             } else {
@@ -1546,35 +1547,35 @@ public class ExamService {
                         question.setOptions(questionPool[i][2]);
                         question.setAnswer(questionPool[i][3]);
                         question.setExplanation(questionPool[i][4]);
-                        
+
                         int questionScore = averageScore;
                         if (remainderScore > 0) {
                             questionScore++;
                             remainderScore--;
                         }
                         question.setScore(questionScore);
-                        
+
                         questions.add(question);
                     }
                 }
             }
-            
+
             // 保存所有题目
             for (Question question : questions) {
                 questionRepository.save(question);
                 System.out.println("保存题目成功: " + question.getContent() + " (分值: " + question.getScore() + ")");
             }
-            
-            System.out.println("共创建了 " + questions.size() + " 道题目，总分值: " + 
+
+            System.out.println("共创建了 " + questions.size() + " 道题目，总分值: " +
                 questions.stream().mapToInt(q -> q.getScore() != null ? q.getScore() : 0).sum());
-            
+
         } catch (Exception e) {
             System.err.println("创建测试题目失败: " + e.getMessage());
             e.printStackTrace();
             createDefaultQuestion(exam);
         }
     }
-    
+
     /**
      * 简单提取两个关键词之间的内容
      */
@@ -1582,26 +1583,26 @@ public class ExamService {
         try {
             String startPattern = "**" + startKeyword + "**";
             String endPattern = "**" + endKeyword + "**";
-            
+
             int startIndex = text.indexOf(startPattern);
             if (startIndex == -1) return null;
-            
+
             startIndex += startPattern.length();
             if (text.charAt(startIndex) == '：' || text.charAt(startIndex) == ':') {
                 startIndex++;
             }
-            
+
             int endIndex = text.indexOf(endPattern, startIndex);
             if (endIndex == -1) {
                 return text.substring(startIndex).trim();
             }
-            
+
             return text.substring(startIndex, endIndex).trim();
         } catch (Exception e) {
             return null;
         }
     }
-    
+
     /**
      * 使用正则表达式提取内容
      */
@@ -1617,7 +1618,7 @@ public class ExamService {
         }
         return null;
     }
-    
+
     /**
      * 创建默认题目（当解析失败时）
      */
@@ -1632,47 +1633,47 @@ public class ExamService {
         defaultQuestion.setScore(5);
         questionRepository.save(defaultQuestion);
     }
-    
+
     /**
      * 智能提取选项（根据题型和内容自动判断）
      */
     private List<String> extractOptionsSmartly(String block, String questionType) {
         List<String> options = new ArrayList<>();
-        
+
         // 判断是否需要选项的题型
-        boolean needsOptions = questionType.contains("choice") || questionType.contains("选择") || 
+        boolean needsOptions = questionType.contains("choice") || questionType.contains("选择") ||
                               questionType.contains("判断") || questionType.contains("true_false");
-        
+
         if (!needsOptions) {
             System.out.println("题型 " + questionType + " 不需要选项");
             return options; // 不需要选项的题型直接返回空列表
         }
-        
+
         System.out.println("开始为题型 " + questionType + " 提取选项");
         System.out.println("题目块前500字符: " + block.substring(0, Math.min(500, block.length())));
-        
+
         // 首先尝试查找选项区域
         boolean inOptionsSection = false;
         String[] lines = block.split("\n");
-        
+
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
-            
+
             // 检查是否进入选项区域
-            if (line.contains("**选项**") || line.contains("选项：") || 
+            if (line.contains("**选项**") || line.contains("选项：") ||
                 line.equals("选项:") || line.startsWith("**选项")) {
                 inOptionsSection = true;
                 System.out.println("找到选项标记: " + line);
                 continue;
             }
-            
+
             // 检查是否离开选项区域
-            if (inOptionsSection && (line.startsWith("**正确答案") || line.startsWith("**答案") || 
+            if (inOptionsSection && (line.startsWith("**正确答案") || line.startsWith("**答案") ||
                 line.startsWith("**解析") || line.startsWith("**分值"))) {
                 System.out.println("选项区域结束: " + line);
                 break;
             }
-            
+
             // 如果在选项区域内，提取选项
             if (inOptionsSection && !line.isEmpty()) {
                 // 匹配各种选项格式
@@ -1697,7 +1698,7 @@ public class ExamService {
                 }
             }
         }
-        
+
         // 如果没有找到选项区域，尝试全文搜索选项
         if (options.isEmpty()) {
             System.out.println("未找到选项区域，尝试全文搜索选项");
@@ -1709,18 +1710,18 @@ public class ExamService {
                 }
             }
         }
-        
+
         // 如果是判断题但没有找到选项，创建默认选项
         if (options.isEmpty() && (questionType.contains("判断") || questionType.contains("true_false"))) {
             options.add("A. 正确");
             options.add("B. 错误");
             System.out.println("为判断题创建默认选项");
         }
-        
+
         System.out.println("题型 " + questionType + " 最终提取到 " + options.size() + " 个选项: " + options);
         return options;
     }
-    
+
     /**
      * 智能提取答案（根据题型自适应多种格式）
      */
@@ -1734,19 +1735,19 @@ public class ExamService {
             return extractGeneralAnswer(block);
         }
     }
-    
+
     /**
      * 提取编程题答案
      */
     private String extractProgrammingAnswer(String block) {
         String answer = null;
-        
+
         System.out.println("开始提取编程题答案，内容长度: " + block.length());
-        
+
         // 1. 先尝试从正确答案标记提取完整答案
         answer = extractGeneralAnswer(block);
         System.out.println("通用答案提取结果长度: " + (answer != null ? answer.length() : 0));
-        
+
         if (answer != null && !answer.trim().isEmpty()) {
             // 对于编程题，答案通常很长，如果长度合理就直接返回
             if (answer.length() > 30) {
@@ -1754,14 +1755,14 @@ public class ExamService {
                 return cleanupAnswer(answer);
             }
         }
-        
+
         // 2. 尝试提取更长的内容（从答案开始到文档结尾）
         int answerStart = -1;
         String[] answerMarkers = {
-            "**正确答案**：", "**参考答案**：", "**答案**：", 
+            "**正确答案**：", "**参考答案**：", "**答案**：",
             "**示例代码**：", "**参考代码**：", "**实现代码**："
         };
-        
+
         for (String marker : answerMarkers) {
             answerStart = block.indexOf(marker);
             if (answerStart != -1) {
@@ -1770,12 +1771,12 @@ public class ExamService {
                 break;
             }
         }
-        
+
         if (answerStart != -1) {
             // 查找下一个主要标记作为答案结束位置
             String[] endMarkers = {"**解析**：", "**分值建议**：", "**评分标准**："};
             int answerEnd = block.length();
-            
+
             for (String endMarker : endMarkers) {
                 int endPos = block.indexOf(endMarker, answerStart);
                 if (endPos != -1 && endPos < answerEnd) {
@@ -1784,17 +1785,17 @@ public class ExamService {
                     break;
                 }
             }
-            
+
             if (answerEnd > answerStart) {
                 answer = block.substring(answerStart, answerEnd).trim();
                 System.out.println("提取到的答案长度: " + answer.length());
-                
+
                 if (answer.length() > 10) {
                     return cleanupAnswer(answer);
                 }
             }
         }
-        
+
         // 3. 尝试提取代码块
         int codeStart = block.indexOf("```");
         if (codeStart != -1) {
@@ -1802,11 +1803,11 @@ public class ExamService {
             if (codeEnd != -1) {
                 String code = block.substring(codeStart, codeEnd + 3).trim();
                 System.out.println("找到代码块，长度: " + code.length());
-                
+
                 // 检查代码块前后是否有说明文字
                 String beforeCode = "";
                 String afterCode = "";
-                
+
                 // 提取代码块前的说明
                 if (codeStart > 0) {
                     String before = block.substring(0, codeStart).trim();
@@ -1821,7 +1822,7 @@ public class ExamService {
                         }
                     }
                 }
-                
+
                 // 提取代码块后的说明
                 if (codeEnd + 3 < block.length()) {
                     String after = block.substring(codeEnd + 3).trim();
@@ -1842,25 +1843,25 @@ public class ExamService {
                         }
                     }
                 }
-                
+
                 return beforeCode + code + afterCode;
             }
         }
-        
+
         // 4. 如果没有找到标准格式，尝试智能提取
         if (answer == null || answer.trim().isEmpty()) {
             System.out.println("尝试智能提取编程题答案");
-            
+
             // 查找包含关键词的段落
             String[] lines = block.split("\n");
             StringBuilder answerBuilder = new StringBuilder();
             boolean inAnswerSection = false;
-            
+
             for (String line : lines) {
                 String trimmedLine = line.trim();
-                
+
                 // 检查是否进入答案区域
-                if (trimmedLine.contains("答案") || trimmedLine.contains("代码") || 
+                if (trimmedLine.contains("答案") || trimmedLine.contains("代码") ||
                     trimmedLine.contains("实现") || trimmedLine.contains("解决方案")) {
                     inAnswerSection = true;
                     if (!trimmedLine.startsWith("**题目") && !trimmedLine.startsWith("**选项")) {
@@ -1868,46 +1869,46 @@ public class ExamService {
                     }
                     continue;
                 }
-                
+
                 // 检查是否离开答案区域
-                if (inAnswerSection && (trimmedLine.startsWith("**解析") || 
+                if (inAnswerSection && (trimmedLine.startsWith("**解析") ||
                     trimmedLine.startsWith("**分值") || trimmedLine.startsWith("**评分"))) {
                     break;
                 }
-                
+
                 // 如果在答案区域内，收集内容
                 if (inAnswerSection && trimmedLine.length() > 0) {
                     answerBuilder.append(line).append("\n");
                 }
             }
-            
+
             if (answerBuilder.length() > 10) {
                 answer = answerBuilder.toString().trim();
                 System.out.println("智能提取的答案长度: " + answer.length());
             }
         }
-        
+
         // 5. 最后的备用方案
         if (answer == null || answer.trim().isEmpty()) {
             System.out.println("使用编程题默认答案");
             answer = "请根据题目要求编写相应的代码实现。\n\n参考实现思路：\n1. 分析题目要求\n2. 设计算法逻辑\n3. 编写代码实现\n4. 测试验证结果";
         }
-        
+
         return answer != null ? cleanupAnswer(answer) : null;
     }
-    
+
     /**
      * 提取案例分析题答案
      */
     private String extractCaseAnalysisAnswer(String block) {
         // 案例分析题的答案通常很长，需要特殊处理
         String answer = null;
-        
+
         // 尝试提取完整的答案内容（从答案标记到解析标记之间的所有内容）
         int answerStart = block.indexOf("**正确答案**：");
         if (answerStart != -1) {
             answerStart += "**正确答案**：".length();
-            
+
             // 查找解析部分的开始位置作为答案的结束位置
             int analysisStart = block.indexOf("**解析**：", answerStart);
             if (analysisStart != -1) {
@@ -1923,7 +1924,7 @@ public class ExamService {
                 }
             }
         }
-        
+
         // 如果仍然没有找到，尝试其他格式
         if (answer == null || answer.trim().isEmpty()) {
             answer = extractContent(block, "**分析过程**：", "**");
@@ -1938,15 +1939,15 @@ public class ExamService {
                 answer = extractGeneralAnswer(block);
             }
         }
-        
+
         // 清理答案内容（移除多余的空行和格式字符）
         if (answer != null && !answer.trim().isEmpty()) {
             answer = cleanupAnswer(answer);
         }
-        
+
         return answer;
     }
-    
+
     /**
      * 提取通用题型答案
      */
@@ -1957,16 +1958,16 @@ public class ExamService {
             "正确答案：", "答案：", "参考答案：",
             "正确答案:", "答案:", "参考答案:"
         };
-        
+
         for (String pattern : answerPatterns) {
             int answerStart = block.indexOf(pattern);
             if (answerStart != -1) {
                 answerStart += pattern.length();
-                
+
                 // 查找答案结束位置的多种标记
                 String[] endMarkers = {"**解析**：", "**分值建议**：", "**评分标准**：", "**难度**："};
                 int answerEnd = block.length(); // 默认到文档结尾
-                
+
                 // 找到最近的结束标记
                 for (String endMarker : endMarkers) {
                     int endPos = block.indexOf(endMarker, answerStart);
@@ -1974,7 +1975,7 @@ public class ExamService {
                         answerEnd = endPos;
                     }
                 }
-                
+
                 if (answerEnd > answerStart) {
                     String answer = block.substring(answerStart, answerEnd).trim();
                     if (!answer.isEmpty()) {
@@ -1985,12 +1986,12 @@ public class ExamService {
                 }
             }
         }
-        
+
         // 如果标准格式提取失败，尝试智能提取
         System.out.println("标准格式提取失败，尝试智能提取答案");
         return extractAnswerIntelligently(block);
     }
-    
+
     /**
      * 智能提取答案（当标准格式失败时使用）
      */
@@ -1999,49 +2000,49 @@ public class ExamService {
         StringBuilder answerBuilder = new StringBuilder();
         boolean inAnswerSection = false;
         boolean foundAnswerStart = false;
-        
+
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
-            
+
             // 检查是否进入答案区域
-            if (!foundAnswerStart && (line.contains("答案") || line.contains("解答") || 
+            if (!foundAnswerStart && (line.contains("答案") || line.contains("解答") ||
                 line.contains("参考") || line.startsWith("1.") || line.startsWith("（1）"))) {
                 inAnswerSection = true;
                 foundAnswerStart = true;
-                
+
                 // 如果这行本身就包含答案内容，加入答案
                 if (!line.startsWith("**") && line.length() > 3) {
                     answerBuilder.append(line).append("\n");
                 }
                 continue;
             }
-            
+
             // 检查是否离开答案区域
-            if (inAnswerSection && (line.startsWith("**解析") || line.startsWith("**分值") || 
+            if (inAnswerSection && (line.startsWith("**解析") || line.startsWith("**分值") ||
                 line.startsWith("**评分") || line.startsWith("**难度"))) {
                 break;
             }
-            
+
             // 如果在答案区域内，收集内容
             if (inAnswerSection && !line.isEmpty() && !line.startsWith("**")) {
                 answerBuilder.append(line).append("\n");
             }
         }
-        
+
         String result = answerBuilder.toString().trim();
         if (!result.isEmpty()) {
             System.out.println("智能提取到答案，长度: " + result.length() + " 字符");
             return result;
         }
-        
+
         System.out.println("智能提取也失败，返回null");
         return null;
     }
-    
+
     /**
      * 根据题型获取默认答案
      */
-    
+
     /**
      * 为题目生成知识点标记
      */
@@ -2055,7 +2056,7 @@ public class ExamService {
             return "未分类";
         }
     }
-    
+
     private String getDefaultAnswerForType(String questionType) {
         if (questionType.contains("choice") || questionType.contains("选择")) {
             return "A";
@@ -2071,13 +2072,13 @@ public class ExamService {
             return "答案待完善";
         }
     }
-    
+
     /**
      * 智能提取题目内容（根据题型自适应长度和格式）
      */
     private String extractQuestionContentSmartly(String block, String questionType) {
         // 对于案例分析题等复杂题型，需要提取更多内容
-        if (questionType.contains("案例") || questionType.contains("case") || 
+        if (questionType.contains("案例") || questionType.contains("case") ||
             questionType.contains("分析") || questionType.contains("综合")) {
             return extractLongQuestionContent(block);
         } else if (questionType.contains("编程") || questionType.contains("programming")) {
@@ -2086,7 +2087,7 @@ public class ExamService {
             return extractStandardQuestionContent(block);
         }
     }
-    
+
     /**
      * 提取长题型内容（案例分析题等）
      */
@@ -2094,13 +2095,13 @@ public class ExamService {
         int contentStart = block.indexOf("**题目内容**：");
         if (contentStart != -1) {
             contentStart += "**题目内容**：".length();
-            
+
             // 查找任何答案相关标记作为内容的结束位置（严格分离题目和答案）
             String[] answerMarkers = {
                 "**正确答案**：", "**参考答案**：", "**答案**：",
                 "**解析**：", "**分值建议**："
             };
-            
+
             int answerStart = Integer.MAX_VALUE;
             for (String marker : answerMarkers) {
                 int pos = block.indexOf(marker, contentStart);
@@ -2108,7 +2109,7 @@ public class ExamService {
                     answerStart = pos;
                 }
             }
-            
+
             if (answerStart != Integer.MAX_VALUE) {
                 String content = block.substring(contentStart, answerStart).trim();
                 // 确保内容不包含答案信息
@@ -2116,11 +2117,11 @@ public class ExamService {
                 return content;
             }
         }
-        
+
         // 兜底逻辑：使用通用提取
         return extractStandardQuestionContent(block);
     }
-    
+
     /**
      * 清理题目内容，确保不包含答案信息
      */
@@ -2128,12 +2129,12 @@ public class ExamService {
         if (content == null || content.trim().isEmpty()) {
             return content;
         }
-        
+
         // 移除可能泄露答案的标记
         String[] answerIndicators = {
             "**参考答案**", "**正确答案**", "**答案**", "参考答案：", "正确答案：", "答案："
         };
-        
+
         String cleaned = content;
         for (String indicator : answerIndicators) {
             int pos = cleaned.indexOf(indicator);
@@ -2143,10 +2144,10 @@ public class ExamService {
                 break;
             }
         }
-        
+
         return cleaned;
     }
-    
+
     /**
      * 提取编程题内容
      */
@@ -2154,7 +2155,7 @@ public class ExamService {
         // 编程题可能包含代码示例，需要保留完整内容
         return extractLongQuestionContent(block);
     }
-    
+
     /**
      * 提取标准题型内容
      */
@@ -2164,37 +2165,37 @@ public class ExamService {
         if (content != null && !content.trim().isEmpty()) {
             return content;
         }
-        
+
         // 尝试其他格式
         content = extractContent(block, "题目：", "\n");
         if (content != null && !content.trim().isEmpty()) {
             return content;
         }
-        
+
         content = extractContent(block, "题目:", "\n");
         if (content != null && !content.trim().isEmpty()) {
             return content;
         }
-        
+
         // 如果都没找到，智能解析内容
         String[] lines = block.split("\n");
         StringBuilder contentBuilder = new StringBuilder();
         boolean contentStarted = false;
-        
+
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
-            
+
             // 跳过题目标题行
             if (line.contains("题目") && line.contains("（") && line.contains("）")) {
                 continue;
             }
-            
+
             // 如果遇到答案或解析标记，停止
-            if (line.startsWith("**正确答案**") || line.startsWith("**解析**") || 
+            if (line.startsWith("**正确答案**") || line.startsWith("**解析**") ||
                 line.startsWith("**分值建议**") || line.startsWith("**选项**")) {
                 break;
             }
-            
+
             // 收集内容行
             if (!line.isEmpty() && !line.startsWith("**题目内容**")) {
                 if (contentBuilder.length() > 0) {
@@ -2204,10 +2205,10 @@ public class ExamService {
                 contentStarted = true;
             }
         }
-        
+
         return contentStarted ? contentBuilder.toString().trim() : null;
     }
-    
+
     /**
      * 清理答案内容，移除多余格式字符和空行
      */
@@ -2215,20 +2216,20 @@ public class ExamService {
         if (rawAnswer == null || rawAnswer.trim().isEmpty()) {
             return rawAnswer;
         }
-        
+
         // 移除开头和结尾的空白字符
         String cleaned = rawAnswer.trim();
-        
+
         // 移除多余的连续空行，保留必要的换行结构
         cleaned = cleaned.replaceAll("\n\\s*\n\\s*\n", "\n\n");
-        
+
         // 移除每行开头的多余空格，但保留缩进结构
         String[] lines = cleaned.split("\n");
         StringBuilder result = new StringBuilder();
-        
+
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-            
+
             // 保留有意义的内容行，跳过只包含空白的行
             if (!line.trim().isEmpty()) {
                 // 保留适当的缩进，但去除过多的空格
@@ -2244,10 +2245,10 @@ public class ExamService {
                 result.append("\n");
             }
         }
-        
+
         return result.toString();
     }
-    
+
     /**
      * 获取教师的试卷列表
      */
@@ -2255,51 +2256,51 @@ public class ExamService {
         try {
             // 根据教师ID查找考试
             List<Exam> exams = examRepository.findByTeacherId(teacherId);
-            
+
             // 按创建时间倒序排列
             exams = exams.stream()
                     .sorted((e1, e2) -> e2.getCreatedAt().compareTo(e1.getCreatedAt()))
                     .collect(Collectors.toList());
-            
+
             // 转换为DTO并设置参与人数
             List<ExamListDTO> examListDTOs = exams.stream()
                     .map(exam -> {
                         ExamListDTO dto = new ExamListDTO(exam);
-                        
+
                         // 设置参与人数
                         long participantCount = examResultRepository.countByExam(exam);
                         dto.setParticipantCount(participantCount);
-                        
+
                         return dto;
                     })
                     .collect(Collectors.toList());
-            
+
             // 应用状态筛选
             if (status != null && !status.trim().isEmpty()) {
                 examListDTOs = examListDTOs.stream()
                         .filter(exam -> status.equals(exam.getStatus()))
                         .collect(Collectors.toList());
             }
-            
+
             // 应用搜索筛选
             if (search != null && !search.trim().isEmpty()) {
                 String searchLower = search.toLowerCase();
                 examListDTOs = examListDTOs.stream()
-                        .filter(exam -> 
+                        .filter(exam ->
                             (exam.getTitle() != null && exam.getTitle().toLowerCase().contains(searchLower)) ||
                             (exam.getCourseName() != null && exam.getCourseName().toLowerCase().contains(searchLower)) ||
                             (exam.getExamType() != null && exam.getExamType().toLowerCase().contains(searchLower))
                         )
                         .collect(Collectors.toList());
             }
-            
+
             return examListDTOs;
-            
+
         } catch (Exception e) {
             throw new RuntimeException("获取试卷列表失败：" + e.getMessage(), e);
         }
     }
-    
+
     /**
      * 删除试卷
      */
@@ -2307,7 +2308,7 @@ public class ExamService {
         try {
             Exam exam = examRepository.findById(examId)
                     .orElseThrow(() -> new RuntimeException("试卷不存在"));
-            
+
             // 删除相关的学生答案记录
             List<Question> questions = questionRepository.findByExamId(examId);
             for (Question question : questions) {
@@ -2316,37 +2317,37 @@ public class ExamService {
                     studentAnswerRepository.deleteAll(studentAnswers);
                 }
             }
-            
+
             // 删除相关的考试结果记录
             List<ExamResult> examResults = examResultRepository.findByExam(exam);
             if (!examResults.isEmpty()) {
                 examResultRepository.deleteAll(examResults);
             }
-            
+
             // 删除相关的题目
             if (!questions.isEmpty()) {
                 questionRepository.deleteAll(questions);
             }
-            
+
             // 删除试卷
             examRepository.delete(exam);
-            
+
         } catch (Exception e) {
             throw new RuntimeException("删除试卷失败：" + e.getMessage(), e);
         }
     }
-    
+
     /**
      * 获取教师的考试统计数据
      */
     public Map<String, Object> getExamStatsByTeacher(Long teacherId) {
         try {
             Map<String, Object> stats = new java.util.HashMap<>();
-            
+
             // 获取教师的所有课程
             List<Course> courses = courseRepository.findByTeacherId(teacherId);
             List<Long> courseIds = courses.stream().map(Course::getId).collect(Collectors.toList());
-            
+
             if (courseIds.isEmpty()) {
                 // 如果教师没有课程，返回全为0的统计
                 stats.put("draftExamCount", 0);
@@ -2355,19 +2356,19 @@ public class ExamService {
                 stats.put("monthlyExamCount", 0);
                 return stats;
             }
-            
+
             // 获取所有考试
             List<Exam> allExams = new ArrayList<>();
             for (Long courseId : courseIds) {
                 allExams.addAll(examRepository.findByCourseIdOrderByCreatedAtDesc(courseId));
             }
-            
+
             // 1. 待发布试卷数（草稿状态）
             long draftExamCount = allExams.stream()
                 .filter(exam -> exam.getIsPublished() == null || !exam.getIsPublished())
                 .count();
             stats.put("draftExamCount", draftExamCount);
-            
+
             // 2. 进行中考试数（已发布且正在进行中）
             LocalDateTime now = LocalDateTime.now();
             long ongoingExamCount = allExams.stream()
@@ -2376,7 +2377,7 @@ public class ExamService {
                     // 判断考试是否正在进行中
                     LocalDateTime startTime = exam.getStartTime();
                     LocalDateTime endTime = exam.getEndTime();
-                    
+
                     // 如果设置了具体的考试时间，按时间判断
                     if (startTime != null && endTime != null) {
                         return now.isAfter(startTime) && now.isBefore(endTime);
@@ -2387,24 +2388,24 @@ public class ExamService {
                         // 只设置了结束时间，检查是否未结束
                         return now.isBefore(endTime);
                     }
-                    
+
                     // 如果没有设置具体时间，则认为是随时可考的考试
                     // 这种情况下，只要已发布且没有学生参与，或有学生正在考试中，就算进行中
                     long totalParticipants = examResultRepository.countByExam(exam);
                     if (totalParticipants == 0) {
                         return true; // 已发布但还没有人参与，算作进行中
                     }
-                    
+
                     // 检查是否还有学生在考试中（已开始但未提交）
                     List<ExamResult> allResults = examResultRepository.findByExam(exam);
                     boolean hasUnsubmittedResults = allResults.stream()
                         .anyMatch(result -> result.getSubmitTime() == null);
-                    
+
                     return hasUnsubmittedResults; // 有未提交的答卷，说明还在进行中
                 })
                 .count();
             stats.put("ongoingExamCount", ongoingExamCount);
-            
+
             // 3. 已结束考试数
             long finishedExamCount = allExams.stream()
                 .filter(exam -> exam.getIsPublished() != null && exam.getIsPublished())
@@ -2415,11 +2416,11 @@ public class ExamService {
                 })
                 .count();
             stats.put("pendingGradeCount", finishedExamCount);
-            
+
             // 4. 本月考试数
             java.time.LocalDateTime startOfMonth = java.time.LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
             java.time.LocalDateTime endOfMonth = startOfMonth.plusMonths(1).minusSeconds(1);
-            
+
             long monthlyExamCount = allExams.stream()
                 .filter(exam -> exam.getCreatedAt() != null)
                 .filter(exam -> {
@@ -2428,17 +2429,17 @@ public class ExamService {
                 })
                 .count();
             stats.put("monthlyExamCount", monthlyExamCount);
-            
+
             System.out.println("考试统计数据: " + stats);
             return stats;
-            
+
         } catch (Exception e) {
             System.err.println("获取考试统计数据失败: " + e.getMessage());
             e.printStackTrace();
             throw new RuntimeException("获取考试统计数据失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 创建通用题目（当题目池中没有匹配的题型时）
      */
@@ -2447,7 +2448,7 @@ public class ExamService {
         question.setExam(exam);
         question.setType(questionType);
         question.setScore(baseScore);
-        
+
         // 根据题型创建不同的通用题目
         if (questionType.contains("programming") || questionType.contains("编程") || questionType.contains("代码")) {
             question.setContent("请根据课程内容编写一个程序，实现相关功能。要求：\n1. 代码结构清晰，注释完整\n2. 实现指定的功能需求\n3. 考虑异常处理和边界条件\n4. 提供使用示例或测试用例");
@@ -2483,10 +2484,10 @@ public class ExamService {
             question.setAnswer("参考答案要点：\n\n1. 概念定义：\n   - 准确描述核心概念\n   - 说明概念的内涵和外延\n\n2. 主要特点：\n   - 列举关键特征\n   - 分析特点的意义\n\n3. 应用场景：\n   - 描述典型应用环境\n   - 分析适用条件\n\n4. 实际应用：\n   - 提供具体应用实例\n   - 分析应用效果和价值");
             question.setExplanation("综合题主要考查学生的综合运用能力和知识整合能力。");
         }
-        
+
         return question;
     }
-    
+
     /**
      * 从知识点字符串中提取能力维度代码
      */
@@ -2494,9 +2495,9 @@ public class ExamService {
         if (knowledgePoint == null || knowledgePoint.trim().isEmpty()) {
             return null;
         }
-        
+
         String lowerKnowledgePoint = knowledgePoint.toLowerCase().trim();
-        
+
         // 定义能力维度代码及其可能的表示形式
         String[][] capabilityMappings = {
             {"knowledge", "理论掌握", "基础理论", "概念理解", "知识记忆"},
@@ -2510,7 +2511,7 @@ public class ExamService {
             {"analysis", "分析综合", "逻辑分析", "综合判断", "推理能力"},
             {"research", "实验研究", "研究方法", "实验设计", "数据分析"}
         };
-        
+
         // 首先检查是否直接包含能力代码
         for (String[] mapping : capabilityMappings) {
             String code = mapping[0];
@@ -2518,7 +2519,7 @@ public class ExamService {
                 return code;
             }
         }
-        
+
         // 然后检查是否包含能力维度的中文表示
         for (String[] mapping : capabilityMappings) {
             String code = mapping[0];
@@ -2528,10 +2529,10 @@ public class ExamService {
                 }
             }
         }
-        
+
         return null; // 没有找到匹配的能力维度
     }
-    
+
     /**
      * 为题目生成能力培养目标
      */
@@ -2539,7 +2540,7 @@ public class ExamService {
         try {
             Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("题目不存在"));
-            
+
             return deepSeekService.generateCapabilityGoalsForQuestion(
                 question.getContent(),
                 question.getType(),
@@ -2551,7 +2552,7 @@ public class ExamService {
             throw new RuntimeException("生成能力培养目标失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 获取学生能力雷达图数据
      */
@@ -2572,22 +2573,12 @@ public class ExamService {
             // 获取学生答案
             List<StudentAnswer> studentAnswers = studentAnswerRepository.findByExamResultId(examResult.getId());
 
-            // 尝试获取能力维度数据
+            // 尝试获取真实能力维度数据
             Map<String, Object> radarData = tryGetCapabilityRadarData(studentAnswers, examResult.getStudentName(), exam.getTitle());
 
-            // 如果能力维度数据不足，尝试题型分析
+            // 如果能力维度数据不足，基于分数模拟能力数据
             if (isRadarDataEmpty(radarData)) {
-                radarData = tryGetQuestionTypeRadarData(studentAnswers, examResult.getStudentName(), exam.getTitle());
-            }
-
-            // 如果题型数据也不足，尝试难度分析
-            if (isRadarDataEmpty(radarData)) {
-                radarData = tryGetDifficultyRadarData(studentAnswers, examResult.getStudentName(), exam.getTitle());
-            }
-
-            // 如果所有数据都不足，返回基础统计数据
-            if (isRadarDataEmpty(radarData)) {
-                radarData = getBasicStatisticsRadarData(studentAnswers, examResult.getStudentName(), exam.getTitle());
+                radarData = simulateCapabilityDataFromScore(examResult, examResult.getStudentName(), exam.getTitle());
             }
 
             return radarData;
@@ -2596,7 +2587,7 @@ public class ExamService {
             throw new RuntimeException("获取能力雷达图数据失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 获取全班平均能力雷达图数据
      */
@@ -2628,22 +2619,12 @@ public class ExamService {
                 throw new RuntimeException("没有有效的答题数据");
             }
 
-            // 尝试获取能力维度数据
+            // 尝试获取真实能力维度数据
             Map<String, Object> radarData = tryGetClassCapabilityRadarData(allStudentAnswers, participantCount, exam.getTitle());
 
-            // 如果能力维度数据不足，尝试题型分析
+            // 如果能力维度数据不足，基于分数模拟能力数据
             if (isRadarDataEmpty(radarData)) {
-                radarData = tryGetClassQuestionTypeRadarData(allStudentAnswers, participantCount, exam.getTitle());
-            }
-
-            // 如果题型数据也不足，尝试难度分析
-            if (isRadarDataEmpty(radarData)) {
-                radarData = tryGetClassDifficultyRadarData(allStudentAnswers, participantCount, exam.getTitle());
-            }
-
-            // 如果所有数据都不足，返回基础统计数据
-            if (isRadarDataEmpty(radarData)) {
-                radarData = getClassBasicStatisticsRadarData(allStudentAnswers, participantCount, exam.getTitle());
+                radarData = simulateClassCapabilityDataFromScores(allResults, exam.getTitle());
             }
 
             return radarData;
@@ -2652,7 +2633,7 @@ public class ExamService {
             throw new RuntimeException("获取能力雷达图数据失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 获取考试的参与学生列表
      */
@@ -2660,9 +2641,9 @@ public class ExamService {
         try {
             Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new RuntimeException("考试不存在"));
-            
+
             List<ExamResult> examResults = examResultRepository.findByExam(exam);
-            
+
             List<Map<String, Object>> participants = new ArrayList<>();
             for (ExamResult result : examResults) {
                 Map<String, Object> participant = new HashMap<>();
@@ -2672,14 +2653,14 @@ public class ExamService {
                 participant.put("submitTime", result.getSubmitTime());
                 participants.add(participant);
             }
-            
+
             return participants;
         } catch (Exception e) {
             System.err.println("获取考试参与学生列表失败: " + e.getMessage());
             throw new RuntimeException("获取参与学生列表失败：" + e.getMessage());
         }
     }
-    
+
     /**
      * 分析学生各能力维度表现
      */
@@ -2958,6 +2939,132 @@ public class ExamService {
     }
 
     /**
+     * 基于学生分数模拟能力维度数据
+     */
+    private Map<String, Object> simulateCapabilityDataFromScore(ExamResult examResult, String studentName, String examTitle) {
+        double totalScore = examResult.getScore() != null ? examResult.getScore() : 0.0;
+        double maxScore = examResult.getTotalScore() != null ? examResult.getTotalScore() : 100.0;
+
+        // 计算得分率
+        double scoreRate = maxScore > 0 ? totalScore / maxScore : 0.0;
+
+        // 基于得分率和各能力维度的权重，模拟能力分布
+        Map<String, Double> capabilityWeights = new HashMap<>();
+        capabilityWeights.put("knowledge", 0.20);      // 理论掌握 20%
+        capabilityWeights.put("application", 0.25);    // 实践应用 25%
+        capabilityWeights.put("innovation", 0.15);     // 创新思维 15%
+        capabilityWeights.put("transfer", 0.15);       // 知识迁移 15%
+        capabilityWeights.put("learning", 0.15);       // 学习能力 15%
+        capabilityWeights.put("systematic", 0.10);     // 系统思维 10%
+
+        // 添加一些随机波动，使数据更真实
+        Random random = new Random(studentName.hashCode() + examTitle.hashCode()); // 使用固定种子确保一致性
+
+        List<Double> simulatedScores = new ArrayList<>();
+        for (String capability : Arrays.asList("knowledge", "application", "innovation", "transfer", "learning", "systematic")) {
+            double baseScore = scoreRate * 100; // 转换为百分制
+            double weight = capabilityWeights.get(capability);
+
+            // 根据能力维度权重调整基础分数
+            double adjustedScore = baseScore;
+            if (weight > 0.20) {
+                // 重要能力维度，分数稍微提高
+                adjustedScore = Math.min(100, baseScore + random.nextGaussian() * 5 + 3);
+            } else if (weight < 0.15) {
+                // 次要能力维度，分数稍微降低
+                adjustedScore = Math.max(0, baseScore + random.nextGaussian() * 5 - 3);
+            } else {
+                // 一般能力维度，正常波动
+                adjustedScore = Math.max(0, Math.min(100, baseScore + random.nextGaussian() * 8));
+            }
+
+            simulatedScores.add(adjustedScore);
+        }
+
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", Arrays.asList("理论掌握", "实践应用", "创新思维", "知识迁移", "学习能力", "系统思维"));
+        radarData.put("values", simulatedScores);
+        radarData.put("studentName", studentName);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "模拟能力数据");
+        radarData.put("isSimulated", true);
+        radarData.put("baseScore", totalScore);
+        radarData.put("maxScore", maxScore);
+
+        return radarData;
+    }
+
+    /**
+     * 基于全班分数模拟能力维度数据
+     */
+    private Map<String, Object> simulateClassCapabilityDataFromScores(List<ExamResult> examResults, String examTitle) {
+        if (examResults.isEmpty()) {
+            return createEmptyRadarData("全班平均", examTitle);
+        }
+
+        // 计算全班平均得分率
+        double totalScoreSum = 0;
+        double maxScoreSum = 0;
+        int validCount = 0;
+
+        for (ExamResult result : examResults) {
+            if (result.getScore() != null && result.getTotalScore() != null) {
+                totalScoreSum += result.getScore();
+                maxScoreSum += result.getTotalScore();
+                validCount++;
+            }
+        }
+
+        if (validCount == 0) {
+            return createEmptyRadarData("全班平均", examTitle);
+        }
+
+        double avgScoreRate = maxScoreSum > 0 ? totalScoreSum / maxScoreSum : 0.0;
+
+        // 基于平均得分率模拟全班能力分布
+        Map<String, Double> capabilityWeights = new HashMap<>();
+        capabilityWeights.put("knowledge", 0.20);
+        capabilityWeights.put("application", 0.25);
+        capabilityWeights.put("innovation", 0.15);
+        capabilityWeights.put("transfer", 0.15);
+        capabilityWeights.put("learning", 0.15);
+        capabilityWeights.put("systematic", 0.10);
+
+        // 使用考试标题作为随机种子，确保结果一致
+        Random random = new Random(examTitle.hashCode());
+
+        List<Double> simulatedScores = new ArrayList<>();
+        for (String capability : Arrays.asList("knowledge", "application", "innovation", "transfer", "learning", "systematic")) {
+            double baseScore = avgScoreRate * 100;
+            double weight = capabilityWeights.get(capability);
+
+            // 根据能力维度权重和全班表现调整分数
+            double adjustedScore = baseScore;
+            if (weight > 0.20) {
+                adjustedScore = Math.min(100, baseScore + random.nextGaussian() * 3 + 2);
+            } else if (weight < 0.15) {
+                adjustedScore = Math.max(0, baseScore + random.nextGaussian() * 3 - 2);
+            } else {
+                adjustedScore = Math.max(0, Math.min(100, baseScore + random.nextGaussian() * 5));
+            }
+
+            simulatedScores.add(adjustedScore);
+        }
+
+        Map<String, Object> radarData = new HashMap<>();
+        radarData.put("labels", Arrays.asList("理论掌握", "实践应用", "创新思维", "知识迁移", "学习能力", "系统思维"));
+        radarData.put("values", simulatedScores);
+        radarData.put("participantCount", validCount);
+        radarData.put("examTitle", examTitle);
+        radarData.put("dataType", "模拟能力数据");
+        radarData.put("isSimulated", true);
+        radarData.put("avgScore", totalScoreSum / validCount);
+        radarData.put("avgMaxScore", maxScoreSum / validCount);
+
+        return radarData;
+    }
+
+    /**
      * 尝试获取全班能力维度雷达图数据
      */
     private Map<String, Object> tryGetClassCapabilityRadarData(List<List<StudentAnswer>> allStudentAnswers, int participantCount, String examTitle) {
@@ -3156,25 +3263,25 @@ public class ExamService {
             // 1. 验证课程存在
             Course course = courseRepository.findById(request.getCourseId())
                     .orElseThrow(() -> new RuntimeException("课程不存在"));
-            
+
             System.out.println("开始生成基于课程类型的智能考核 - 课程: " + course.getName());
-            
+
             // 2. 检测课程类型
-            CourseTypeDetectionService.CourseTypeResult courseTypeResult = 
+            CourseTypeDetectionService.CourseTypeResult courseTypeResult =
                 courseTypeDetectionService.detectCourseType(request.getCourseId());
-            
+
             System.out.println("课程类型检测结果: " + courseTypeResult.getFinalType());
-            
+
             // 3. 根据课程类型调整考核策略
             ExamGenerationRequest adjustedRequest = adjustExamRequestByCourseType(request, courseTypeResult);
-            
+
             // 4. 获取课程内容
             String ragContent = retrieveRelevantKnowledge(request.getCourseId(), adjustedRequest);
-            
+
             if (ragContent == null || ragContent.trim().isEmpty()) {
                 throw new RuntimeException("无法获取课程相关内容，请确保课程有相关资料或知识库数据");
             }
-            
+
             // 5. 调用AI生成针对课程类型的考核内容
             String examJson = deepSeekService.generateCourseTypeBasedExam(
                 course.getName(),
@@ -3186,7 +3293,7 @@ public class ExamService {
                 ragContent,
                 request.getSpecialRequirements()
             );
-            
+
             // 6. 创建考试记录
             Exam exam = new Exam();
             String timeStamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
@@ -3198,33 +3305,33 @@ public class ExamService {
             exam.setTotalScore(request.getTotalScore());
             exam.setIsPublished(false);
             exam.setIsAnswerPublished(false);
-            
+
             // 7. 保存考试
             exam = examRepository.save(exam);
-            
+
             // 8. 解析并保存题目
             parseAndSaveQuestions(examJson, exam, adjustedRequest);
-            
+
             // 9. 重新加载带有题目的考试对象
             exam = examRepository.findById(exam.getId()).orElse(exam);
-            
+
             System.out.println("基于课程类型的智能考核生成成功，考试ID: " + exam.getId());
             return exam;
-            
+
         } catch (Exception e) {
             System.err.println("生成基于课程类型的考核失败: " + e.getMessage());
             throw new RuntimeException("生成智能考核失败：" + e.getMessage(), e);
         }
     }
-    
+
     /**
      * 根据课程类型调整考试请求参数
      */
-    private ExamGenerationRequest adjustExamRequestByCourseType(ExamGenerationRequest originalRequest, 
+    private ExamGenerationRequest adjustExamRequestByCourseType(ExamGenerationRequest originalRequest,
                                                                CourseTypeDetectionService.CourseTypeResult courseTypeResult) {
-        
+
         ExamGenerationRequest adjustedRequest = new ExamGenerationRequest();
-        
+
         // 复制基础参数
         adjustedRequest.setCourseId(originalRequest.getCourseId());
         adjustedRequest.setTitle(originalRequest.getTitle());
@@ -3235,50 +3342,50 @@ public class ExamService {
         adjustedRequest.setDifficulty(originalRequest.getDifficulty());
         adjustedRequest.setStartTime(originalRequest.getStartTime());
         adjustedRequest.setClassId(originalRequest.getClassId());
-        
+
         // 根据课程类型调整题型分布
         Map<String, Object> adjustedQuestionTypes = adjustQuestionTypesByCourseType(
             originalRequest.getQuestionTypes(), courseTypeResult.getFinalType());
-        
+
         adjustedRequest.setQuestionTypes(adjustedQuestionTypes);
-        
+
         return adjustedRequest;
     }
-    
+
     /**
      * 根据课程类型调整题型分布
      */
     @SuppressWarnings("unchecked")
     private Map<String, Object> adjustQuestionTypesByCourseType(Object originalQuestionTypes, String courseType) {
         Map<String, Object> adjustedTypes = new HashMap<>();
-        
+
         // 如果有原始题型设置，先复制
         if (originalQuestionTypes instanceof Map) {
             adjustedTypes.putAll((Map<String, Object>) originalQuestionTypes);
         }
-        
+
         // 根据课程类型进行调整和优化
         switch (courseType) {
             case "理论课":
                 return adjustForTheoreticalCourse(adjustedTypes);
-                
+
             case "实践课":
                 return adjustForPracticalCourse(adjustedTypes);
-                
+
             case "混合课":
                 return adjustForMixedCourse(adjustedTypes);
-                
+
             default:
                 return adjustedTypes.isEmpty() ? getDefaultQuestionTypes() : adjustedTypes;
         }
     }
-    
+
     /**
      * 理论课题型调整
      */
     private Map<String, Object> adjustForTheoreticalCourse(Map<String, Object> originalTypes) {
         Map<String, Object> adjustedTypes = new HashMap<>(originalTypes);
-        
+
         // 如果没有设置题型，使用理论课默认配置
         if (adjustedTypes.isEmpty()) {
             adjustedTypes.put("multiple-choice", Map.of("count", 8, "scorePerQuestion", 5));
@@ -3292,15 +3399,15 @@ public class ExamService {
             enhanceQuestionType(adjustedTypes, "true-false", 1.1);
             reduceQuestionType(adjustedTypes, "programming", 0.5);
         }
-        
+
         // 添加理论课特有的题型
         if (!adjustedTypes.containsKey("short-answer")) {
             adjustedTypes.put("short-answer", Map.of("count", 2, "scorePerQuestion", 8));
         }
-        
+
         return adjustedTypes;
     }
-    
+
     /**
      * 实践课题型调整
      */
@@ -3318,15 +3425,15 @@ public class ExamService {
             reduceQuestionType(adjustedTypes, "fill-blank", 0.7);
             reduceQuestionType(adjustedTypes, "true-false", 0.6);
         }
-        
+
         // 添加实践课特有的题型
         if (!adjustedTypes.containsKey("design")) {
             adjustedTypes.put("design", Map.of("count", 1, "scorePerQuestion", 25));
         }
-        
+
         return adjustedTypes;
     }
-    
+
     /**
      * 混合课题型调整
      */
@@ -3343,10 +3450,10 @@ public class ExamService {
                 enhanceQuestionType(adjustedTypes, key, 1.0); // 保持原有比例
             }
         }
-        
+
         return adjustedTypes;
     }
-    
+
     /**
      * 增强题型数量
      */
@@ -3367,7 +3474,7 @@ public class ExamService {
             }
         }
     }
-    
+
     /**
      * 减少题型数量
      */
@@ -3388,7 +3495,7 @@ public class ExamService {
             }
         }
     }
-    
+
     /**
      * 获取默认题型配置
      */
