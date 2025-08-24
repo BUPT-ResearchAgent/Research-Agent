@@ -1,13 +1,21 @@
 package com.example.smartedu.controller;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.example.smartedu.dto.ApiResponse;
 import com.example.smartedu.entity.Notice;
 import com.example.smartedu.repository.NoticeRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpSession;
-import java.util.*;
 
 @RestController
 @RequestMapping("/api/notices")
@@ -25,13 +33,14 @@ public class NoticeController {
         try {
             // 验证用户权限
             String role = (String) session.getAttribute("role");
+            Long userId = (Long) session.getAttribute("userId"); // 获取用户ID
             if (!"teacher".equals(role) && !"student".equals(role)) {
                 return ApiResponse.error("权限不足");
             }
-            
+
             // 根据用户角色获取适当的通知
             List<Notice> systemNotices = new ArrayList<>();
-            
+
             if ("teacher".equals(role)) {
                 // 教师可以看到全体通知和教师通知
                 List<Notice> allNotices = noticeRepository.findByTargetTypeOrderByCreatedAtDesc("ALL");
@@ -44,6 +53,12 @@ public class NoticeController {
                 List<Notice> studentNotices = noticeRepository.findByTargetTypeOrderByCreatedAtDesc("STUDENT");
                 systemNotices.addAll(allNotices);
                 systemNotices.addAll(studentNotices);
+            }
+
+            // 新增：获取个人通知
+            if (userId != null) {
+                List<Notice> userNotices = noticeRepository.findByTargetUserIdOrderByCreatedAtDesc(userId);
+                systemNotices.addAll(userNotices);
             }
             
             // 按创建时间倒序排序

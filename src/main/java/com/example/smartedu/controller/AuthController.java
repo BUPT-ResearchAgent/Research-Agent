@@ -1,27 +1,38 @@
 package com.example.smartedu.controller;
 
-import com.example.smartedu.entity.User;
-import com.example.smartedu.entity.Teacher;
-import com.example.smartedu.entity.Student;
-import com.example.smartedu.service.UserService;
-import com.example.smartedu.service.TeacherManagementService;
-import com.example.smartedu.service.StudentManagementService;
-import com.example.smartedu.service.OnlineUserService;
-import com.example.smartedu.dto.ApiResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-import jakarta.servlet.http.HttpSession;
-
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.Base64;
-import java.io.IOException;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.example.smartedu.dto.ApiResponse;
+import com.example.smartedu.entity.Student;
+import com.example.smartedu.entity.Teacher;
+import com.example.smartedu.entity.User;
+import com.example.smartedu.service.OnlineUserService;
+import com.example.smartedu.service.StudentManagementService;
+import com.example.smartedu.service.TeacherManagementService;
+import com.example.smartedu.service.UserService;
+
+import jakarta.servlet.http.HttpSession;
 
 @RestController
 @RequestMapping("/api/auth")
