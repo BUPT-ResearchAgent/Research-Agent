@@ -936,32 +936,98 @@ public class AuthController {
             if (!"admin".equals(userRole)) {
                 return ApiResponse.error("无权限访问");
             }
-            
+
             List<User> users = userService.findAll();
-            
+
             // 应用筛选条件
             if (role != null && !role.isEmpty()) {
                 users = users.stream()
                     .filter(user -> role.equals(user.getRole()))
                     .collect(Collectors.toList());
             }
-            
+
             // 构建导出数据
             List<Map<String, Object>> exportData = users.stream().map(user -> {
                 Map<String, Object> userData = new HashMap<>();
                 userData.put("用户名", user.getUsername());
                 userData.put("角色", getRoleDisplayName(user.getRole()));
-                userData.put("注册时间", user.getCreatedAt() != null ? 
+                userData.put("注册时间", user.getCreatedAt() != null ?
                     user.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
-                userData.put("最后登录", user.getLastLogin() != null ? 
+                userData.put("最后登录", user.getLastLogin() != null ?
                     user.getLastLogin().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "从未登录");
                 userData.put("在线状态", onlineUserService.isUserOnline(user.getId()) ? "在线" : "离线");
                 return userData;
             }).collect(Collectors.toList());
-            
+
             return ApiResponse.success("导出成功", exportData);
         } catch (Exception e) {
             return ApiResponse.error("导出失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 检测用户密码强度（管理员功能）
+     */
+    @PostMapping("/admin/users/{userId}/check-password-strength")
+    public ApiResponse<Map<String, Object>> checkPasswordStrength(
+            @PathVariable Long userId,
+            HttpSession session) {
+        try {
+            // 检查管理员权限
+            String userRole = (String) session.getAttribute("role");
+            if (!"admin".equals(userRole)) {
+                return ApiResponse.error("权限不足，需要管理员权限");
+            }
+
+            // 获取用户信息
+            Optional<User> userOpt = userService.findById(userId);
+            if (!userOpt.isPresent()) {
+                return ApiResponse.error("用户不存在");
+            }
+
+            User user = userOpt.get();
+
+            // 检测密码强度
+            Map<String, Object> strengthResult = userService.checkPasswordStrength(user);
+
+            return ApiResponse.success("密码强度检测完成", strengthResult);
+        } catch (Exception e) {
+            return ApiResponse.error("密码强度检测失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 发送弱口令通知（管理员功能）
+     */
+    @PostMapping("/admin/users/{userId}/send-weak-password-notice")
+    public ApiResponse<String> sendWeakPasswordNotice(
+            @PathVariable Long userId,
+            HttpSession session) {
+        try {
+            // 检查管理员权限
+            String userRole = (String) session.getAttribute("role");
+            if (!"admin".equals(userRole)) {
+                return ApiResponse.error("权限不足，需要管理员权限");
+            }
+
+            // 获取用户信息
+            Optional<User> userOpt = userService.findById(userId);
+            if (!userOpt.isPresent()) {
+                return ApiResponse.error("用户不存在");
+            }
+
+            User user = userOpt.get();
+
+            // 发送弱口令通知
+            boolean success = userService.sendWeakPasswordNotice(user);
+
+            if (success) {
+                return ApiResponse.success("弱口令通知发送成功");
+            } else {
+                return ApiResponse.error("弱口令通知发送失败");
+            }
+        } catch (Exception e) {
+            return ApiResponse.error("发送弱口令通知失败：" + e.getMessage());
         }
     }
     

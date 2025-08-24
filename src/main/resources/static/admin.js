@@ -635,6 +635,9 @@ function initUserManagement() {
                 </td>
                 <td>
                     <div class="action-buttons">
+                        <button class="action-btn password-check" onclick="checkPasswordStrength(${user.id})" title="密码强弱检测">
+                            <i class="fas fa-shield-alt"></i> 密码检测
+                        </button>
                         <button class="action-btn edit" onclick="editUser(${user.id})" ${user.username === 'admin' ? 'disabled' : ''}>
                             <i class="fas fa-edit"></i> 编辑
                         </button>
@@ -1079,7 +1082,278 @@ function bindAddUserEvents() {
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(initAddUser, 100);
     initConfirmModal();
-}); 
+    initPasswordStrengthModal();
+});
+
+// 角色显示名称转换函数
+function getRoleDisplayName(role) {
+    const roleNames = {
+        'admin': '管理员',
+        'teacher': '教师',
+        'student': '学生'
+    };
+    return roleNames[role] || role;
+}
+
+// 密码强弱检测功能
+function checkPasswordStrength(userId) {
+    console.log('密码检测按钮被点击，用户ID:', userId);
+
+    // 从当前用户列表中找到要检测的用户
+    const user = filteredUsers.find(u => u.id === userId);
+    if (!user) {
+        showNotification('用户不存在', 'error');
+        return;
+    }
+
+    // 显示密码检测弹窗
+    const modal = document.getElementById('password-strength-modal');
+    const checkUsername = document.getElementById('check-username');
+    const checkUserRole = document.getElementById('check-user-role');
+
+    if (!modal) {
+        console.error('找不到密码检测弹窗元素');
+        showNotification('页面元素加载错误', 'error');
+        return;
+    }
+
+    // 设置用户信息
+    checkUsername.textContent = user.username;
+    checkUserRole.textContent = getRoleDisplayName(user.role);
+
+    // 重置弹窗状态
+    resetPasswordCheckModal();
+
+    // 显示弹窗
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('show'), 10);
+
+    // 存储当前检测的用户ID
+    modal.dataset.userId = userId;
+}
+
+// 重置密码检测弹窗状态
+function resetPasswordCheckModal() {
+    const resultContainer = document.getElementById('password-result-container');
+    const noResultMessage = document.getElementById('no-result-message');
+    const checkStatus = document.getElementById('check-status');
+    const weakNotice = document.getElementById('weak-password-notice');
+    const startButton = document.getElementById('start-password-check');
+
+    // 隐藏结果区域
+    resultContainer.style.display = 'none';
+    noResultMessage.style.display = 'block';
+    checkStatus.style.display = 'none';
+    weakNotice.style.display = 'none';
+
+    // 重置按钮状态
+    startButton.disabled = false;
+    startButton.innerHTML = '<i class="fas fa-play"></i><span>开始密码检测</span>';
+
+    // 清空结果内容
+    document.getElementById('strength-level').textContent = '未检测';
+    document.getElementById('strength-level').className = 'badge badge-secondary';
+    document.getElementById('strength-reason').textContent = '点击开始检测按钮进行密码强度检测';
+    document.getElementById('security-suggestions').innerHTML = '';
+}
+
+// 执行密码强度检测
+async function performPasswordCheck() {
+    const modal = document.getElementById('password-strength-modal');
+    const userId = modal.dataset.userId;
+
+    if (!userId) {
+        showNotification('用户信息错误', 'error');
+        return;
+    }
+
+    const checkStatus = document.getElementById('check-status');
+    const startButton = document.getElementById('start-password-check');
+    const resultContainer = document.getElementById('password-result-container');
+    const noResultMessage = document.getElementById('no-result-message');
+
+    try {
+        // 显示检测状态
+        checkStatus.style.display = 'block';
+        startButton.disabled = true;
+        startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>检测中...</span>';
+
+        // 调用后端API检测密码强度
+        const response = await fetch(`/api/auth/admin/users/${userId}/check-password-strength`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            // 隐藏检测状态，显示结果
+            checkStatus.style.display = 'none';
+            noResultMessage.style.display = 'none';
+            resultContainer.style.display = 'block';
+
+            // 显示检测结果
+            displayPasswordStrengthResult(result.data);
+
+            showNotification('密码强度检测完成', 'success');
+        } else {
+            throw new Error(result.message || '密码强度检测失败');
+        }
+    } catch (error) {
+        console.error('密码强度检测失败:', error);
+        showNotification('密码强度检测失败: ' + error.message, 'error');
+
+        // 重置状态
+        checkStatus.style.display = 'none';
+        startButton.disabled = false;
+        startButton.innerHTML = '<i class="fas fa-play"></i><span>开始密码检测</span>';
+    }
+}
+
+// 显示密码强度检测结果
+function displayPasswordStrengthResult(data) {
+    const strengthLevel = document.getElementById('strength-level');
+    const strengthReason = document.getElementById('strength-reason');
+    const securitySuggestions = document.getElementById('security-suggestions');
+    const weakNotice = document.getElementById('weak-password-notice');
+
+    // 设置强度等级样式和文本
+    const strengthText = {
+        'WEAK': '弱',
+        'MEDIUM': '中等',
+        'STRONG': '强'
+    };
+
+    const strengthClass = {
+        'WEAK': 'badge-danger',
+        'MEDIUM': 'badge-warning',
+        'STRONG': 'badge-success'
+    };
+
+    strengthLevel.textContent = strengthText[data.strength] || data.strength;
+    strengthLevel.className = `badge ${strengthClass[data.strength] || 'badge-secondary'}`;
+
+    // 设置检测原因
+    strengthReason.textContent = data.reason || '密码强度检测完成';
+
+    // 显示安全建议
+    securitySuggestions.innerHTML = '';
+    if (data.suggestions && data.suggestions.length > 0) {
+        data.suggestions.forEach(suggestion => {
+            const li = document.createElement('li');
+            li.style.cssText = 'padding: 8px 0; border-bottom: 1px solid #f0f0f0; display: flex; align-items: flex-start; gap: 8px;';
+            li.innerHTML = `
+                <i class="fas fa-check-circle" style="color: #28a745; margin-top: 2px; flex-shrink: 0;"></i>
+                <span style="color: #495057; font-size: 14px;">${suggestion}</span>
+            `;
+            securitySuggestions.appendChild(li);
+        });
+    }
+
+    // 如果是弱口令，显示通知区域
+    if (data.isWeak) {
+        weakNotice.style.display = 'block';
+    } else {
+        weakNotice.style.display = 'none';
+    }
+}
+
+// 发送弱口令通知
+async function sendWeakPasswordNotice() {
+    const modal = document.getElementById('password-strength-modal');
+    const userId = modal.dataset.userId;
+
+    if (!userId) {
+        showNotification('用户信息错误', 'error');
+        return;
+    }
+
+    const sendButton = document.getElementById('send-weak-notice');
+
+    try {
+        // 禁用按钮，显示发送状态
+        sendButton.disabled = true;
+        sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>发送中...</span>';
+
+        // 调用后端API发送通知
+        const response = await fetch(`/api/auth/admin/users/${userId}/send-weak-password-notice`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showNotification('弱口令通知发送成功', 'success');
+
+            // 更新按钮状态
+            sendButton.innerHTML = '<i class="fas fa-check"></i><span>已发送</span>';
+            sendButton.style.backgroundColor = '#28a745';
+
+            // 3秒后关闭弹窗
+            setTimeout(() => {
+                closePasswordStrengthModal();
+            }, 2000);
+        } else {
+            throw new Error(result.message || '发送通知失败');
+        }
+    } catch (error) {
+        console.error('发送弱口令通知失败:', error);
+        showNotification('发送弱口令通知失败: ' + error.message, 'error');
+
+        // 重置按钮状态
+        sendButton.disabled = false;
+        sendButton.innerHTML = '<i class="fas fa-paper-plane"></i><span>发送弱口令通知</span>';
+        sendButton.style.backgroundColor = '';
+    }
+}
+
+// 关闭密码强度检测弹窗
+function closePasswordStrengthModal() {
+    const modal = document.getElementById('password-strength-modal');
+    modal.classList.remove('show');
+    setTimeout(() => {
+        modal.style.display = 'none';
+        resetPasswordCheckModal();
+    }, 300);
+}
+
+// 初始化密码强度检测弹窗事件
+function initPasswordStrengthModal() {
+    const modal = document.getElementById('password-strength-modal');
+    const closeBtn = document.getElementById('close-password-strength-modal');
+    const closeBtn2 = document.getElementById('close-password-check');
+    const startCheckBtn = document.getElementById('start-password-check');
+    const sendNoticeBtn = document.getElementById('send-weak-notice');
+
+    // 关闭按钮事件
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closePasswordStrengthModal);
+    }
+
+    if (closeBtn2) {
+        closeBtn2.addEventListener('click', closePasswordStrengthModal);
+    }
+
+    // 开始检测按钮事件
+    if (startCheckBtn) {
+        startCheckBtn.addEventListener('click', performPasswordCheck);
+    }
+
+    // 发送通知按钮事件
+    if (sendNoticeBtn) {
+        sendNoticeBtn.addEventListener('click', sendWeakPasswordNotice);
+    }
+
+    // 点击弹窗外部关闭
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closePasswordStrengthModal();
+            }
+        });
+    }
+}
 
 // 确认弹窗处理
 function initConfirmModal() {
