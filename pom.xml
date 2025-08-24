@@ -34,7 +34,7 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        
+
         <!-- 数据库相关 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -49,32 +49,32 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
-        
+
         <!-- 文件上传 -->
         <dependency>
             <groupId>commons-fileupload</groupId>
             <artifactId>commons-fileupload</artifactId>
             <version>1.5</version>
         </dependency>
-        
+
         <!-- HTTP客户端调用DeepSeek API -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
-        
+
         <!-- JSON处理 -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
-        
+
         <!-- 验证 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
-        
+
         <!-- Spring Security for encryption and security -->
         <dependency>
             <groupId>org.springframework.security</groupId>
@@ -87,21 +87,21 @@
             <artifactId>milvus-sdk-java</artifactId>
             <version>2.4.1</version>
         </dependency>
-        
+
         <!-- 中文分词器 -->
         <dependency>
             <groupId>com.hankcs</groupId>
             <artifactId>hanlp</artifactId>
             <version>portable-1.8.4</version>
         </dependency>
-        
+
         <!-- ONNX Runtime for BGE model -->
         <dependency>
             <groupId>com.microsoft.onnxruntime</groupId>
             <artifactId>onnxruntime</artifactId>
             <version>1.18.0</version>
         </dependency>
-        
+
         <!-- Apache Tika for document parsing -->
         <dependency>
             <groupId>org.apache.tika</groupId>
@@ -128,7 +128,7 @@
             <artifactId>commons-text</artifactId>
             <version>1.11.0</version>
         </dependency>
-        
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -141,7 +141,7 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        
+
         <!-- PDF生成依赖 -->
         <dependency>
             <groupId>com.itextpdf</groupId>
@@ -149,20 +149,20 @@
             <version>8.0.2</version>
             <type>pom</type>
         </dependency>
-        
+
         <dependency>
             <groupId>com.itextpdf</groupId>
             <artifactId>html2pdf</artifactId>
             <version>5.0.2</version>
         </dependency>
-        
+
         <!-- 中文字体支持 -->
         <dependency>
             <groupId>com.itextpdf</groupId>
             <artifactId>font-asian</artifactId>
             <version>7.1.13</version>
         </dependency>
-        
+
         <!-- Apache POI for Excel export -->
         <dependency>
             <groupId>org.apache.poi</groupId>
@@ -174,14 +174,16 @@
             <artifactId>poi-ooxml</artifactId>
             <version>5.2.4</version>
         </dependency>
-        
+
         <!-- Commons IO - 确保与POI 5.2.4兼容 -->
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
             <version>2.15.1</version>
         </dependency>
+
     </dependencies>
+
 
     <build>
         <plugins>

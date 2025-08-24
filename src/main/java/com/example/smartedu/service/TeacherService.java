@@ -595,28 +595,7 @@ public class TeacherService {
             knowledgeBaseService.searchKnowledge(courseId, queryText, 10); // 搜索top 10相关内容
         
         if (searchResults.isEmpty()) {
-            // 如果RAG搜索没有结果，可能是向量数据库的问题，尝试重建集合
-            System.out.println("向量搜索无结果，可能是字段名称问题，尝试重建向量集合");
-            boolean rebuilt = vectorDatabaseService.rebuildCollectionForCourse(courseId);
-            
-            if (rebuilt) {
-                // 重建成功后，需要重新导入知识库数据
-                System.out.println("向量集合重建成功，需要重新导入知识库数据");
-                knowledgeBaseService.reimportCourseKnowledge(courseId);
-                
-                // 再次尝试搜索
-                searchResults = knowledgeBaseService.searchKnowledge(courseId, queryText, 10);
-            }
-            
-            if (searchResults.isEmpty()) {
-                // 如果仍然没有结果，使用备用方案
-                System.out.println("重建后仍无搜索结果，使用数据库中的知识块");
-                searchResults = getFallbackKnowledgeChunks(courseId, 5);
-                
-                if (searchResults.isEmpty()) {
-                    throw new RuntimeException("无法从知识库中检索到相关内容，请检查知识库数据是否正常");
-        }
-            }
+            throw new RuntimeException("无法从知识库中检索到与教学要求相关的内容，请调整要求或检查知识库数据");
         }
         
         System.out.println("RAG搜索完成，找到 " + searchResults.size() + " 个相关知识块");

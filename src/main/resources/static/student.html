@@ -896,30 +896,43 @@
                 </div>
             </div>
             
-            <!-- 热点推送模块 -->
-            <div class="hotspot-news-card">
-                <div class="card-header">
-                    <i class="fas fa-fire"></i> 热点推送
-                    <div class="card-actions">
-                        <select class="form-select" id="hotspot-filter" onchange="filterHotspots()" style="margin-right: 10px;">
-                            <option value="today">今日热点</option>
-                            <option value="week">本周热点</option>
-                            <option value="month">本月热点</option>
-                        </select>
-                        <button class="btn btn-sm btn-accent" onclick="refreshHotspots()">
-                            <i class="fas fa-sync-alt"></i> 刷新
-                        </button>
-                    </div>
-                </div>
-                <div class="hotspot-container">
-                    <div class="hotspot-list" id="student-hotspot-list">
-                        <!-- 热点内容将通过JavaScript动态加载 -->
-                        <div class="hotspot-loading" style="text-align: center; padding: 48px 0; color: #7f8c8d;">
-                            <i class="fas fa-fire" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;"></i>
-                            <p>正在加载热点内容...</p>
-                            <p>为您推送最新的教育资讯和学习动态</p>
+            <!-- 热点推送与产业信息 -->
+            <div class="main-content" style="grid-template-columns: 1fr 1fr; align-items: start; gap: 20px;">
+                <!-- 左侧列: 热点推送 -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-fire"></i> 热点推送
+                        <div class="card-actions">
+                            <select class="form-select" id="hotspot-filter" onchange="filterHotspots()" style="margin-right: 10px;">
+                                <option value="today">今日热点</option>
+                                <option value="week">本周热点</option>
+                                <option value="month">本月热点</option>
+                            </select>
+                            <button class="btn btn-sm btn-accent" onclick="refreshHotspots()">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
                         </div>
                     </div>
+                    <div class="hotspot-container">
+                        <div class="hotspot-list" id="student-hotspot-list">
+                            <!-- 热点内容将通过JavaScript动态加载 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧列: 产业信息 -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <i class="fas fa-briefcase"></i> 产业信息
+                        <div class="card-actions">
+                             <button class="btn btn-sm btn-accent" onclick="refreshJobPostings()">
+                                <i class="fas fa-sync-alt"></i> 刷新
+                            </button>
+                        </div>
+                    </div>
+                    <ul class="recent-activity" id="job-postings-list">
+                        <!-- 产业信息将动态加载于此 -->
+                    </ul>
                 </div>
             </div>
         </section>

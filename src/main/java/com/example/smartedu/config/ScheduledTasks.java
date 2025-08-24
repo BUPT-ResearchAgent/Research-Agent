@@ -1,27 +1,29 @@
 package com.example.smartedu.config;
 
-import com.example.smartedu.service.OnlineUserService;
-import com.example.smartedu.service.ExamService;
-
-import com.example.smartedu.service.ClassroomCollaborationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import com.example.smartedu.service.ClassroomCollaborationService;
+import com.example.smartedu.service.ExamService;
+import com.example.smartedu.service.JobScraperService;
+import com.example.smartedu.service.OnlineUserService;
+
 @Component
 public class ScheduledTasks {
-    
+
     @Autowired
     private OnlineUserService onlineUserService;
-    
+
     @Autowired
     private ExamService examService;
-    
 
-    
     @Autowired
     private ClassroomCollaborationService classroomCollaborationService;
-    
+
+    @Autowired
+    private JobScraperService jobScraperService;
+
     /**
      * 每5分钟清理一次过期的在线用户
      */
@@ -29,7 +31,7 @@ public class ScheduledTasks {
     public void cleanupExpiredOnlineUsers() {
         onlineUserService.cleanupExpiredUsers();
     }
-    
+
     /**
      * 每分钟检查一次定时发布的试卷
      */
@@ -42,9 +44,7 @@ public class ScheduledTasks {
             e.printStackTrace();
         }
     }
-    
 
-    
     /**
      * 每6小时清理一次过期的课堂会话
      */
@@ -58,4 +58,18 @@ public class ScheduledTasks {
             e.printStackTrace();
         }
     }
-} 
+
+    /**
+     * 每6小时爬取一次招聘信息
+     */
+    @Scheduled(fixedRate = 21600000) // 6小时 = 21600000毫秒
+    public void scrapeJobPostings() {
+        try {
+            jobScraperService.scrapeAndSaveJobPostings();
+            System.out.println("招聘信息爬取完成");
+        } catch (Exception e) {
+            System.err.println("爬取招聘信息时发生错误: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}

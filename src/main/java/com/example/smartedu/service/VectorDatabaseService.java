@@ -270,6 +270,9 @@ public class VectorDatabaseService {
             // 指定要返回的字段
             List<String> outFields = Arrays.asList(CHUNK_ID_FIELD, CONTENT_FIELD, COURSE_ID_FIELD);
             
+            // 构建表达式过滤器，确保只搜索指定课程ID的内容
+            String expr = COURSE_ID_FIELD + " == " + courseId;
+
             SearchParam searchParam = SearchParam.newBuilder()
                 .withCollectionName(collectionName)
                 .withVectorFieldName(VECTOR_FIELD)
@@ -278,6 +281,7 @@ public class VectorDatabaseService {
                 .withMetricType(io.milvus.param.MetricType.COSINE)
                 .withParams("{\"nprobe\":32}")
                 .withOutFields(outFields)
+                .withExpr(expr) // 添加表达式过滤器
                 .withConsistencyLevel(ConsistencyLevelEnum.STRONG)
                 .build();
             
@@ -452,58 +456,27 @@ public class VectorDatabaseService {
      * 同时搜索课程知识库和基础知识库（政策文档作为附加指导）
      */
     public List<SearchResult> searchWithBaseKnowledge(Long courseId, String queryText, int topK) {
-        List<SearchResult> allResults = new ArrayList<>();
-        
-        // 调整搜索策略：课程知识库为主（85%），政策文档为辅助指导（15%）
-        int courseTopK = Math.max(1, topK * 85 / 100);  // 课程内容占主导
-        int baseKnowledgeTopK = Math.max(1, topK - courseTopK);  // 政策文档作为补充
-        
-        System.out.println("开始联合搜索 - 课程知识库: " + courseTopK + "个（主要内容）, 政策指导: " + baseKnowledgeTopK + "个（附加考虑）");
-        
+        // 搜索策略调整：强制只使用当前课程的知识库进行RAG
+        System.out.println("开始课程专属知识库搜索，课程ID: " + courseId);
         try {
-            // 1. 首先搜索课程特定知识库（主要内容）
-            List<SearchResult> courseResults = search(courseId, queryText, courseTopK);
+            // 只搜索课程特定知识库
+            List<SearchResult> courseResults = search(courseId, queryText, topK);
             System.out.println("课程知识库搜索结果: " + courseResults.size() + " 个");
-            
-            // 2. 搜索政策文档作为指导补充
-            List<SearchResult> policyResults = searchPolicyGuidance(queryText, baseKnowledgeTopK);
-            System.out.println("政策指导搜索结果: " + policyResults.size() + " 个");
-            
-            // 3. 优先添加课程内容，然后添加政策指导
-            allResults.addAll(courseResults);
-            allResults.addAll(policyResults);
-            
-            // 按相似度排序，但保持课程内容的优先级
-            allResults.sort((a, b) -> {
-                // 如果一个是课程内容，一个是政策文档，优先课程内容
-                if (a.getCourseId() != 0L && b.getCourseId() == 0L) {
-                    return -1;
-                } else if (a.getCourseId() == 0L && b.getCourseId() != 0L) {
-                    return 1;
-                } else {
-                    // 同类型的按相似度排序
-                    return Float.compare(b.getScore(), a.getScore());
-                }
-            });
-            
-            // 限制返回数量
-            if (allResults.size() > topK) {
-                allResults = allResults.subList(0, topK);
+
+            // 如果课程专属知识库没有内容，则补充政策文件作为通用指导
+            if (courseResults.isEmpty()) {
+                System.out.println("课程知识库无相关内容，补充通用政策指导文件");
+                List<SearchResult> policyResults = searchPolicyGuidance(queryText, topK);
+                System.out.println("政策指导搜索结果: " + policyResults.size() + " 个");
+                return policyResults;
             }
-            
-            System.out.println("联合搜索完成，总共返回 " + allResults.size() + " 个结果");
-            
-            // 打印结果来源统计
-            long courseCount = allResults.stream().mapToLong(r -> r.getCourseId() != 0L ? 1 : 0).sum();
-            long policyCount = allResults.size() - courseCount;
-            System.out.println("结果来源分布 - 课程内容: " + courseCount + "个（主要）, 政策指导: " + policyCount + "个（附加）");
-            
+
+            return courseResults;
         } catch (Exception e) {
-            System.err.println("联合搜索异常: " + e.getMessage());
+            System.err.println("课程知识库搜索失败: " + e.getMessage());
             e.printStackTrace();
+            return new ArrayList<>();
         }
-        
-        return allResults;
     }
     
     /**
