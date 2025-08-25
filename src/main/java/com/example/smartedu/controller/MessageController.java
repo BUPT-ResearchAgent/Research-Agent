@@ -14,10 +14,10 @@ import java.util.Map;
 @RequestMapping("/api/messages")
 @CrossOrigin(originPatterns = "*", allowCredentials = "true")
 public class MessageController {
-    
+
     @Autowired
     private MessageService messageService;
-    
+
     /**
      * 发送消息
      */
@@ -29,18 +29,18 @@ public class MessageController {
             Long receiverId = Long.valueOf(request.get("receiverId").toString());
             String receiverType = (String) request.get("receiverType");
             String content = (String) request.get("content");
-            Long courseId = request.get("courseId") != null ? 
+            Long courseId = request.get("courseId") != null ?
                     Long.valueOf(request.get("courseId").toString()) : null;
-            
+
             System.out.println("收到发送消息请求:");
             System.out.println("  发送者: " + senderId + " (" + senderType + ")");
             System.out.println("  接收者: " + receiverId + " (" + receiverType + ")");
             System.out.println("  内容: " + content);
             System.out.println("  课程ID: " + courseId);
-            
+
             Message message = messageService.sendMessage(
                 senderId, senderType, receiverId, receiverType, courseId, content);
-            
+
             System.out.println("消息发送成功，消息ID: " + message.getId());
             return ResponseEntity.ok(new ApiResponse<>(true, "消息发送成功", message));
         } catch (Exception e) {
@@ -49,7 +49,7 @@ public class MessageController {
             return ResponseEntity.ok(new ApiResponse<>(false, "发送失败: " + e.getMessage(), null));
         }
     }
-    
+
     /**
      * 获取对话记录
      */
@@ -66,7 +66,7 @@ public class MessageController {
             return ResponseEntity.ok(new ApiResponse<>(false, "获取失败: " + e.getMessage(), null));
         }
     }
-    
+
     /**
      * 获取用户的对话列表
      */
@@ -81,7 +81,7 @@ public class MessageController {
             return ResponseEntity.ok(new ApiResponse<>(false, "获取失败: " + e.getMessage(), null));
         }
     }
-    
+
     /**
      * 获取未读消息数量
      */
@@ -96,7 +96,7 @@ public class MessageController {
             return ResponseEntity.ok(new ApiResponse<>(false, "获取失败: " + e.getMessage(), 0L));
         }
     }
-    
+
     /**
      * 标记对话为已读
      */
@@ -107,11 +107,11 @@ public class MessageController {
             String receiverType = (String) request.get("receiverType");
             Long senderId = Long.valueOf(request.get("senderId").toString());
             String senderType = (String) request.get("senderType");
-            
+
             System.out.println("标记已读请求:");
             System.out.println("  接收者: " + receiverId + " (" + receiverType + ")");
             System.out.println("  发送者: " + senderId + " (" + senderType + ")");
-            
+
             messageService.markConversationAsRead(receiverId, receiverType, senderId, senderType);
             return ResponseEntity.ok(new ApiResponse<>(true, "标记成功", "对话已标记为已读"));
         } catch (Exception e) {
@@ -119,7 +119,7 @@ public class MessageController {
             return ResponseEntity.ok(new ApiResponse<>(false, "标记失败: " + e.getMessage(), null));
         }
     }
-    
+
     /**
      * 获取课程中可以聊天的用户列表
      */
@@ -135,7 +135,7 @@ public class MessageController {
             return ResponseEntity.ok(new ApiResponse<>(false, "获取失败: " + e.getMessage(), null));
         }
     }
-    
+
     /**
      * 获取用户的课程列表
      */
@@ -150,4 +150,22 @@ public class MessageController {
             return ResponseEntity.ok(new ApiResponse<>(false, "获取失败: " + e.getMessage(), null));
         }
     }
-} 
+
+    /**
+     * 删除对话
+     */
+    @DeleteMapping("/conversation")
+    public ResponseEntity<ApiResponse<String>> deleteConversation(
+            @RequestParam Long userId1,
+            @RequestParam String userType1,
+            @RequestParam Long userId2,
+            @RequestParam String userType2) {
+        try {
+            messageService.deleteConversation(userId1, userType1, userId2, userType2);
+            return ResponseEntity.ok(new ApiResponse<>(true, "删除成功", "对话已删除"));
+        } catch (Exception e) {
+            return ResponseEntity.ok(new ApiResponse<>(false, "删除失败: " + e.getMessage(), null));
+        }
+    }
+
+}

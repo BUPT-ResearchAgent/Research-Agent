@@ -329,4 +329,14 @@ public class MessageService {
 
         return courses;
     }
+
+    /**
+     * 删除两个用户之间的对话
+     */
+    public void deleteConversation(Long userId1, String userType1, Long userId2, String userType2) {
+        List<Message> messagesToDelete = messageRepository.findConversation(userId1, userType1, userId2, userType2);
+        if (messagesToDelete != null && !messagesToDelete.isEmpty()) {
+            messageRepository.deleteAll(messagesToDelete);
+        }
+    }
 }

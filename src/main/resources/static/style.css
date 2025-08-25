@@ -549,31 +549,31 @@ body {
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 24px;
     }
-    
+
     .main-content {
         grid-template-columns: 1fr 1fr; /* 保持等宽两列 */
         gap: 32px;
     }
-    
+
     .content {
         padding: 32px 40px 0 40px;
     }
-    
+
     /* 超大屏幕下独立模块调整 */
     .recent-courses-card {
         height: 450px;
         min-height: 450px;
         max-height: 450px;
     }
-    
+
     .recent-courses-card .table-container {
         max-height: calc(450px - 80px) !important; /* 减去header高度 */
     }
-    
+
     .knowledge-mastery-card {
         min-height: 360px;
     }
-    
+
     .main-content .content-column .content-card {
         height: 380px; /* 超大屏幕下的固定高度 */
         overflow: hidden;
@@ -585,22 +585,22 @@ body {
         grid-template-columns: 1fr;
         gap: 20px;
     }
-    
+
     /* 中等屏幕下调整高度 */
     .recent-courses-card {
         height: 320px;
         min-height: 320px;
         max-height: 320px;
     }
-    
+
     .recent-courses-card .table-container {
         max-height: calc(320px - 80px) !important; /* 减去header高度 */
     }
-    
+
     .knowledge-mastery-card {
         min-height: 320px;
     }
-    
+
     .main-content .content-column .content-card {
         height: 300px; /* 中等屏幕下的固定高度 */
         overflow: hidden;
@@ -1056,16 +1056,16 @@ body {
     #error-analysis-table th:nth-child(3) { width: 14%; min-width: 80px; }
     #error-analysis-table th:nth-child(4) { width: 20%; min-width: 100px; }
     #error-analysis-table th:nth-child(5) { width: 42%; min-width: 180px; }
-    
+
     #error-analysis-table {
         min-width: 600px;
     }
-    
+
     #error-analysis-table thead th {
         padding: 12px 8px;
         font-size: 13px;
     }
-    
+
     #error-analysis-table tbody td {
         padding: 12px 8px;
     }
@@ -1083,21 +1083,21 @@ body {
         grid-template-columns: repeat(2, 1fr);
         gap: 10px;
     }
-    
+
     #grade-analysis .stat-card {
         padding: 16px 12px;
     }
-    
+
     #error-analysis-table {
         min-width: 400px;
         font-size: 12px;
     }
-    
-    #error-analysis-table th, 
+
+    #error-analysis-table th,
     #error-analysis-table td {
         padding: 8px 4px;
     }
-    
+
     #error-analysis-table td:nth-child(5) {
         max-width: 200px;
         font-size: 12px;
@@ -1109,15 +1109,15 @@ body {
         grid-template-columns: 1fr 1fr;
         gap: 8px;
     }
-    
+
     #grade-analysis .stat-card {
         padding: 12px 8px;
     }
-    
+
     #grade-analysis .stat-title {
         font-size: 12px;
     }
-    
+
     #grade-analysis .stat-value {
         font-size: 20px;
     }
@@ -1421,66 +1421,66 @@ tr:hover {
         width: 70px;
         min-width: 70px;
     }
-    
+
     .menu-title, .menu-item span, .submenu-item {
         display: none;
     }
-    
+
     .menu-item {
         justify-content: center;
         padding: 18px 0;
     }
-    
+
     .menu-item i:first-child {
         margin-right: 0;
         font-size: 22px;
     }
-    
+
     .content {
         margin-left: 0;
         padding: 16px 12px 0 12px;
     }
-    
+
     .stats-container {
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 12px;
         margin-bottom: 20px;
     }
-    
+
     .stat-card {
         padding: 16px 12px;
         margin-bottom: 12px;
         min-height: 120px;
     }
-    
+
     .header {
         padding: 0 15px;
     }
-    
+
     .user-name {
         display: none;
     }
-    
+
     .content-header, .content-card {
         padding: 16px 12px;
         margin-bottom: 16px;
     }
-    
+
     .header-actions {
         width: 100%;
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 8px;
     }
-    
+
     .page-title {
         font-size: 1.3rem;
     }
-    
+
     .main-content {
         gap: 16px;
     }
-    
+
     /* 移动端限制最大高度，保持滚动功能 */
     .recent-courses-card {
         height: 350px;
@@ -1488,18 +1488,18 @@ tr:hover {
         max-height: 350px;
         overflow: hidden; /* 保持滚动 */
     }
-    
+
     .recent-courses-card .table-container {
         max-height: calc(350px - 80px) !important;
     }
-    
+
     .knowledge-mastery-card,
     .main-content .content-column .content-card {
         min-height: auto;
         height: auto; /* 知识点掌握和通知/待办使用自适应 */
         overflow: visible;
     }
-    
+
     .main-content .content-column .content-card .recent-activity {
         overflow-y: visible; /* 移动端取消滚动 */
         padding-right: 0;
@@ -1511,26 +1511,26 @@ tr:hover {
         flex-direction: column;
         gap: 10px;
     }
-    
+
     .stats-container {
         grid-template-columns: 1fr;
         gap: 12px;
     }
-    
+
     .content {
         padding: 16px 8px 0 8px;
     }
-    
+
     .table-container {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
-    
+
     .btn {
         padding: 8px 16px;
         font-size: 14px;
     }
-    
+
     .card-header {
         font-size: 1.1rem;
         padding-bottom: 12px;
@@ -1729,7 +1729,7 @@ tr:hover {
 }
 
 /* 特别针对最新通知的新建按钮和待办事项的全部标记按钮 */
-.card-actions .btn-accent i, 
+.card-actions .btn-accent i,
 .card-actions .btn-primary i {
     color: white !important;
 }
@@ -2780,7 +2780,7 @@ input[type="checkbox"].checkbox-sm {
         grid-template-columns: 1fr;
         gap: 8px;
     }
-    
+
     .question-type-item {
         min-width: auto;
         width: 100%;
@@ -2789,60 +2789,60 @@ input[type="checkbox"].checkbox-sm {
         flex-wrap: wrap;
         gap: 8px;
     }
-    
+
     .question-type-item label {
         flex: 1;
         min-width: 120px;
     }
-    
+
     .question-type-item .form-input-sm {
         width: 60px;
         margin-right: 8px;
     }
-    
+
     .custom-question-item {
         flex-direction: column;
         align-items: flex-start;
         gap: 16px;
         padding: 20px;
     }
-    
+
     .custom-question-item::before {
         top: 12px;
         right: 16px;
     }
-    
+
     .custom-question-item label {
         width: 100%;
         margin-bottom: 8px;
     }
-    
+
     .form-input-custom {
         width: 100%;
         min-width: auto;
         margin-bottom: 8px;
     }
-    
+
     .custom-question-item .form-input-sm {
         width: 80px;
         margin-right: 8px;
     }
-    
+
     .exam-info {
         flex-direction: column;
         gap: 8px;
     }
-    
+
     .form-actions {
         flex-direction: column;
     }
-    
+
     .difficulty-item {
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
     }
-    
+
     .difficulty-item label {
         width: auto;
     }
@@ -3197,29 +3197,29 @@ input[type="checkbox"].checkbox-sm {
         width: 95%;
         margin: 20px;
     }
-    
+
     .course-modal-header {
         padding: 20px 24px;
     }
-    
+
     .course-modal-header h3 {
         font-size: 20px;
     }
-    
+
     .course-modal-body {
         padding: 24px;
     }
-    
+
     .course-form-grid {
         grid-template-columns: 1fr;
         gap: 20px;
     }
-    
+
     .course-modal-actions {
         flex-direction: column-reverse;
         gap: 12px;
     }
-    
+
     .course-btn {
         width: 100%;
     }
@@ -3625,7 +3625,7 @@ section#upload-material .form-actions {
         flex-direction: column;
         gap: 16px;
     }
-    
+
     .form-row .form-group {
         flex: none;
         margin-bottom: 16px;
@@ -3937,9 +3937,9 @@ section#upload-material .form-actions {
 }
 
 .outline-content {
-    background: #f8f9fa; 
-    border-radius: 8px; 
-    padding: 24px; 
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 24px;
     border: 1px solid #e9ecef;
     line-height: 1.7;
     font-size: 14px;
@@ -4200,11 +4200,11 @@ select#history-course-filter {
         height: auto !important;
         gap: 12px !important;
     }
-    
+
     .outline-edit-panel {
         height: 250px !important;
     }
-    
+
     .outline-edit-textarea,
     .outline-edit-preview {
         font-size: 13px !important;
@@ -4289,11 +4289,11 @@ select#history-course-filter {
         height: auto !important;
         gap: 12px !important;
     }
-    
+
     .exam-edit-panel {
         height: 250px !important;
     }
-    
+
     .exam-edit-textarea,
     .exam-edit-preview {
         font-size: 13px !important;
@@ -4308,22 +4308,22 @@ select#history-course-filter {
         max-width: 95%;
         margin: 20px;
     }
-    
+
     .history-filters {
         flex-direction: column;
         gap: 12px !important;
         align-items: stretch !important;
     }
-    
+
     .history-item {
         padding: 16px !important;
     }
-    
+
     .history-item div[style*="justify-content: space-between"] {
         flex-direction: column !important;
         gap: 12px !important;
     }
-    
+
     .history-item div[style*="display: flex; gap: 8px"] {
         justify-content: flex-start !important;
     }
@@ -4336,12 +4336,12 @@ select#history-course-filter {
         gap: 12px;
         text-align: center;
     }
-    
+
     .outline-display .outline-actions {
         flex-direction: column;
         width: 100%;
     }
-    
+
     .outline-display .outline-actions .btn {
         width: 100%;
     }
@@ -4384,13 +4384,13 @@ select#history-course-filter {
         gap: 4px;
         width: 100%;
     }
-    
+
     .history-item .btn-sm {
         width: 100%;
         text-align: center;
         padding: 6px 8px;
     }
-    
+
     /* 在小屏幕上调整历史项目的布局 */
     .history-item div[style*="justify-content: space-between"] {
         flex-direction: column !important;
@@ -4655,7 +4655,7 @@ section#gen-test .main-content {
         font-size: 12px !important;
         margin: 15px 0 !important;
     }
-    
+
     .outline-content table th,
     .outline-content table td,
     #outline-detail-content table th,
@@ -4772,12 +4772,12 @@ section#gen-test .main-content {
         font-size: 12px !important;
         margin: 16px 0 !important;
     }
-    
+
     .teaching-design-table th,
     .teaching-design-table td {
         padding: 10px 12px !important;
     }
-    
+
     .teaching-design-table th {
         font-size: 13px !important;
     }
@@ -5275,24 +5275,24 @@ section#gen-test .main-content {
         grid-template-columns: 1fr;
         gap: 16px;
     }
-    
+
     .course-card-header {
         padding: 16px;
     }
-    
+
     .course-card-body {
         padding: 16px;
     }
-    
+
     .course-card-footer {
         padding: 16px;
         flex-direction: column;
     }
-    
+
     .course-title {
         font-size: 16px;
     }
-    
+
     .course-stats {
         grid-template-columns: 1fr;
         gap: 8px;
@@ -5305,16 +5305,16 @@ section#gen-test .main-content {
         gap: 12px;
         align-items: flex-start;
     }
-    
+
     .course-status {
         margin-left: 0;
     }
-    
+
     .card-actions {
         flex-wrap: wrap;
         gap: 8px;
     }
-    
+
     .card-actions select,
     .card-actions button {
         font-size: 12px;
@@ -5667,28 +5667,28 @@ section#gen-test .main-content {
     .course-tabs {
         flex-direction: column;
     }
-    
+
     .course-tab {
         padding: 12px 16px;
         border-bottom: 1px solid #e9ecef;
         border-radius: 0;
     }
-    
+
     .course-tab.active {
         border-bottom-color: #e9ecef;
         border-left: 3px solid var(--primary-color);
     }
-    
+
     .material-item {
         flex-direction: column;
         text-align: center;
     }
-    
+
     .material-icon {
         margin-right: 0;
         margin-bottom: 12px;
     }
-    
+
     .exam-meta {
         grid-template-columns: 1fr;
     }
@@ -6603,37 +6603,37 @@ section#gen-test .main-content {
         flex-direction: column;
         gap: 16px;
     }
-    
+
     .form-group {
         margin-left: 0 !important;
     }
-    
+
     .chat-history {
         margin: 0 16px;
         padding: 16px;
     }
-    
+
     .chat-input-area {
         padding: 16px;
     }
-    
+
     .welcome-message,
     .chat-message {
         gap: 12px;
     }
-    
+
     .ai-avatar,
     .user-avatar {
         width: 32px;
         height: 32px;
         font-size: 14px;
     }
-    
+
     .message-content {
         max-width: calc(100% - 48px);
         padding: 12px 16px;
     }
-    
+
     .input-container textarea {
         font-size: 16px; /* 防止iOS缩放 */
     }
@@ -6806,12 +6806,12 @@ section#gen-test .main-content {
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(45deg, 
-        rgba(255, 255, 255, 0.2) 25%, 
-        transparent 25%, 
-        transparent 50%, 
-        rgba(255, 255, 255, 0.2) 50%, 
-        rgba(255, 255, 255, 0.2) 75%, 
+    background: linear-gradient(45deg,
+        rgba(255, 255, 255, 0.2) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0.2) 75%,
         transparent 75%);
     background-size: 20px 20px;
     animation: progressStripes 1s linear infinite;
@@ -6931,30 +6931,30 @@ section#gen-test .main-content {
     .upload-tabs {
         flex-direction: column;
     }
-    
+
     .tab-btn {
         border-bottom: none;
         border-left: 3px solid transparent;
         text-align: left;
         justify-content: flex-start;
     }
-    
+
     .tab-btn.active {
         border-left-color: var(--primary-color);
         border-bottom-color: transparent;
     }
-    
+
     .knowledge-course-item .course-stats {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 12px;
     }
-    
+
     .search-result-item {
         padding: 12px;
         margin-bottom: 12px;
     }
-    
+
     #knowledge-upload-modal .course-modal-container,
     #test-search-modal .course-modal-container {
         margin: 20px;
@@ -6966,19 +6966,19 @@ section#gen-test .main-content {
     .knowledge-course-item .course-stats {
         grid-template-columns: 1fr;
     }
-    
+
     .knowledge-course-item .course-header > div {
         flex-direction: column;
         align-items: flex-start;
         gap: 12px;
     }
-    
+
     .knowledge-course-item .course-header > div > div:last-child {
         display: flex;
         gap: 8px;
         width: 100%;
     }
-    
+
     .knowledge-course-item .course-header > div > div:last-child .btn {
         flex: 1;
         font-size: 12px;
@@ -7122,19 +7122,19 @@ section#gen-test .main-content {
         height: 35px;
         font-size: 14px;
     }
-    
+
     .carousel-nav.prev {
         left: 5px;
     }
-    
+
     .carousel-nav.next {
         right: 5px;
     }
-    
+
     .knowledge-carousel-indicators {
         margin-top: 12px;
     }
-    
+
     .carousel-indicator {
         width: 8px;
         height: 8px;
@@ -7488,24 +7488,24 @@ section#gen-test .main-content {
     .ai-message-content {
         font-size: 14px;
     }
-    
+
     .ai-message-content h1 {
         font-size: 1.3em;
     }
-    
+
     .ai-message-content h2 {
         font-size: 1.2em;
     }
-    
+
     .ai-message-content h3 {
         font-size: 1.1em;
     }
-    
+
     .ai-message-content pre {
         padding: 12px;
         font-size: 0.8em;
     }
-    
+
     .ai-message-content ul,
     .ai-message-content ol {
         padding-left: 20px;
@@ -7745,26 +7745,26 @@ section#gen-test .main-content {
         grid-template-columns: 1fr;
         gap: 8px;
     }
-    
+
     .exam-time-info {
         flex-direction: column;
         gap: 8px;
     }
-    
+
     .exam-actions {
         justify-content: center;
     }
-    
+
     .course-modal-container {
         margin: 10px;
         max-width: calc(100vw - 20px);
     }
-    
+
     .exam-timer {
         font-size: 16px;
         padding: 6px 12px;
     }
-    
+
     .question-item {
         padding: 15px;
     }
@@ -8058,57 +8058,57 @@ section#gen-test .main-content {
     .exam-card {
         margin-bottom: 16px;
     }
-    
+
     .exam-header {
         padding: 16px;
         flex-direction: column;
         gap: 12px;
     }
-    
+
     .exam-title {
         font-size: 16px;
     }
-    
+
     .exam-body {
         padding: 16px;
     }
-    
+
     .exam-actions {
         padding: 12px 16px;
         justify-content: center;
     }
-    
+
     .time-info-row {
         flex-direction: column;
         align-items: flex-start;
         gap: 4px;
         margin-bottom: 12px;
     }
-    
+
     .exam-result-summary {
         flex-direction: column;
         gap: 12px;
         align-items: flex-start;
     }
-    
+
     /* 搜索区域响应式 */
     .search-filter-row {
         flex-direction: column;
         gap: 12px;
         align-items: stretch;
     }
-    
+
     .search-filter-row .form-select {
         min-width: auto;
         width: 100%;
     }
-    
+
     .search-box-container {
         min-width: auto;
         max-width: none;
         width: 100%;
     }
-    
+
     .search-btn {
         min-width: auto;
         width: 100%;
@@ -8351,21 +8351,21 @@ section#gen-test .main-content {
         flex-direction: column;
         gap: 10px;
     }
-    
+
     .search-filter-row .form-select,
     .search-filter-row .form-control {
         width: 100%;
     }
-    
+
     .exam-table-container {
         overflow-x: auto;
         padding: 10px;
     }
-    
+
     .exam-table {
         min-width: 800px;
     }
-    
+
     .exam-table th,
     .exam-table td {
         padding: 10px 8px;
@@ -8407,12 +8407,12 @@ section#gen-test .main-content {
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     #grade-mark .content-card .card-actions {
         justify-content: flex-start;
         flex-wrap: wrap;
     }
-    
+
     #grade-mark .content-card .card-actions .form-select {
         min-width: 100px;
         flex: 1;
@@ -8763,23 +8763,23 @@ section#gen-test .main-content {
         padding: 15px;
         gap: 15px;
     }
-    
+
     .course-card-header {
         padding: 15px 15px 0 15px;
     }
-    
+
     .course-card-body {
         padding: 0 15px 15px 15px;
     }
-    
+
     .course-card-footer {
         padding: 15px;
     }
-    
+
     .course-actions {
         gap: 6px;
     }
-    
+
     .course-actions .btn {
         font-size: 11px;
         padding: 5px 6px;
@@ -8950,35 +8950,35 @@ section#gen-test .main-content {
         font-size: 14px;
         line-height: 1.6;
     }
-    
+
     .improvements-content h1 {
         font-size: 20px !important;
     }
-    
+
     .improvements-content h2 {
         font-size: 18px !important;
     }
-    
+
     .improvements-content h3 {
         font-size: 16px !important;
     }
-    
+
     .improvements-content h4 {
         font-size: 15px !important;
     }
-    
+
     .improvements-content table {
         font-size: 12px;
         display: block;
         overflow-x: auto;
         white-space: nowrap;
     }
-    
+
     .improvements-content pre {
         font-size: 12px;
         padding: 12px !important;
     }
-    
+
     .improvements-content code {
         font-size: 12px;
     }
@@ -9254,21 +9254,21 @@ section#gen-test .main-content {
         max-width: 95% !important;
         margin: 10px;
     }
-    
+
     .exam-info-grid {
         grid-template-columns: 1fr !important;
     }
-    
+
     .question-header {
         flex-direction: column;
         gap: 8px;
         align-items: flex-start;
     }
-    
+
     .exam-question {
         padding: 15px;
     }
-    
+
     .question-option {
         padding: 6px 10px;
     }
@@ -9636,20 +9636,20 @@ section#gen-test .main-content {
         flex-direction: column;
         gap: 12px;
     }
-    
+
     .graph-controls {
         justify-content: center;
     }
-    
+
     #knowledge-graph-container {
         height: 400px;
     }
-    
+
     .graph-node {
         font-size: 11px !important;
         padding: 6px 12px !important;
     }
-    
+
     .graph-node.core-concept {
         padding: 10px 18px !important;
     }
@@ -9805,28 +9805,28 @@ section#gen-test .main-content {
         max-width: 95vw;
         margin: 20px auto;
     }
-    
+
     .knowledge-info-grid {
         grid-template-columns: 1fr;
         gap: 12px;
     }
-    
+
     .chunk-header {
         padding: 10px 12px;
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
     }
-    
+
     .chunk-content {
         padding: 12px;
         font-size: 13px;
     }
-    
+
     .chunk-info {
         padding: 10px 12px;
     }
-    
+
     .chunk-info span {
         margin-right: 12px;
         margin-bottom: 4px;
@@ -10571,38 +10571,112 @@ section#gen-test .main-content {
         height: 90%;
         max-height: none;
     }
-    
+
     .users-grid {
         grid-template-columns: 1fr;
         gap: 12px;
         padding: 12px;
     }
-    
+
     .filter-row {
         flex-direction: column;
         gap: 12px;
     }
-    
+
     .filter-row .form-group {
         min-width: unset;
     }
-    
+
     .message-bubble {
         max-width: 85%;
     }
-    
+
     .chat-input-container {
         gap: 8px;
     }
-    
+
     .conversation-item {
         padding: 12px;
     }
-    
+
     .conversation-avatar {
         width: 40px;
         height: 40px;
         font-size: 18px;
         margin-right: 12px;
     }
+}
+/* 对话列表样式 */
+.conversation-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.conversation-item:hover {
+    background-color: #f8f9fa;
+}
+
+.conversation-info {
+    flex: 1;
+    cursor: pointer;
+}
+
+.conversation-partner {
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.conversation-last-message {
+    color: #6c757d;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.conversation-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.conversation-time {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.unread-badge {
+    background: #e74c3c;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.delete-conversation-btn {
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    opacity: 0.7;
+}
+
+.delete-conversation-btn:hover {
+    background-color: #dc3545;
+    color: white;
+    opacity: 1;
+    transform: scale(1.1);
 }
