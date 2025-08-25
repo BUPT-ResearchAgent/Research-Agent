@@ -8187,9 +8187,8 @@ async function loadStudentJobPostings() {
         const jobs = await response.json(); // Expect a direct array
         displayStudentJobPostings(jobs);
     } catch (error) {
-        console.error('获取产业信息失败:', error);
         console.error('获取产业信息失败，将显示模拟数据:', error);
-        displayStudentJobPostings([]); // 在捕获到错误时显示模拟数据
+        displayStudentJobPostings([]); // 在捕获到错误时触发模拟数据
     }
 }
 

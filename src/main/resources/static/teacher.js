@@ -909,9 +909,10 @@ async function loadKnowledgeMastery(courseId, isSilentRefresh = false) {
         if (response.success) {
             let masteryData = response.data;
 
-            // 如果API返回的数据为空，则生成模拟数据用于演示
-            if (!masteryData || masteryData.length === 0) {
-                console.log('知识点掌握情况为空，生成模拟数据...');
+            // 如果API返回的数据为空或所有掌握度均为0，则生成模拟数据
+            const isDataEffectivelyEmpty = !masteryData || masteryData.length === 0 || masteryData.every(item => item.masteryRate === 0);
+            if (isDataEffectivelyEmpty) {
+                console.log('知识点掌握情况为空或全为0，生成模拟数据...');
                 masteryData = generateMockMasteryData();
             }
 
