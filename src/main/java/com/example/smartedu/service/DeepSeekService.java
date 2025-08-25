@@ -1,18 +1,19 @@
 package com.example.smartedu.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class DeepSeekService {
@@ -193,47 +194,31 @@ public class DeepSeekService {
         promptBuilder.append("课程名称：《").append(courseName).append("》\n");
         promptBuilder.append("教学学时：").append(hours).append("学时（共").append(totalMinutes).append("分钟）\n");
         promptBuilder.append("检索到相关知识块：").append(matchCount).append("个\n\n");
-        promptBuilder.append("**RAG技术说明：**\n");
-        promptBuilder.append("以下内容是通过向量相似性搜索从课程知识库中检索到的最相关内容，请基于这些内容生成教学大纲。\n\n");
         promptBuilder.append("**学生分类假设与针对性教学方案：**\n\n");
         promptBuilder.append("请假设课堂中存在以下几类典型学生，并针对每类学生制定相应的教学策略：\n\n");
         promptBuilder.append("1. **基础扎实型学生（约25%）**\n");
-        promptBuilder.append("   - 特点：基础知识牢固，学习主动性强，接受新知识能力强\n");
-        promptBuilder.append("   - 教学策略：提供拓展性内容，设计挑战性任务，培养创新思维\n");
-        promptBuilder.append("   - 课堂角色：可作为学习小组的领导者，帮助其他同学\n\n");
+        promptBuilder.append("   - 特点：基础知识牢固，学习主动性强\n");
         promptBuilder.append("2. **中等水平型学生（约50%）**\n");
-        promptBuilder.append("   - 特点：基础知识一般，学习态度积极，需要适当引导\n");
-        promptBuilder.append("   - 教学策略：注重基础巩固，提供充分的练习机会，循序渐进\n");
-        promptBuilder.append("   - 课堂角色：课堂主体，重点关注对象，确保跟上教学进度\n\n");
+        promptBuilder.append("   - 特点：基础知识一般，学习态度积极\n");
         promptBuilder.append("3. **基础薄弱型学生（约20%）**\n");
-        promptBuilder.append("   - 特点：基础知识不牢固，学习困难较大，需要额外关注\n");
-        promptBuilder.append("   - 教学策略：提供基础补强，个别辅导，降低学习难度\n");
-        promptBuilder.append("   - 课堂角色：重点帮扶对象，需要更多鼓励和支持\n\n");
+        promptBuilder.append("   - 特点：基础知识不牢固，学习困难较大\n");
         promptBuilder.append("4. **学习困难型学生（约5%）**\n");
-        promptBuilder.append("   - 特点：学习基础极差，学习动机不强，需要特别关注\n");
-        promptBuilder.append("   - 教学策略：个性化指导，激发学习兴趣，提供简化版内容\n");
-        promptBuilder.append("   - 课堂角色：需要一对一辅导，制定个别化学习计划\n\n");
+        promptBuilder.append("   - 特点：学习基础极差，学习动机不强\n");
         promptBuilder.append("**重要要求：**\n\n");
-        promptBuilder.append("1. **标题设计要求：**\n");
-        promptBuilder.append("   - 请根据检索到的知识内容，智能分析其核心主题\n");
-        promptBuilder.append("   - 将教学大纲标题设定为：《").append(courseName).append("》[基于检索内容的核心主题]\n");
-        promptBuilder.append("   - 例如：《Python程序设计》面向对象编程与异常处理、《数据结构》栈与队列实现、《计算机网络》TCP/IP协议原理等\n");
-        promptBuilder.append("   - 标题必须体现具体的教学内容主题，而非泛泛的课程名称\n\n");
-        promptBuilder.append("2. **输出格式要求（重要）：**\n");
+        promptBuilder.append("1. **输出格式要求（重要）：**\n");
         promptBuilder.append("   - **必须使用HTML表格格式**\n");
         promptBuilder.append("   - **不要使用Markdown表格格式**\n");
         promptBuilder.append("   - 表格必须包含完整的HTML标签\n");
         promptBuilder.append("   - 表格样式要清晰美观\n\n");
-        promptBuilder.append("3. **教学大纲结构要求：**\n");
-        promptBuilder.append("   - **教学目标**：基于检索内容制定具体、可衡量的学习目标\n");
-        promptBuilder.append("   - **学生情况分析**：基于上述四类学生的特点分析\n");
-        promptBuilder.append("   - **教学思路**：体现基于知识库内容的教学逻辑和方法\n");
+        promptBuilder.append("2. **教学大纲结构要求：**\n");
+        promptBuilder.append("   - **教学目标**：基于检索内容制定教学目标\n");
+        promptBuilder.append("   - **教学思路**：基于知识库内容的教学方法\n");
         promptBuilder.append("   - **教学重点**：从检索内容中提炼关键知识点\n");
         promptBuilder.append("   - **教学难点**：识别学生理解的潜在困难点\n");
         promptBuilder.append("   - **分层教学策略**：针对不同类型学生的具体教学方法\n");
         promptBuilder.append("   - **思政融入点**：结合专业内容的价值观教育\n");
         promptBuilder.append("   - **教学设计**：详细的时间安排和教学活动（必须用表格呈现）\n\n");
-        promptBuilder.append("4. **教学设计表格要求（核心）：**\n");
+        promptBuilder.append("3. **教学设计表格要求（核心）：**\n");
         promptBuilder.append("   - 必须使用以下HTML表格格式\n");
         promptBuilder.append("   - 包含：教学内容、教学手段、针对不同学生的策略、时间分配（分钟）四列\n");
         promptBuilder.append("   - 时间分配必须精确到分钟，总计必须等于").append(totalMinutes).append("分钟\n");
@@ -242,21 +227,9 @@ public class DeepSeekService {
         promptBuilder.append("**教学设计表格格式（必须严格遵循）：**\n");
         promptBuilder.append(tableTemplate);
         
-        // 添加行业信息指导（如果有的话）
-        if (!industryInfo.trim().isEmpty()) {
-            promptBuilder.append("**🎯 行业导向与就业指导（重要）：**\n");
-            promptBuilder.append("请结合以下行业调研信息，在教学目标和教学内容设计中融入就业导向和行业需求：\n");
-            promptBuilder.append(industryInfo);
-            promptBuilder.append("\n**集成要求：**\n");
-            promptBuilder.append("- 在教学目标中明确体现行业能力要求和薪资标准\n");
-            promptBuilder.append("- 在教学内容中融入实际企业项目和工作场景\n");
-            promptBuilder.append("- 在能力培养中精准对接岗位技能需求\n");
-            promptBuilder.append("- 为学生提供清晰的就业前景和职业发展路径\n");
-            promptBuilder.append("- 在教学难点分析中结合行业实际应用挑战\n\n");
-        }
         
         // 添加格式规范要求
-        promptBuilder.append("**📝 格式规范要求（必须严格遵守）：**\n");
+        promptBuilder.append("** 格式规范要求（必须严格遵守）：**\n");
         promptBuilder.append("1. **标题层次**：使用标准的Markdown格式\n");
         promptBuilder.append("   - 主标题：# 《课程名》具体内容主题教学大纲\n");
         promptBuilder.append("   - 二级标题：## 教学目标、## 教学思路等\n");
@@ -1505,61 +1478,9 @@ public class DeepSeekService {
      * 获取教学改进的政策指导内容
      */
     private String getPolicyGuidanceForTeachingImprovement(String scope) {
-        try {
-            System.out.println("=== 开始获取教学改进政策指导 ===");
-            System.out.println("获取教学改进政策指导，分析范围: " + scope);
-            
-            // 构建政策指导查询
-            String policyQuery = "教学改进 教学质量提升 教育评价改革 因材施教 个性化教学";
-            System.out.println("政策指导查询关键词: " + policyQuery);
-            
-            // 检查向量数据库连接
-            try {
-                System.out.println("检查向量数据库连接...");
-                // 尝试搜索政策文档中的相关指导
-                System.out.println("开始搜索政策文档...");
-                List<VectorDatabaseService.SearchResult> policyResults = 
-                    vectorDatabaseService.searchPolicyGuidance(policyQuery, 3);
-                
-                System.out.println("政策文档搜索完成，结果数量: " + (policyResults != null ? policyResults.size() : "null"));
-                
-                if (policyResults != null && !policyResults.isEmpty()) {
-                    StringBuilder policyContent = new StringBuilder();
-                    policyContent.append("**【政策指导】教学改进相关政策要求**\n\n");
-                    
-                    for (int i = 0; i < policyResults.size(); i++) {
-                        VectorDatabaseService.SearchResult result = policyResults.get(i);
-                        System.out.println("政策要点 " + (i + 1) + " (相似度: " + result.getScore() + "): " + 
-                            result.getContent().substring(0, Math.min(100, result.getContent().length())) + "...");
-                        
-                        policyContent.append("**政策要点").append(i + 1).append("：**\n");
-                        policyContent.append(result.getContent()).append("\n\n");
-                    }
-                    
-                    policyContent.append("**政策指导说明：**\n");
-                    policyContent.append("请在教学改进建议中体现上述政策要求，特别关注：\n");
-                    policyContent.append("1. 新时代教育评价改革理念\n");
-                    policyContent.append("2. 因材施教和个性化教学策略\n");
-                    policyContent.append("3. 德智体美劳全面发展的教育目标\n");
-                    policyContent.append("4. 数字化教育转型要求\n");
-                    policyContent.append("5. 立德树人根本任务的落实\n");
-                    
-                    System.out.println("政策指导内容生成完成，总长度: " + policyContent.length());
-                    return policyContent.toString();
-                }
-            } catch (Exception vectorException) {
-                System.err.println("向量数据库搜索失败: " + vectorException.getMessage());
-            }
-            
-            // 如果向量搜索失败，提供备用的政策指导内容
-            System.out.println("使用备用政策指导内容");
-            return generateFallbackPolicyGuidance();
-            
-        } catch (Exception e) {
-            System.err.println("获取政策指导失败: " + e.getMessage());
-            e.printStackTrace();
-            return generateFallbackPolicyGuidance();
-        }
+        // 直接使用备用的政策指导，跳过检索
+        System.out.println("=== 使用备用的教学改进政策指导 ===");
+        return generateFallbackPolicyGuidance();
     }
     
     /**

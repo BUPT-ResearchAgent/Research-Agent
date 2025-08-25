@@ -1,24 +1,43 @@
 package com.example.smartedu.service;
 
-import com.example.smartedu.dto.ExamGenerationRequest;
-import com.example.smartedu.dto.PublishNoticeRequest;
-import com.example.smartedu.entity.*;
-import com.example.smartedu.repository.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.Map;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.stream.Collectors;
+import com.example.smartedu.entity.Course;
+import com.example.smartedu.entity.CourseMaterial;
+import com.example.smartedu.entity.Exam;
+import com.example.smartedu.entity.ExamResult;
+import com.example.smartedu.entity.Notice;
+import com.example.smartedu.entity.Question;
+import com.example.smartedu.entity.StudentAnswer;
+import com.example.smartedu.entity.StudentCourse;
+import com.example.smartedu.entity.Teacher;
+import com.example.smartedu.entity.TeachingOutline;
+import com.example.smartedu.entity.User;
+import com.example.smartedu.repository.CourseMaterialRepository;
+import com.example.smartedu.repository.CourseRepository;
+import com.example.smartedu.repository.ExamRepository;
+import com.example.smartedu.repository.ExamResultRepository;
+import com.example.smartedu.repository.NoticeRepository;
+import com.example.smartedu.repository.QuestionRepository;
+import com.example.smartedu.repository.StudentAnswerRepository;
+import com.example.smartedu.repository.StudentCourseRepository;
+import com.example.smartedu.repository.TeacherRepository;
+import com.example.smartedu.repository.TeachingOutlineRepository;
+import com.example.smartedu.repository.UserRepository;
 
 @Service
 @Transactional
@@ -592,7 +611,7 @@ public class TeacherService {
         
         // 使用RAG技术搜索相关知识块
         List<VectorDatabaseService.SearchResult> searchResults = 
-            knowledgeBaseService.searchKnowledge(courseId, queryText, 10); // 搜索top 10相关内容
+            knowledgeBaseService.searchKnowledge(courseId, queryText, 5); // 搜索top 5相关内容
         
         if (searchResults.isEmpty()) {
             throw new RuntimeException("无法从知识库中检索到与教学要求相关的内容，请调整要求或检查知识库数据");

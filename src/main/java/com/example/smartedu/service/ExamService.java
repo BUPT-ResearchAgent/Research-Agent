@@ -1,23 +1,33 @@
 package com.example.smartedu.service;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
+import java.util.stream.Collectors;
 
-import com.example.smartedu.dto.ExamGenerationRequest;
-import com.example.smartedu.dto.ExamListDTO;
-import com.example.smartedu.entity.*;
-import com.example.smartedu.repository.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
-import java.util.ArrayList;
-import java.util.stream.Collectors;
-import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Optional;
+import com.example.smartedu.dto.ExamGenerationRequest;
+import com.example.smartedu.dto.ExamListDTO;
+import com.example.smartedu.entity.Course;
+import com.example.smartedu.entity.CourseMaterial;
+import com.example.smartedu.entity.Exam;
+import com.example.smartedu.entity.ExamResult;
+import com.example.smartedu.entity.Question;
+import com.example.smartedu.entity.StudentAnswer;
+import com.example.smartedu.repository.CourseMaterialRepository;
+import com.example.smartedu.repository.CourseRepository;
+import com.example.smartedu.repository.ExamRepository;
+import com.example.smartedu.repository.ExamResultRepository;
+import com.example.smartedu.repository.QuestionRepository;
+import com.example.smartedu.repository.StudentAnswerRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 @Transactional
@@ -267,7 +277,7 @@ public class ExamService {
 
             // 从向量数据库中检索相关内容，增加检索数量以获得更全面的内容
             List<VectorDatabaseService.SearchResult> searchResults =
-                knowledgeBaseService.searchKnowledge(courseId, query, 15); // 增加到15个结果
+                knowledgeBaseService.searchKnowledge(courseId, query, 10); // 增加到15个结果
 
             if (searchResults.isEmpty()) {
                 System.out.println("警告：未从知识库中检索到相关内容，尝试使用课程资料作为备选");
