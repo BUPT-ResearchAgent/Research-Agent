@@ -32,10 +32,13 @@ public class DeepSeekService {
     
     @Autowired
     private VectorDatabaseService vectorDatabaseService;
-    
+
     @Autowired
     private WebSearchService webSearchService;
-    
+
+    @Autowired
+    private LinkValidationService linkValidationService;
+
     public DeepSeekService() {
         this.webClient = WebClient.builder()
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -58,8 +61,14 @@ public class DeepSeekService {
             "课程资料内容：\n%s",
             courseName, materialContent
         );
-        
-        return callDeepSeekAPI(prompt);
+
+        // 调用DeepSeek API生成教学大纲
+        String outlineResponse = callDeepSeekAPI(prompt);
+
+        // 对生成的教学大纲进行链接验证和内容审查
+        String enhancedOutline = enhanceOutlineWithLinkValidation(outlineResponse, courseName);
+
+        return enhancedOutline;
     }
     
     /**
@@ -83,8 +92,14 @@ public class DeepSeekService {
                 ("特殊教学要求：\n" + requirements + "\n\n") : "",
             materialContent
         );
-        
-        return callDeepSeekAPI(prompt);
+
+        // 调用DeepSeek API生成教学大纲
+        String outlineResponse = callDeepSeekAPI(prompt);
+
+        // 对生成的教学大纲进行链接验证和内容审查
+        String enhancedOutline = enhanceOutlineWithLinkValidation(outlineResponse, courseName);
+
+        return enhancedOutline;
     }
     
     /**
@@ -127,8 +142,14 @@ public class DeepSeekService {
             materialContent,
             totalMinutes
         );
-        
-        return callDeepSeekAPI(prompt);
+
+        // 调用DeepSeek API生成教学大纲
+        String outlineResponse = callDeepSeekAPI(prompt);
+
+        // 对生成的教学大纲进行链接验证和内容审查
+        String enhancedOutline = enhanceOutlineWithLinkValidation(outlineResponse, courseName);
+
+        return enhancedOutline;
     }
     
     /**
@@ -261,11 +282,17 @@ public class DeepSeekService {
         promptBuilder.append("- 体现因材施教的教育理念，确保每个学生都能有所收获");
         
         String prompt = promptBuilder.toString();
-        
+
         System.out.println("生成RAG教学大纲的Prompt长度: " + prompt.length());
         System.out.println("使用的知识块数量: " + matchCount);
-        
-        return callDeepSeekAPI(prompt);
+
+        // 调用DeepSeek API生成教学大纲
+        String outlineResponse = callDeepSeekAPI(prompt);
+
+        // 对生成的教学大纲进行链接验证和内容审查
+        String enhancedOutline = enhanceOutlineWithLinkValidation(outlineResponse, courseName);
+
+        return enhancedOutline;
     }
     
     /**
@@ -2105,8 +2132,14 @@ public class DeepSeekService {
             courseTypeResult.getFinalType(),
             totalMinutes
         );
-        
-        return callDeepSeekAPI(prompt);
+
+        // 调用DeepSeek API生成个性化教学大纲
+        String outlineResponse = callDeepSeekAPI(prompt);
+
+        // 对生成的教学大纲进行链接验证和内容审查
+        String enhancedOutline = enhanceOutlineWithLinkValidation(outlineResponse, courseName);
+
+        return enhancedOutline;
     }
     
     /**
@@ -2596,8 +2629,14 @@ public class DeepSeekService {
         System.out.println("生成融合政策指导的教学大纲Prompt长度: " + prompt.length());
         System.out.println("使用的课程内容数量: " + courseCount);
         System.out.println("使用的政策指导数量: " + policyCount);
-        
-        return callDeepSeekAPI(prompt);
+
+        // 调用DeepSeek API生成教学大纲
+        String outlineResponse = callDeepSeekAPI(prompt);
+
+        // 对生成的教学大纲进行链接验证和内容审查
+        String enhancedOutline = enhanceOutlineWithLinkValidation(outlineResponse, courseName);
+
+        return enhancedOutline;
     }
     
     /**
@@ -2639,4 +2678,124 @@ public class DeepSeekService {
             return "软件开发 信息技术 计算机应用";
         }
     }
-} 
+
+    /**
+     * 对教学大纲进行链接验证和内容增强
+     */
+    private String enhanceOutlineWithLinkValidation(String originalOutline, String courseName) {
+        try {
+            System.out.println("=== 开始对教学大纲进行链接验证和参考文献替换 ===");
+
+            // 1. 从教学大纲中提取链接
+            List<String> extractedLinks = linkValidationService.extractLinks(originalOutline);
+
+            if (extractedLinks.isEmpty()) {
+                System.out.println("教学大纲中未发现链接，跳过链接验证");
+                return originalOutline;
+            }
+
+            System.out.printf("从教学大纲中提取到 %d 个链接%n", extractedLinks.size());
+
+            // 2. 验证和过滤链接
+            LinkValidationService.FilterResult filterResult =
+                linkValidationService.filterUnreliableSources(extractedLinks);
+
+            // 3. 移除原始参考文献部分
+            String outlineWithoutReferences = removeOriginalReferences(originalOutline);
+
+            // 4. 生成新的参考文献部分
+            StringBuilder enhancedContent = new StringBuilder();
+            enhancedContent.append(outlineWithoutReferences);
+
+            if (!filterResult.getReliableLinks().isEmpty()) {
+                System.out.printf("发现 %d 个可靠链接，生成验证后的参考文献%n", filterResult.getReliableLinks().size());
+
+                // 生成链接审查报告（用于日志记录）
+                String reviewPrompt = linkValidationService.generateReviewPrompt(
+                    filterResult.getReliableLinks(), filterResult.getUnavailableLinks());
+                String reviewResponse = callDeepSeekAPI(reviewPrompt);
+
+                // 记录审查结果到日志
+                System.out.println("=== 链接质量审查报告 ===");
+                System.out.printf("课程名称：%s%n", courseName);
+                System.out.printf("总链接数：%d%n", extractedLinks.size());
+                System.out.printf("可靠链接：%d%n", filterResult.getReliableLinks().size());
+                System.out.printf("不可用链接：%d%n", filterResult.getUnavailableLinks().size());
+                System.out.println("AI内容审查结果：");
+                System.out.println(reviewResponse);
+                System.out.println("=== 审查报告结束 ===");
+
+                // 添加验证后的参考文献部分
+                enhancedContent.append("\n\n## 参考文献\n\n");
+                for (int i = 0; i < filterResult.getReliableLinks().size(); i++) {
+                    enhancedContent.append(String.format("%d. %s\n", i + 1,
+                        generateReferenceEntry(filterResult.getReliableLinks().get(i))));
+                }
+
+                // 添加验证说明
+                enhancedContent.append("\n*注：以上参考文献已通过可用性验证和权威性审查*\n");
+
+            } else {
+                System.out.println("未发现可靠链接，不添加参考文献部分");
+                // 如果没有可靠链接，可以选择不添加参考文献部分，或添加说明
+                enhancedContent.append("\n\n## 参考文献\n\n");
+                enhancedContent.append("*注：原参考文献经验证后发现链接不可用，建议教师补充权威学术资源*\n");
+            }
+
+            System.out.println("教学大纲链接验证和参考文献替换完成");
+            return enhancedContent.toString();
+
+        } catch (Exception e) {
+            System.err.println("教学大纲链接验证失败: " + e.getMessage());
+            e.printStackTrace();
+            // 如果验证失败，返回原始大纲
+            return originalOutline;
+        }
+    }
+
+    /**
+     * 移除原始教学大纲中的参考文献部分
+     */
+    private String removeOriginalReferences(String outline) {
+        // 查找参考文献部分的开始位置
+        String[] referenceHeaders = {
+            "## 参考文献", "## 参考资料", "## References", "## 参考链接",
+            "# 参考文献", "# 参考资料", "# References", "# 参考链接"
+        };
+
+        for (String header : referenceHeaders) {
+            int index = outline.indexOf(header);
+            if (index != -1) {
+                // 找到参考文献部分，截取到该位置之前
+                return outline.substring(0, index).trim();
+            }
+        }
+
+        // 如果没找到明确的参考文献标题，返回原文
+        return outline;
+    }
+
+    /**
+     * 为验证后的链接生成规范的参考文献条目
+     */
+    private String generateReferenceEntry(String url) {
+        // 根据URL类型生成不同格式的参考文献条目
+        if (url.contains("arxiv.org")) {
+            // arXiv论文格式
+            String arxivId = url.substring(url.lastIndexOf("/") + 1);
+            return String.format("arXiv preprint %s. Retrieved from %s", arxivId, url);
+        } else if (url.contains("nist.gov")) {
+            // NIST官方文档格式
+            return String.format("National Institute of Standards and Technology. Retrieved from %s", url);
+        } else if (url.contains("doi.org")) {
+            // DOI格式
+            return String.format("Academic publication. DOI: %s", url);
+        } else if (url.contains("github.com")) {
+            // GitHub项目格式
+            return String.format("Open source project. Retrieved from %s", url);
+        } else {
+            // 通用格式
+            return String.format("Retrieved from %s", url);
+        }
+    }
+}
