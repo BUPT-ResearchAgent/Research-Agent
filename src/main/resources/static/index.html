@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智囊WisdomEdu - 智能教学实训平台</title>
+    <title>XX - 科研智能体平台</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -15,7 +15,8 @@
 
         body {
             font-family: 'Noto Sans SC', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #ffffff 0%, #e9f2ff 100%);
+            color: #0f172a;
             margin: 0;
             padding: 0;
             width: 100vw;
@@ -45,7 +46,7 @@
 
         .hero-container {
             text-align: center;
-            color: white;
+            color: #0f172a;
             width: 100vw;
             height: 100vh;
             padding: 80px 40px;
@@ -53,8 +54,10 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(5px);
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #e3e8ef;
+            box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(8px);
             animation: fadeInUp 1s ease-out;
             pointer-events: auto;
         }
@@ -69,30 +72,28 @@
 
         .logo i {
             font-size: 64px;
-            color: #ffffff;
-            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            color: #003399;
         }
 
         .logo-text {
             font-size: 48px;
             font-weight: 700;
-            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+            color: #0f172a;
         }
 
         .welcome-title {
             font-size: 36px;
             font-weight: 600;
             margin-bottom: 20px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            color: #003399;
         }
 
         .slogan {
             font-size: 24px;
             font-weight: 400;
             margin-bottom: 50px;
-            opacity: 0.9;
+            color: #1f2937;
             line-height: 1.4;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         .enter-btn {
@@ -102,21 +103,21 @@
             padding: 18px 36px;
             font-size: 20px;
             font-weight: 600;
-            color: #667eea;
-            background: rgba(255, 255, 255, 0.95);
-            border: none;
+            color: #ffffff;
+            background: #003399;
+            border: 1px solid #002266;
             border-radius: 50px;
             cursor: pointer;
             transition: all 0.3s ease;
             text-decoration: none;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
             pointer-events: auto;
         }
 
         .enter-btn:hover {
-            background: rgba(255, 255, 255, 1);
+            background: #002266;
             transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.24);
         }
 
         .enter-btn:active {
@@ -135,35 +136,36 @@
         .feature {
             text-align: center;
             padding: 30px 20px;
-            background: rgba(255, 255, 255, 0.2);
+            background: #ffffff;
             border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            border: 1px solid #e3e8ef;
             transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
             pointer-events: auto;
         }
 
         .feature:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: #f4f7ff;
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
         }
 
         .feature i {
             font-size: 32px;
             margin-bottom: 16px;
-            opacity: 0.9;
+            color: #003399;
         }
 
         .feature h3 {
             font-size: 18px;
             font-weight: 600;
             margin-bottom: 8px;
+            color: #0f172a;
         }
 
         .feature p {
             font-size: 14px;
-            opacity: 0.8;
+            color: #334155;
             line-height: 1.4;
         }
 
@@ -250,11 +252,11 @@
         <div class="hero-container">
             <div class="logo">
                 <i class="fas fa-graduation-cap"></i>
-                <div class="logo-text">智囊 WisdomEdu</div>
+                <div class="logo-text">&lt;科研&gt; Research</div>
             </div>
             
-            <h1 class="welcome-title">欢迎使用智囊WisdomEdu</h1>
-            <p class="slogan">智慧教学，让每一次学习都更精彩</p>
+            <h1 class="welcome-title">欢迎使用&lt;科研&gt;Research</h1>
+            <p class="slogan">始于学习&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;爱上科研</p>
             
             <a href="login.html" class="enter-btn">
                 <i class="fas fa-sign-in-alt"></i>
@@ -286,7 +288,7 @@
         </div>
     </div>
 
-    <!-- Three.js -->
+    <!-- Three.js
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         // 3D场景变量
@@ -399,11 +401,11 @@
             scene.add(directionalLight);
 
             // 增强彩色点光源
-            const pointLight1 = new THREE.PointLight(0x667eea, 1.5, 100);
+            const pointLight1 = new THREE.PointLight(0x003399, 1.5, 100);
             pointLight1.position.set(-10, 8, 10);
             scene.add(pointLight1);
 
-            const pointLight2 = new THREE.PointLight(0x764ba2, 1.5, 100);
+            const pointLight2 = new THREE.PointLight(0x0f172a, 1.5, 100);
             pointLight2.position.set(10, 8, -10);
             scene.add(pointLight2);
 
@@ -418,7 +420,7 @@
             // 创建地面
             const groundGeometry = new THREE.PlaneGeometry(30, 30);
             const groundMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x667eea,
+                color: 0xdce8ff,
                 transparent: true,
                 opacity: 0.1
             });
@@ -429,10 +431,10 @@
             scene.add(ground);
 
             // 创建更亮的书本
-            createBrighterBook(0, 0, 0, 0x4CAF50, '数学教程');
-            createBrighterBook(2.5, 0, 0, 0x2196F3, '物理教程');
-            createBrighterBook(-2.5, 0, 0, 0xFF5722, '化学教程');
-            createBrighterBook(0, 0, 2.5, 0x9C27B0, '生物教程');
+            createBrighterBook(0, 0, 0, 0x003399, '数学教程');
+            createBrighterBook(2.5, 0, 0, 0x003399, '物理教程');
+            createBrighterBook(-2.5, 0, 0, 0x0f172a, '化学教程');
+            createBrighterBook(0, 0, 2.5, 0x003399, '生物教程');
 
             // 创建黑板
             createBlackboard(-6, 2, -3);
@@ -555,8 +557,8 @@
             // 屏幕显示 - 更亮的蓝色
             const displayGeometry = new THREE.PlaneGeometry(2.1, 1.3);
             const displayMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x1e88e5,
-                emissive: 0x0d47a1,
+                color: 0x003399,
+                emissive: 0x001f66,
                 emissiveIntensity: 0.3
             });
             const display = new THREE.Mesh(displayGeometry, displayMaterial);
@@ -577,8 +579,8 @@
             // 地球 - 更亮的蓝色
             const earthGeometry = new THREE.SphereGeometry(0.8, 32, 32);
             const earthMaterial = new THREE.MeshLambertMaterial({ 
-                color: 0x4fc3f7,
-                emissive: 0x1a4a57
+                color: 0x003399,
+                emissive: 0x001f66
             });
             const earth = new THREE.Mesh(earthGeometry, earthMaterial);
             earth.castShadow = true;
@@ -674,7 +676,7 @@
         // 创建装饰
         function createDecorations() {
             // 一些悬浮的几何体
-            const colors = [0x00bcd4, 0x3f51b5, 0x9c27b0, 0x4caf50];
+            const colors = [0x003399, 0x003399, 0x0f172a, 0x003399];
             const positions = [[8, 4, -6], [-8, 4, 6], [6, 5, 4], [-6, 5, -4]];
 
             positions.forEach((pos, index) => {
@@ -808,7 +810,7 @@
                     ripple.style.cssText = `
                         position: absolute;
                         border-radius: 50%;
-                        background: rgba(102, 126, 234, 0.3);
+                        background: rgba(0, 51, 153, 0.25);
                         width: ${size}px;
                         height: ${size}px;
                         left: ${x}px;
@@ -843,6 +845,6 @@
             `;
             document.head.appendChild(style);
         });
-    </script>
+    </script> -->
 </body>
 </html>
