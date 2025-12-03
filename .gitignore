@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### 数据库 ###
+data/smartedu.mv.db
+data/*.mv.db
