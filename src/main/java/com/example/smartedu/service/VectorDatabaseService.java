@@ -451,7 +451,8 @@ public class VectorDatabaseService {
             return false;
         }
     }
-    
+
+    // TODO: 向量数据库，知识库内容检索
     /**
      * 同时搜索课程知识库和基础知识库（政策文档作为附加指导）
      */
@@ -478,7 +479,8 @@ public class VectorDatabaseService {
             return new ArrayList<>();
         }
     }
-    
+
+    // TODO: 向量数据库，政策指导内容检索
     /**
      * 专门搜索政策指导内容
      */

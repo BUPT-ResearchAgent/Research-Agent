@@ -107,6 +107,7 @@ public class TeacherKnowledgeController {
         }
     }
 
+    // TODO: 知识库文件上传方法，未被使用！
     /**
      * 上传文档到知识库（无文件存储版本）
      */
@@ -205,6 +206,7 @@ public class TeacherKnowledgeController {
         }
     }
 
+    // TODO: 批量上传文档
     /**
      * 批量上传文档（数据库存储版本）
      */

@@ -60,7 +60,7 @@ public class DeepSeekService {
             "6. 教学设计（以表格形式呈现，包含教学内容、教学手段、时间分配）\n\n" +
             "课程资料内容：\n%s",
             courseName, materialContent
-        );
+        ); // TODO: 修改prompt框架 by sikaiqi at 8/12/2025
 
         // 调用DeepSeek API生成教学大纲
         String outlineResponse = callDeepSeekAPI(prompt);
@@ -91,7 +91,7 @@ public class DeepSeekService {
             (requirements != null && !requirements.trim().isEmpty()) ? 
                 ("特殊教学要求：\n" + requirements + "\n\n") : "",
             materialContent
-        );
+        ); // TODO: 修改prompt框架（包含用户输入要求） by sikaiqi
 
         // 调用DeepSeek API生成教学大纲
         String outlineResponse = callDeepSeekAPI(prompt);
@@ -141,7 +141,7 @@ public class DeepSeekService {
                 ("特殊教学要求：\n" + requirements + "\n\n") : "",
             materialContent,
             totalMinutes
-        );
+        ); // TODO: 修改prompt
 
         // 调用DeepSeek API生成教学大纲
         String outlineResponse = callDeepSeekAPI(prompt);
@@ -293,7 +293,7 @@ public class DeepSeekService {
         String enhancedOutline = enhanceOutlineWithLinkValidation(outlineResponse, courseName);
 
         return enhancedOutline;
-    }
+    } // TODO: 修改prompt（包含RAG搜索行业信息）
     
     /**
      * 生成考试题目
@@ -313,7 +313,7 @@ public class DeepSeekService {
         );
         
         return callDeepSeekAPI(prompt);
-    }
+    } // FIXME: 考试题目，可以去除
     
     /**
      * 根据用户详细设置生成考试题目（集成行业调研）
@@ -1193,7 +1193,8 @@ public class DeepSeekService {
         
         return null;
     }
-    
+
+    // FIXME: 可能修改API部分
     /**
      * 调用DeepSeek API
      */
@@ -1509,7 +1510,8 @@ public class DeepSeekService {
         System.out.println("=== 使用备用的教学改进政策指导 ===");
         return generateFallbackPolicyGuidance();
     }
-    
+
+    // TODO: 政策制导prompt
     /**
      * 生成备用的政策指导内容
      */
@@ -1672,7 +1674,8 @@ public class DeepSeekService {
         
         return content.toString();
     }
-    
+
+    // TODO: 生成教学建议报告prompt
     /**
      * 构建包含政策指导的最终分析要求的prompt
      */
@@ -1769,7 +1772,8 @@ public class DeepSeekService {
             examCount
         );
     }
-    
+
+    // TODO: DeepSeek多轮对话
     /**
      * 调用DeepSeek API进行多轮对话
      */
@@ -2542,6 +2546,7 @@ public class DeepSeekService {
         return callDeepSeekAPI(prompt);
     }
 
+    // TODO: 基于RAG生成教学大纲
     /**
      * 基于RAG搜索结果生成教学大纲（支持政策指导分离）
      */

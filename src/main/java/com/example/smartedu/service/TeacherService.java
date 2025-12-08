@@ -101,7 +101,9 @@ public class TeacherService {
     private CourseTypeDetectionService courseTypeDetectionService;
 
     private static final String SALT = "SmartEdu2024"; // 与UserService保持一致的盐值
-    
+
+
+    // TODO: 教师端，上传资料；改写为上传研究资料
     /**
      * 上传课程资料
      */
@@ -152,7 +154,9 @@ public class TeacherService {
         
         return savedMaterial;
     }
-    
+
+    // TODO: 生成教学大纲
+    // FIXME: 该方法未被使用！
     /**
      * 生成教学大纲
      */
@@ -192,7 +196,7 @@ public class TeacherService {
             return outlineRepository.save(outline);
         }
     }
-    
+
     /**
      * 发布通知
      */
@@ -580,7 +584,8 @@ public class TeacherService {
         }
         materialRepository.deleteById(materialId);
     }
-    
+
+    // TODO: 生成教学大纲，改写该部分，使用RAG
     /**
      * 根据知识库生成教学大纲（使用RAG技术）
      */
@@ -676,7 +681,8 @@ public class TeacherService {
             return new ArrayList<>();
         }
     }
-    
+
+    // TODO: 生成大纲时的查询问题；改写为生成研究方向/本子的查询问题？
     /**
      * 构建大纲生成的查询问题
      */
@@ -744,6 +750,7 @@ public class TeacherService {
         return regenerateOutlineWithKnowledgeBase(outlineId, courseId, requirements, hours);
     }
 
+    // TODO: 重新生成大纲（更新显示的大纲内容）
     /**
      * 重新生成教学大纲（更新当前显示的大纲，使用知识库RAG技术）
      */
@@ -1062,7 +1069,8 @@ public class TeacherService {
             return null;
         }
     }
-    
+
+    // TODO: 生成教学大纲总方法
     /**
      * 智能生成个性化教学大纲（基于学生分类、课程类型和实时热点）
      * 
