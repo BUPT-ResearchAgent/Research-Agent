@@ -1,4 +1,4 @@
-// 智囊WisdomEdu 教师端交互逻辑
+﻿// 智囊WisdomEdu 教师端交互逻辑
 let currentCourses = [];
 let currentExams = [];
 let currentMaterials = [];
@@ -37,9 +37,10 @@ async function initializeTeacherPage() {
 
         // 加载基础数据
         console.log('加载用户信息...');
+        
         await loadCurrentUser();
 
-    loadJobPostings(); // 加载产业信息
+        loadJobPostings(); // 加载产业信息
         // 提前加载课程列表，这样知识库模块就可以使用了
         console.log('初始化时加载课程列表...');
         await loadCourseList();
@@ -1275,7 +1276,7 @@ function displayKnowledgeMastery(masteryData) {
     let contentHtml = `
         <!-- 概览信息条 -->
         <div style="
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #003399;
             color: white;
             padding: 16px 24px;
             border-radius: 12px;
@@ -2413,7 +2414,7 @@ async function loadCourseMaterials() {
                         <input type="checkbox" id="material-${material.id}" value="${material.id}"
                                style="margin-right: 10px; cursor: pointer; width: 12px; height: 12px;" onchange="updateSelectedMaterials()">
                         <label for="material-${material.id}" style="cursor: pointer; flex: 1; margin: 0;">
-                            <i class="fas ${getFileTypeIcon(material.originalName)}" style="margin-right: 8px; color: #5b8cff;"></i>
+                            <i class="fas ${getFileTypeIcon(material.originalName)}" style="margin-right: 8px; color: #003399;"></i>
                             <span style="font-weight: 500;">${material.originalName || material.filename}</span>
                             <span style="color: #7f8c8d; font-size: 12px; margin-left: 8px;">(${formatFileSize(material.fileSize)})</span>
                         </label>
@@ -2881,7 +2882,7 @@ function formatOutlineContent(content) {
 
         // 优化表头样式
         optimizedHtml = optimizedHtml.replace(/<tr([^>]*?)style=['"][^'"]*['"]([^>]*)>/gi,
-            '<tr$1 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; color: white !important; height: 55px !important;"$2>');
+            '<tr$1 style="background: #003399 !important; color: white !important; height: 55px !important;"$2>');
 
         // 优化表头单元格
         optimizedHtml = optimizedHtml.replace(/<th([^>]*)>/gi,
@@ -2910,7 +2911,7 @@ function formatOutlineContent(content) {
         let html = content;
 
         // 优化标题样式
-        html = html.replace(/<h1([^>]*)>/gi, '<h1$1 style="color: #2c3e50; margin: 0 0 32px 0; font-size: 28px; font-weight: 800; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); line-height: 1.4;">');
+        html = html.replace(/<h1([^>]*)>/gi, '<h1$1 style="color: #2c3e50; margin: 0 0 32px 0; font-size: 28px; font-weight: 800; text-align: center; padding: 20px; background: #003399; color: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 51, 153, 0.25); line-height: 1.4;">');
         html = html.replace(/<h2([^>]*)>/gi, '<h2$1 style="color: #2c3e50; margin: 32px 0 20px 0; font-size: 22px; font-weight: 700; border-bottom: 3px solid #3498db; padding-bottom: 12px; position: relative; background: linear-gradient(135deg, #3498db, #2980b9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">');
         html = html.replace(/<h3([^>]*)>/gi, '<h3$1 style="color: #2c3e50; margin: 24px 0 16px 0; font-size: 18px; font-weight: 600; border-left: 4px solid #3498db; padding-left: 12px; background: linear-gradient(90deg, rgba(52, 152, 219, 0.1) 0%, transparent 100%); padding: 8px 12px; border-radius: 4px;">');
         html = html.replace(/<h4([^>]*)>/gi, '<h4$1 style="color: #34495e; margin: 20px 0 12px 0; font-size: 16px; font-weight: 600; padding-left: 8px; border-left: 3px solid #95a5a6;">');
@@ -2957,7 +2958,7 @@ function parseEnhancedMarkdown(markdown) {
     });
 
     // 解析Markdown标题
-    html = html.replace(/^# (.*$)/gim, '<h1 style="color: #2c3e50; margin: 0 0 32px 0; font-size: 28px; font-weight: 800; text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); line-height: 1.4;">$1</h1>');
+    html = html.replace(/^# (.*$)/gim, '<h1 style="color: #2c3e50; margin: 0 0 32px 0; font-size: 28px; font-weight: 800; text-align: center; padding: 20px; background: #003399; color: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 51, 153, 0.25); line-height: 1.4;">$1</h1>');
     html = html.replace(/^## (.*$)/gim, '<h2 style="color: #2c3e50; margin: 32px 0 20px 0; font-size: 22px; font-weight: 700; border-bottom: 3px solid #3498db; padding-bottom: 12px;">$1</h2>');
     html = html.replace(/^### (.*$)/gim, '<h3 style="color: #2c3e50; margin: 24px 0 16px 0; font-size: 18px; font-weight: 600; border-left: 4px solid #3498db; padding-left: 12px; background: linear-gradient(90deg, rgba(52, 152, 219, 0.1) 0%, transparent 100%); padding: 8px 12px; border-radius: 4px;">$1</h3>');
 
@@ -4212,7 +4213,7 @@ function displayGradeList(grades) {
                         <button class="btn btn-sm btn-info" onclick="viewGradeDetail(${grade.id})" title="查看详情">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <button class="btn btn-sm btn-accent" onclick="aiGradeExam(${grade.id})" title="AI批改" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <button class="btn btn-sm btn-accent" onclick="aiGradeExam(${grade.id})" title="AI批改" style="background: #003399;">
                             <i class="fas fa-brain"></i>
                         </button>
                         <button class="btn btn-sm ${publishButtonClass}" onclick="publishSingleGrade(${grade.examId}, ${grade.id}, ${isPublished})" title="${publishButtonTitle}">
@@ -8367,7 +8368,7 @@ async function loadCurrentUser() {
 
         if (!result.success) {
             // 未登录，跳转到主页
-        window.location.href = 'index.html';
+            window.location.href = 'index.html';
             return;
         }
 
@@ -14984,8 +14985,8 @@ function displayGradeQuestions(questions, studentAnswers) {
                                 <button type="button"
                                         class="btn-ai-grade"
                                         onclick="aiGradeQuestion(${question.id}, ${studentAnswer ? studentAnswer.id : 'null'})"
-                                        style="padding: 6px 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.3s ease;"
-                                        onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'"
+                                        style="padding: 6px 12px; background: #003399; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.3s ease;"
+                                        onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(0, 51, 153, 0.25)'"
                                         onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
                                     <i class="fas fa-brain"></i>
                                     <span>AI批改</span>
@@ -16174,7 +16175,7 @@ async function aiGradeQuestion(questionId, studentAnswerId) {
         if (button) {
             button.disabled = false;
             button.innerHTML = '<i class="fas fa-brain"></i> <span>AI批改</span>';
-            button.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            button.style.background = '#003399';
         }
     }
 }
@@ -19630,14 +19631,14 @@ function createTeacherSecurityModal(url) {
             }
 
             .teacher-security-btn-continue {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: #003399;
                 color: white;
                 border: 2px solid transparent;
             }
 
             .teacher-security-btn-continue:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+                box-shadow: 0 4px 15px rgba(0, 51, 153, 0.25);
             }
 
             @media (max-width: 768px) {
@@ -19741,4 +19742,5 @@ window.showTeacherSecurityWarning = showTeacherSecurityWarning;
 window.closeTeacherSecurityModal = closeTeacherSecurityModal;
 window.continueToTeacherUrl = continueToTeacherUrl;
 window.openHotspotOriginalLink = openHotspotOriginalLink;
+
 
