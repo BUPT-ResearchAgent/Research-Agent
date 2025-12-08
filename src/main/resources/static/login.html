@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智囊WisdomEdu - 统一身份认证</title>
+    <title><科研> 智能体</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -12,10 +12,17 @@
             padding: 0;
             box-sizing: border-box;
         }
+
+        :root {
+            --primary: #003399;
+            --primary-contrast: #1a57c7;
+            --primary-dark: #001f66;
+            --primary-rgb: 0, 51, 153;
+        }
         
         body {
             font-family: 'Noto Sans SC', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0f1f3d 0%, var(--primary) 55%, #001a5d 100%);
             min-height: 100vh;
             position: relative;
             overflow-x: hidden;
@@ -158,8 +165,8 @@
         
         .form-input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.1);
             transform: translateY(-2px);
         }
         
@@ -182,15 +189,15 @@
         
         .form-select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.1);
             transform: translateY(-2px);
         }
         
         .login-btn {
             width: 100%;
             padding: 18px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-contrast) 0%, var(--primary) 100%);
             color: white;
             border: none;
             border-radius: 16px;
@@ -199,7 +206,7 @@
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             margin-top: 8px;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 4px 15px rgba(var(--primary-rgb), 0.3);
             position: relative;
             overflow: hidden;
         }
@@ -217,7 +224,7 @@
         
         .login-btn:hover {
             transform: translateY(-3px);
-            box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 8px 30px rgba(var(--primary-rgb), 0.4);
         }
         
         .login-btn:hover::before {
@@ -241,8 +248,8 @@
         }
         
         .login-links a:hover {
-            color: #667eea;
-            background: rgba(102, 126, 234, 0.05);
+            color: var(--primary);
+            background: rgba(var(--primary-rgb), 0.05);
             transform: translateY(-1px);
         }
         
@@ -313,15 +320,15 @@
         }
         
         .register-form .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--primary-contrast) 0%, var(--primary) 100%);
             color: white;
             border: none;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 4px 15px rgba(var(--primary-rgb), 0.3);
         }
         
         .register-form .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 8px 25px rgba(var(--primary-rgb), 0.4);
         }
         
         .register-form .btn-secondary {
@@ -357,8 +364,8 @@
         }
         
         .avatar-upload-container:hover {
-            border-color: #667eea;
-            background: #f0f4ff;
+            border-color: var(--primary);
+            background: rgba(var(--primary-rgb), 0.04);
         }
         
         .avatar-preview {
@@ -387,7 +394,7 @@
         
         .btn-upload-avatar {
             padding: 8px 16px;
-            background: #667eea;
+            background: var(--primary);
             color: white;
             border: none;
             border-radius: 6px;
@@ -400,7 +407,7 @@
         }
         
         .btn-upload-avatar:hover {
-            background: #5a67d8;
+            background: var(--primary-dark);
             transform: translateY(-1px);
         }
         
@@ -507,7 +514,7 @@
                     <i class="fas fa-graduation-cap"></i>
                 </div>
                 <div class="logo-text">
-                    <h1>智囊WisdomEdu</h1>
+                    <h1>&lt;科研&gt; 智能体</h1>
                     <p>统一身份认证</p>
                 </div>
             </div>
