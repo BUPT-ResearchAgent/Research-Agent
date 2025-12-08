@@ -144,7 +144,8 @@ public class KnowledgeBaseService {
         
         return result;
     }
-    
+
+    // TODO: 处理文档等内容，保存到数据库，向量化存储到Milvus
     /**
      * 批量处理课程文档
      */
@@ -176,7 +177,8 @@ public class KnowledgeBaseService {
         
         return batchResult;
     }
-    
+
+    // TODO: 知识库检索
     /**
      * 搜索知识库（包含基础知识库和课程知识库）
      */

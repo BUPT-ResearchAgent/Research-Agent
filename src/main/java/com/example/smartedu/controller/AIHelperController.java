@@ -142,7 +142,8 @@ public class AIHelperController {
             return ApiResponse.error("获取课程资料失败: " + e.getMessage());
         }
     }
-    
+
+    // FIXME: 调用AI助手方法，未被使用！
     /**
      * 发送消息给AI助手
      */
