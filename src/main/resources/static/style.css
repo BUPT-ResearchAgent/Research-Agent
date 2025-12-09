@@ -25,7 +25,11 @@
 }
 
 body {
-    background: #f7f9fb;
+    background:
+        radial-gradient(circle at 18% 22%, #eef2ff 0%, #f7f9fb 32%, transparent 55%),
+        radial-gradient(circle at 82% 12%, #e9f2ff 0%, #f7f9fb 32%, transparent 55%),
+        linear-gradient(120deg, #f9fbff 0%, #eef3ff 100%);
+    background-attachment: fixed;
     color: #333;
     overflow-x: hidden;
     font-size: 20px; /* 再次增加全局字体大小 */
@@ -339,14 +343,14 @@ body {
     left: 0;
     bottom: 0;
     width: var(--sidebar-width);
-    background: #fff;
+    background: transparent;
     color: #111;
     overflow-y: auto;
     transition: var(--transition);
     z-index: 90;
-    box-shadow: 4px 0 18px rgba(0,0,0,0.08);
-    border-right: 1px solid #e5eaf2;
-    backdrop-filter: blur(8px);
+    box-shadow: none;
+    border-right: none;
+    backdrop-filter: none;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -452,12 +456,41 @@ body {
 .content {
     margin-top: 0;
     margin-left: var(--sidebar-width);
-    padding: 24px 20px 0 20px;
+    padding: 36px 32px 48px 32px;
     min-height: 100vh;
     transition: var(--transition);
     background: transparent;
     max-width: 100%;
     overflow-x: hidden;
+}
+
+.page-surface {
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 14px 36px rgba(0, 51, 153, 0.08);
+    border: 1px solid rgba(0, 51, 153, 0.06);
+    padding: 32px 28px 40px;
+    min-height: calc(100vh - 96px);
+    position: relative;
+}
+
+.page-surface .content-header,
+.page-surface .stat-card,
+.page-surface .recent-courses-card,
+.page-surface .knowledge-mastery-card,
+.page-surface .content-card {
+    background: #fff;
+    box-shadow: none;
+    border: 1px solid #e6eaf2;
+    backdrop-filter: none;
+}
+
+.page-surface .stat-card:hover,
+.page-surface .recent-courses-card:hover,
+.page-surface .knowledge-mastery-card:hover,
+.page-surface .content-card:hover {
+    box-shadow: 0 6px 18px rgba(0, 51, 153, 0.10);
+    border-color: #dfe4ef;
 }
 
 .content-header {
@@ -579,7 +612,7 @@ body {
     }
 
     .content {
-        padding: 32px 40px 0 40px;
+        padding: 48px 52px 64px 52px;
     }
 
     /* 超大屏幕下独立模块调整 */
@@ -635,7 +668,11 @@ body {
         grid-template-columns: 1fr;
     }
     .content {
-        padding: 24px 16px 0 16px;
+        padding: 24px 16px 32px 16px;
+    }
+    .page-surface {
+        padding: 24px 18px 32px;
+        border-radius: 18px;
     }
     .stats-container {
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
