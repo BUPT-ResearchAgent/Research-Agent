@@ -25,7 +25,9 @@
 }
 
 body {
-    background: #f7f9fb;
+    background:
+        linear-gradient(135deg, #f9fafc 0%, #f3f4f6 45%, #f7f8fa 100%);
+    background-attachment: fixed;
     color: #333;
     overflow-x: hidden;
     font-size: 20px; /* 再次增加全局字体大小 */
@@ -339,14 +341,14 @@ body {
     left: 0;
     bottom: 0;
     width: var(--sidebar-width);
-    background: #fff;
+    background: transparent;
     color: #111;
     overflow-y: auto;
     transition: var(--transition);
     z-index: 90;
-    box-shadow: 4px 0 18px rgba(0,0,0,0.08);
-    border-right: 1px solid #e5eaf2;
-    backdrop-filter: blur(8px);
+    box-shadow: none;
+    border-right: none;
+    backdrop-filter: none;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -368,7 +370,7 @@ body {
 
 .menu-title {
     padding: 20px 20px 10px;
-    font-size: 22px; /* 再次增大菜单标题字体 */
+    font-size: 20px;
     font-weight: 700;
     color: #111;
     text-transform: uppercase;
@@ -384,7 +386,7 @@ body {
     font-weight: 500;
     border-radius: 8px;
     margin: 2px 8px;
-    font-size: 16px;
+    font-size: 15px;
     color: #111;
 }
 
@@ -394,8 +396,8 @@ body {
 }
 
 .menu-item.active, .submenu-item.active {
-    background: #003399;
-    color: #fff;
+    background: rgba(0, 51, 153, 0.08);
+    color: #003399;
     box-shadow: none;
 }
 
@@ -403,12 +405,12 @@ body {
     margin-right: 12px;
     width: 20px;
     text-align: center;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .menu-item .arrow {
     margin-left: auto;
-    font-size: 12px;
+    font-size: 11px;
     transition: transform 0.3s ease;
 }
 
@@ -428,7 +430,7 @@ body {
     padding: 10px 20px 10px 50px;
     cursor: pointer;
     transition: var(--transition);
-    font-size: 18px; /* 增大子菜单字体 */
+    font-size: 16px;
     display: flex;
     align-items: center;
     color: #111;
@@ -438,7 +440,7 @@ body {
     background-color: rgba(0, 51, 153, 0.08);
 }
 
-.submenu-item.active::before {
+/* .submenu-item.active::before {
     content: "";
     display: inline-block;
     width: 6px;
@@ -446,18 +448,47 @@ body {
     border-radius: 50%;
     background-color: var(--accent-color);
     margin-right: 10px;
-}
+} */
 
 /* 主要内容区域 */
 .content {
     margin-top: 0;
     margin-left: var(--sidebar-width);
-    padding: 24px 20px 0 20px;
+    padding: 36px 0 48px 32px;
     min-height: 100vh;
     transition: var(--transition);
     background: transparent;
     max-width: 100%;
     overflow-x: hidden;
+}
+
+.page-surface {
+    background: #fff;
+    border-radius: 22px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e7e9ee;
+    padding: 32px 28px 40px;
+    min-height: calc(100vh - 96px);
+    position: relative;
+}
+
+.page-surface .content-header,
+.page-surface .stat-card,
+.page-surface .recent-courses-card,
+.page-surface .knowledge-mastery-card,
+.page-surface .content-card {
+    background: #fff;
+    box-shadow: none;
+    border: 1px solid #e6eaf2;
+    backdrop-filter: none;
+}
+
+.page-surface .stat-card:hover,
+.page-surface .recent-courses-card:hover,
+.page-surface .knowledge-mastery-card:hover,
+.page-surface .content-card:hover {
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+    border-color: #e2e5ec;
 }
 
 .content-header {
@@ -476,7 +507,7 @@ body {
 
 .page-title {
     color: #003399;
-    font-size: 2.4rem; /* 增大页面标题字体 */
+    font-size: 2.1rem;
     font-weight: 800;
     letter-spacing: 1px;
     text-shadow: 0 2px 8px #dce3f433;
@@ -525,7 +556,7 @@ body {
 .stat-title {
     color: #111;
     font-weight: 700;
-    font-size: 1.3rem; /* 增大统计标题字体 */
+    font-size: 1.15rem;
 }
 
 .stat-icon {
@@ -542,7 +573,7 @@ body {
 
 .stat-value {
     color: #111;
-    font-size: 2.4rem; /* 增大统计数值字体 */
+    font-size: 2.1rem;
     font-weight: 800;
     margin-bottom: 6px;
 }
@@ -579,7 +610,7 @@ body {
     }
 
     .content {
-        padding: 32px 40px 0 40px;
+        padding: 48px 0 64px 52px;
     }
 
     /* 超大屏幕下独立模块调整 */
@@ -635,7 +666,11 @@ body {
         grid-template-columns: 1fr;
     }
     .content {
-        padding: 24px 16px 0 16px;
+        padding: 24px 0 32px 16px;
+    }
+    .page-surface {
+        padding: 24px 18px 32px;
+        border-radius: 18px;
     }
     .stats-container {
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -829,7 +864,7 @@ body {
 
 .card-header {
     color: #111;
-    font-size: 1.6rem; /* 增大卡片标题字体 */
+    font-size: 1.35rem;
     font-weight: 700;
     margin-bottom: 18px;
     padding-bottom: 15px;
