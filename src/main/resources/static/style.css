@@ -372,7 +372,7 @@ body {
 
 .menu-title {
     padding: 20px 20px 10px;
-    font-size: 22px; /* 再次增大菜单标题字体 */
+    font-size: 20px;
     font-weight: 700;
     color: #111;
     text-transform: uppercase;
@@ -388,7 +388,7 @@ body {
     font-weight: 500;
     border-radius: 8px;
     margin: 2px 8px;
-    font-size: 16px;
+    font-size: 15px;
     color: #111;
 }
 
@@ -398,8 +398,8 @@ body {
 }
 
 .menu-item.active, .submenu-item.active {
-    background: #003399;
-    color: #fff;
+    background: rgba(0, 51, 153, 0.08);
+    color: #003399;
     box-shadow: none;
 }
 
@@ -407,12 +407,12 @@ body {
     margin-right: 12px;
     width: 20px;
     text-align: center;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .menu-item .arrow {
     margin-left: auto;
-    font-size: 12px;
+    font-size: 11px;
     transition: transform 0.3s ease;
 }
 
@@ -432,7 +432,7 @@ body {
     padding: 10px 20px 10px 50px;
     cursor: pointer;
     transition: var(--transition);
-    font-size: 18px; /* 增大子菜单字体 */
+    font-size: 16px;
     display: flex;
     align-items: center;
     color: #111;
@@ -442,7 +442,7 @@ body {
     background-color: rgba(0, 51, 153, 0.08);
 }
 
-.submenu-item.active::before {
+/* .submenu-item.active::before {
     content: "";
     display: inline-block;
     width: 6px;
@@ -450,7 +450,7 @@ body {
     border-radius: 50%;
     background-color: var(--accent-color);
     margin-right: 10px;
-}
+} */
 
 /* 主要内容区域 */
 .content {
