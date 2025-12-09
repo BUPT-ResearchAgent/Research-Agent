@@ -26,9 +26,7 @@
 
 body {
     background:
-        radial-gradient(circle at 18% 22%, #eef2ff 0%, #f7f9fb 32%, transparent 55%),
-        radial-gradient(circle at 82% 12%, #e9f2ff 0%, #f7f9fb 32%, transparent 55%),
-        linear-gradient(120deg, #f9fbff 0%, #eef3ff 100%);
+        linear-gradient(135deg, #f9fafc 0%, #f3f4f6 45%, #f7f8fa 100%);
     background-attachment: fixed;
     color: #333;
     overflow-x: hidden;
@@ -456,7 +454,7 @@ body {
 .content {
     margin-top: 0;
     margin-left: var(--sidebar-width);
-    padding: 36px 32px 48px 32px;
+    padding: 36px 0 48px 32px;
     min-height: 100vh;
     transition: var(--transition);
     background: transparent;
@@ -467,8 +465,8 @@ body {
 .page-surface {
     background: #fff;
     border-radius: 22px;
-    box-shadow: 0 14px 36px rgba(0, 51, 153, 0.08);
-    border: 1px solid rgba(0, 51, 153, 0.06);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e7e9ee;
     padding: 32px 28px 40px;
     min-height: calc(100vh - 96px);
     position: relative;
@@ -489,8 +487,8 @@ body {
 .page-surface .recent-courses-card:hover,
 .page-surface .knowledge-mastery-card:hover,
 .page-surface .content-card:hover {
-    box-shadow: 0 6px 18px rgba(0, 51, 153, 0.10);
-    border-color: #dfe4ef;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+    border-color: #e2e5ec;
 }
 
 .content-header {
@@ -509,7 +507,7 @@ body {
 
 .page-title {
     color: #003399;
-    font-size: 2.4rem; /* 增大页面标题字体 */
+    font-size: 2.1rem;
     font-weight: 800;
     letter-spacing: 1px;
     text-shadow: 0 2px 8px #dce3f433;
@@ -558,7 +556,7 @@ body {
 .stat-title {
     color: #111;
     font-weight: 700;
-    font-size: 1.3rem; /* 增大统计标题字体 */
+    font-size: 1.15rem;
 }
 
 .stat-icon {
@@ -575,7 +573,7 @@ body {
 
 .stat-value {
     color: #111;
-    font-size: 2.4rem; /* 增大统计数值字体 */
+    font-size: 2.1rem;
     font-weight: 800;
     margin-bottom: 6px;
 }
@@ -612,7 +610,7 @@ body {
     }
 
     .content {
-        padding: 48px 52px 64px 52px;
+        padding: 48px 0 64px 52px;
     }
 
     /* 超大屏幕下独立模块调整 */
@@ -668,7 +666,7 @@ body {
         grid-template-columns: 1fr;
     }
     .content {
-        padding: 24px 16px 32px 16px;
+        padding: 24px 0 32px 16px;
     }
     .page-surface {
         padding: 24px 18px 32px;
@@ -866,7 +864,7 @@ body {
 
 .card-header {
     color: #111;
-    font-size: 1.6rem; /* 增大卡片标题字体 */
+    font-size: 1.35rem;
     font-weight: 700;
     margin-bottom: 18px;
     padding-bottom: 15px;
